@@ -10,6 +10,8 @@
 
 use super::Value;
 
+use std::collections::HashSet;
+
 /// Blanket implementation of a solver for all tree-like games.
 pub mod tree;
 
@@ -54,7 +56,7 @@ pub trait TreeSolveable {
 /// Returns the most favorable value with the least remoteness in the case of
 /// a possible win or tie, or with the greatest remoteness in the case of an
 /// inevitable loss.
-pub fn choose_value(available: Vec<Value>) -> Value {
+pub fn choose_value(available: HashSet<Value>) -> Value {
     let mut w_rem = u32::MAX;
     let mut t_rem = u32::MAX;
     let mut l_rem = 0;

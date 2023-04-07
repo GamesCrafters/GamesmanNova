@@ -10,7 +10,7 @@
 use super::{choose_value, AcyclicallySolvable};
 use crate::archetypes::{AcyclicGame, Game, TreeGame};
 use crate::{State, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /* IMPLEMENTATIONS */
 
@@ -36,16 +36,15 @@ where
     if let Some(out) = game.value(state) {
         return out;
     }
-    let mut child_values: Vec<Value> = Vec::new();
-    for mv in game.generate_moves(state) {
-        let child = game.play(state, mv);
-        if let Some(out) = seen.get(&child).copied() {
-            child_values.push(out);
+    let mut available: HashSet<Value> = HashSet::new();
+    for state in game.children(state) {
+        if let Some(out) = seen.get(&state).copied() {
+            available.insert(out);
         } else {
-            let out = traverse(child, game, seen);
-            child_values.push(out);
-            seen.insert(child, out);
+            let out = traverse(state, game, seen);
+            available.insert(out);
+            seen.insert(state, out);
         }
     }
-    choose_value(child_values)
+    choose_value(available)
 }

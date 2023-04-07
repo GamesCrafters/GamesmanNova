@@ -16,21 +16,20 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::{Move, State, Value};
+use crate::{State, Value};
 use std::collections::HashSet;
 
 /* TRAITS */
 
 /// A generic deterministic finite-state game or puzzle.
 pub trait Game {
-    /// Returns the state of the game from which to base a solve.
-    fn state(&self) -> State;
-    /// Returns the state of the game after performing `mv` move on `state`.
-    fn play(&self, state: State, mv: Move) -> State;
-    /// Returns a set of possible moves that can be made from `state`.
-    fn generate_moves(&self, state: State) -> HashSet<Move>;
+    /// Returns the set of possible states one move away from `state`.
+    fn children(&self, state: State) -> HashSet<State>;
     /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
     fn value(&self, state: State) -> Option<Value>;
+    /// Returns the state of the game from which to base or continue a solve
+    /// or an analysis.
+    fn state(&self) -> State;
 }
 
 /// One of the simplest types of game. Here, every ramification of the game is
