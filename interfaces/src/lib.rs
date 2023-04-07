@@ -10,7 +10,7 @@
 
 /// All terminal-related modes of interaction, including a command line
 /// interface (CLI) and a terminal user interface (TUI).
-pub mod command;
+pub mod terminal;
 
 /// All non-terminal related graphical means of user interaction.
 pub mod graphical;

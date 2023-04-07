@@ -9,3 +9,8 @@
 //! 
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+/// Defines GamesmanNova's command line interface.
+pub mod cli;
+
+/// Defines GamesmanNova's terminal user interface.
+pub mod tui;

@@ -39,7 +39,7 @@ pub trait CyclicallySolvable {
 
 /// Indicates that a game's state graph can be partitioned into independent
 /// connected components and solved taking advantage of this.
-pub trait TieredSolvable {
+pub trait TierSolvable {
     /// Returns the value of an arbitrary state of the game.
     fn tiered_solve(&self) -> Value;
 }
