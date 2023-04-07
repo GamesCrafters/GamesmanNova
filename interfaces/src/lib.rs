@@ -1,11 +1,11 @@
 #![warn(missing_docs)]
 
 //! # GamesmanNova Interfaces Library
-//! 
+//!
 //! `interfaces` provides all the available ways to interact with GamesmanNova.
-//! 
+//!
 //! #### Authorship
-//! 
+//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 /// All terminal-related modes of interaction, including a command line

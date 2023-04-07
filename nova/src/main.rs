@@ -3,10 +3,10 @@
 //! # GamesmanNova Executioner
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
-//! `interfaces` to provide an entry point to all the functionality of the 
+//! `interfaces` to provide an entry point to all the functionality of the
 //! project.
-//! 
-//! Instead of this project's modules having an emphasized many-to-many 
+//!
+//! Instead of this project's modules having an emphasized many-to-many
 //! relationship, greater weight is placed on making things fit into this
 //! module as a centralized point.
 //!
@@ -30,10 +30,10 @@ fn main() {
     match &cli.command {
         Commands::Tui(args) => {
             tui(args);
-        },
+        }
         Commands::Solve(args) => {
             solve(args);
-        },
+        }
         Commands::Analyze(args) => {
             analyze(args);
         }
@@ -43,14 +43,8 @@ fn main() {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs) {
+fn tui(args: &TuiArgs) {}
 
-}
+fn solve(args: &SolveArgs) {}
 
-fn solve(args: &SolveArgs) {
-
-}
-
-fn analyze(args: &AnalyzeArgs) {
-
-}
+fn analyze(args: &AnalyzeArgs) {}

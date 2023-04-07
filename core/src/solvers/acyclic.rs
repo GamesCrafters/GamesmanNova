@@ -1,14 +1,14 @@
 //! # Acyclic Solver Module
-//! 
+//!
 //! This module implements an acyclic solver for all applicable types of games
 //! through a blanket implementation of the `AcyclicallySolvable` trait.
-//! 
+//!
 //! #### Authorship
-//! 
+//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::{choose_value, AcyclicallySolvable};
-use crate::archetypes::{Game, AcyclicGame, TreeGame};
+use crate::archetypes::{AcyclicGame, Game, TreeGame};
 use crate::{State, Value};
 use std::collections::HashMap;
 
@@ -28,7 +28,7 @@ where
 
 /* HELPER FUNCTIONS */
 
-fn traverse<G>(state: State, game: &G, seen: &mut HashMap<State, Value>) -> Value 
+fn traverse<G>(state: State, game: &G, seen: &mut HashMap<State, Value>) -> Value
 where
     G: Game + AcyclicGame,
     G: Game + TreeGame,
