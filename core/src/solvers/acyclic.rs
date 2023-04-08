@@ -20,14 +20,16 @@ where
     G: Game + TreeGame,
 {
     fn acyclic_solve(&self) -> Value {
-        let initial_state = self.state();
+        let default_entry = self.state();
         let mut seen: HashMap<State, Value> = HashMap::new();
-        traverse(initial_state, self, &mut seen)
+        traverse(default_entry, self, &mut seen)
     }
 }
 
 /* HELPER FUNCTIONS */
 
+/// Recursive algorithm for traversing a game with DAG-structured states and
+/// returning the value of the entry point.
 fn traverse<G>(state: State, game: &G, seen: &mut HashMap<State, Value>) -> Value
 where
     G: Game + AcyclicGame,

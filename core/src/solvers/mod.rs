@@ -24,7 +24,7 @@ pub mod tiered;
 /// Blanket implementation of a solver for all cyclic games.
 pub mod cyclic;
 
-/* TRAIT */
+/* TRAITS */
 
 /// Indicates that a game is solvable using methods only available to games
 /// whose state graphs are acyclic (which includes tree games).

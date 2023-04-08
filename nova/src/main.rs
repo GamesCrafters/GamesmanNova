@@ -30,10 +30,10 @@ fn main() {
     match &cli.command {
         Commands::Tui(args) => {
             tui(args);
-        }
+        },
         Commands::Solve(args) => {
             solve(args);
-        }
+        },
         Commands::Analyze(args) => {
             analyze(args);
         }
@@ -45,6 +45,8 @@ fn main() {
 
 fn tui(args: &TuiArgs) {}
 
-fn solve(args: &SolveArgs) {}
+fn solve(args: &SolveArgs) {
+    
+}
 
 fn analyze(args: &AnalyzeArgs) {}
