@@ -38,7 +38,7 @@ It will be possible to start taking care of these tasks concurrently, as most in
 
 ### Why?
 
-While I like C, it is minimal and unergonomic. Sometimes you have to realize that your system is not embedded, and that you can afford yourself certain luxuries. And sometimes you have to realize that you would not even have to pay that much to have them.
+While I like C, it is minimal and unergonomic. Sometimes you have to realize that your system is not embedded, and that you can afford yourself certain luxuries. And sometimes you have to realize that even if your system were embedded, you should still use Rust.
 
 Rust makes it easier to:
 
