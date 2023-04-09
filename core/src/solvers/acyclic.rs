@@ -8,17 +8,20 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::{choose_value, AcyclicallySolvable};
-use crate::archetypes::{AcyclicGame, Game, TreeGame};
+use crate::archetypes::Game;
 use crate::{State, Value};
 use std::collections::{HashMap, HashSet};
 
-/* IMPLEMENTATIONS */
+/* HYPER BLANKET IMPLEMENTATION */
 
-impl<G> AcyclicallySolvable for G
-where
-    G: Game + AcyclicGame,
-    G: Game + TreeGame,
-{
+/// Indicates that a game has the capacity to perform an acyclic solve on itself.
+pub trait AcyclicSolve {
+    /// Returns the value of an arbitrary state of the game.
+    fn acyclic_solve(&self) -> Value;
+}
+
+/// Blanket implementation of the acyclic solver for all acyclically solvable games.
+impl<G: AcyclicallySolvable> AcyclicSolve for G {
     fn acyclic_solve(&self) -> Value {
         let default_entry = self.state();
         let mut seen: HashMap<State, Value> = HashMap::new();
@@ -32,8 +35,8 @@ where
 /// returning the value of the entry point.
 fn traverse<G>(state: State, game: &G, seen: &mut HashMap<State, Value>) -> Value
 where
-    G: Game + AcyclicGame,
-    G: Game + TreeGame,
+    G: Game,
+    G: AcyclicallySolvable,
 {
     if let Some(out) = game.value(state) {
         return out;

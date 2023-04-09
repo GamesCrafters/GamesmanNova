@@ -9,7 +9,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::Value;
-
+use crate::archetypes::Game;
 use std::collections::HashSet;
 
 /// Blanket implementation of a solver for all tree-like games.
@@ -24,34 +24,40 @@ pub mod tiered;
 /// Blanket implementation of a solver for all cyclic games.
 pub mod cyclic;
 
-/* TRAITS */
+/* SOLVING MARKER TRAITS */
 
 /// Indicates that a game is solvable using methods only available to games
 /// whose state graphs are acyclic (which includes tree games).
-pub trait AcyclicallySolvable {
-    /// Returns the value of an arbitrary state of the game.
-    fn acyclic_solve(&self) -> Value;
+pub trait AcyclicallySolvable
+where
+    Self: Game,
+{
 }
 
 /// Indicates that a game is solvable in a generally inefficient manner.
-pub trait CyclicallySolvable {
-    /// Returns the value of an arbitrary state of the game.
-    fn cyclic_solve(&self) -> Value;
+pub trait CyclicallySolvable
+where
+    Self: Game,
+{
 }
 
 /// Indicates that a game's state graph can be partitioned into independent
 /// connected components and solved taking advantage of this.
-pub trait TierSolvable {
-    /// Returns the value of an arbitrary state of the game.
-    fn tiered_solve(&self) -> Value;
+pub trait TierSolvable
+where
+    Self: Game,
+{
 }
 
 /// Indicates that a game is solvable using methods only available to games
 /// with unique move paths to all states.
-pub trait TreeSolveable {
-    /// Returns the value of an arbitrary state of the game.
-    fn tree_solve(&self) -> Value;
+pub trait TreeSolvable
+where
+    Self: Game,
+{
 }
+
+/* HELPER FUNCTIONS */
 
 /// Returns the most favorable value with the least remoteness in the case of
 /// a possible win or tie, or with the greatest remoteness in the case of an

@@ -16,7 +16,10 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::{State, Value};
+use crate::{
+    solvers::{AcyclicallySolvable, CyclicallySolvable, TierSolvable, TreeSolvable},
+    State, Value,
+};
 use std::collections::HashSet;
 
 /* TRAITS */
@@ -30,29 +33,66 @@ pub trait Game {
     /// Returns the state of the game from which to base or continue a solve
     /// or an analysis.
     fn state(&self) -> State;
+    /// Returns all the solvers available to solve the game in order of
+    /// overall efficiency.
+    fn solvers(&self) -> Vec<fn(&dyn Game) -> Value>;
 }
 
 /// One of the simplest types of game. Here, every ramification of the game is
 /// mutually exclusive of all others -- if you choose to make a move from many,
 /// there is no way of getting to a state as if you had made another.
-pub trait TreeGame {}
+pub trait TreeGame
+where
+    Self: Game,
+    Self: AcyclicallySolvable,
+    Self: CyclicallySolvable,
+    Self: TierSolvable,
+    Self: TreeSolvable,
+{
+}
 
 /// In acyclic games, it is possible to get to a state in more than one way.
 /// They are generally all
-pub trait AcyclicGame {}
+pub trait AcyclicGame
+where
+    Self: Game,
+    Self: AcyclicallySolvable,
+    Self: CyclicallySolvable,
+    Self: TierSolvable,
+{
+}
 
 /// In a tiered game, you can choose a way to split up the game state graph
 /// into connected components such that they themselves form an acyclic graph,
 /// which has significant implications for solving algorithms.
-pub trait TieredGame {}
+pub trait TieredGame
+where
+    Self: Game,
+    Self: CyclicallySolvable,
+    Self: TierSolvable,
+{
+}
 
 /// In cyclic games, there are no guarantees as to whether or not you can
 /// partition the state graph into tiers, reach each state uniquely, or have
 /// all possible move sequences be finite.
-pub trait CyclicGame {}
+pub trait CyclicGame
+where
+    Self: Game,
+    Self: CyclicallySolvable,
+{
+}
 
 /// A relatively small game.
-pub trait SmallGame {}
+pub trait SmallGame
+where
+    Self: Game,
+{
+}
 
 /// A relatively large game.
-pub trait LargeGame {}
+pub trait LargeGame
+where
+    Self: Game,
+{
+}

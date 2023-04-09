@@ -14,6 +14,8 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+pub mod utils;
+
 /// This is a list of the games implemented in GamesmanNova, by their names.
 pub const IMPLEMENTED_GAMES: [&str; 1] = ["example"];
 
