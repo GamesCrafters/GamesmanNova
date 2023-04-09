@@ -26,16 +26,19 @@ use std::collections::HashSet;
 
 /// A generic deterministic finite-state game or puzzle.
 pub trait Game {
+    /// Sets up the necessary infrastructure to run the game and returns
+    /// an instance of itself.
+    fn new() -> Self;
+    /// Returns the state of the game from which to base or continue a solve
+    /// or an analysis.
+    fn state(&self) -> State;
     /// Returns the set of possible states one move away from `state`.
     fn children(&self, state: State) -> HashSet<State>;
     /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
     fn value(&self, state: State) -> Option<Value>;
-    /// Returns the state of the game from which to base or continue a solve
-    /// or an analysis.
-    fn state(&self) -> State;
     /// Returns all the solvers available to solve the game in order of
     /// overall efficiency.
-    fn solvers(&self) -> Vec<fn(&dyn Game) -> Value>;
+    fn solvers(&self) -> Vec<fn(&Self) -> Value>;
 }
 
 /// One of the simplest types of game. Here, every ramification of the game is
