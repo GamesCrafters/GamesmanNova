@@ -51,6 +51,6 @@ Rust makes it easier to:
 - Debug your code (the rust compiler gives incredibly helpful error messages)
 - Write code in a functional paradigm (e.g. `for <item> in <iterator>` vs `for (int i = 0; i < LIMIT; i++) { typeptr[i] ..........`)
 - Test your code (built in doc tests, unit tests, and integration tests, `cargo test`, etc.)
-- Get and distribute packages (`cargo add`, [crates.io](crates.io), standard manifests, etc.)
+- Get and distribute packages (`cargo add`, [crates.io](https://crates.io/), standard manifests, etc.)
 - Ask for help and get new features (incredibly active community working on growing the language)
 - ...and more!
