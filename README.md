@@ -54,3 +54,5 @@ Rust makes it easier to:
 - Get and distribute packages (`cargo add`, [crates.io](https://crates.io/), standard manifests, etc.)
 - Ask for help and get new features (incredibly active community working on growing the language)
 - ...and more!
+
+-- Max Fierro, Sun Apr 9, 2023
