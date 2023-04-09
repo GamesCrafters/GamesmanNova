@@ -37,8 +37,8 @@ pub trait Game {
     /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
     fn value(&self, state: State) -> Option<Value>;
     /// Returns all the solvers available to solve the game in order of
-    /// overall efficiency.
-    fn solvers(&self) -> Vec<fn(&Self) -> Value>;
+    /// overall efficiency, including their interface names.
+    fn solvers(&self) -> Vec<(&'static str, fn(&Self) -> Value)>;
 }
 
 /// One of the simplest types of game. Here, every ramification of the game is

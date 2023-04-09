@@ -12,12 +12,19 @@ use crate::archetypes::Game;
 use crate::{State, Value};
 use std::collections::{HashMap, HashSet};
 
-/* HYPER BLANKET IMPLEMENTATION */
+/* SOLVER NAME */
+
+/// Defines this solver's name for GamesmanNova's interfaces.
+static SOLVER_NAME: &str = "acyclic";
+
+/* COMFORTER IMPLEMENTATION */
 
 /// Indicates that a game has the capacity to perform an acyclic solve on itself.
 pub trait AcyclicSolve {
     /// Returns the value of an arbitrary state of the game.
     fn acyclic_solve(&self) -> Value;
+    /// Returns the name of this solver type.
+    fn acyclic_solver_name() -> &'static str;
 }
 
 /// Blanket implementation of the acyclic solver for all acyclically solvable games.
@@ -26,6 +33,10 @@ impl<G: AcyclicallySolvable> AcyclicSolve for G {
         let default_entry = self.state();
         let mut seen: HashMap<State, Value> = HashMap::new();
         traverse(default_entry, self, &mut seen)
+    }
+
+    fn acyclic_solver_name() -> &'static str {
+        SOLVER_NAME
     }
 }
 
