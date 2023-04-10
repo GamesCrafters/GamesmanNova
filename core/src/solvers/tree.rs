@@ -22,7 +22,7 @@ pub trait TreeSolve {
     /// Returns the value of an arbitrary state of the game.
     fn tree_solve(&self) -> Value;
     /// Returns the name of this solver type.
-    fn tree_solver_name() -> &'static str;
+    fn tree_solver_name(&self) -> &'static str;
 }
 
 /// Blanket implementation of the tree solver for all tree solvable games.
@@ -32,7 +32,7 @@ impl<G: TreeSolvable> TreeSolve for G {
         Value::Win(0)
     }
 
-    fn tree_solver_name() -> &'static str {
+    fn tree_solver_name(&self) -> &'static str {
         SOLVER_NAME
     }
 }

@@ -11,3 +11,4 @@ core = { path = "../core" }
 games = { path = "../games" }
 interfaces = { path = "../interfaces" }
 exitcode = "1.1.2"
+strsim = "0.10.0"

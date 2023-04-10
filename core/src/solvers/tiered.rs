@@ -22,7 +22,7 @@ pub trait TierSolve {
     /// Returns the value of an arbitrary state of the game.
     fn tier_solve(&self) -> Value;
     /// Returns the name of this solver type.
-    fn tier_solver_name() -> &'static str;
+    fn tier_solver_name(&self) -> &'static str;
 }
 
 /// Blanket implementation of the tier solver for all tier solvable games.
@@ -32,7 +32,7 @@ impl<G: TierSolvable> TierSolve for G {
         Value::Win(0)
     }
 
-    fn tier_solver_name() -> &'static str {
+    fn tier_solver_name(&self) -> &'static str {
         SOLVER_NAME
     }
 }

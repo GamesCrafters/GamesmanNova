@@ -24,7 +24,7 @@ pub trait AcyclicSolve {
     /// Returns the value of an arbitrary state of the game.
     fn acyclic_solve(&self) -> Value;
     /// Returns the name of this solver type.
-    fn acyclic_solver_name() -> &'static str;
+    fn acyclic_solver_name(&self) -> &'static str;
 }
 
 /// Blanket implementation of the acyclic solver for all acyclically solvable games.
@@ -35,7 +35,7 @@ impl<G: AcyclicallySolvable> AcyclicSolve for G {
         traverse(default_entry, self, &mut seen)
     }
 
-    fn acyclic_solver_name() -> &'static str {
+    fn acyclic_solver_name(&self) -> &'static str {
         SOLVER_NAME
     }
 }

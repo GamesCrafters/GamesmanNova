@@ -26,9 +26,6 @@ use std::collections::HashSet;
 
 /// A generic deterministic finite-state game or puzzle.
 pub trait Game {
-    /// Sets up the necessary infrastructure to run the game and returns
-    /// an instance of itself.
-    fn new() -> Self;
     /// Returns the state of the game from which to base or continue a solve
     /// or an analysis.
     fn state(&self) -> State;

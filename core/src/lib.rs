@@ -30,7 +30,7 @@ pub mod solvers;
 /// sets a limiting upper bound on the amount of possible non-equivalent states
 /// that can be achieved in a game.
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub struct State(u64);
+pub struct State(pub u64);
 
 /// Encodes a possible move of a game in a 32-bit unsigned integer. This also
 /// sets a limit on the amount of possible distinct moves that can be made in

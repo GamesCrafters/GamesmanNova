@@ -212,6 +212,7 @@ dependencies = [
  "exitcode",
  "games",
  "interfaces",
+ "strsim",
 ]
 
 [[package]]
