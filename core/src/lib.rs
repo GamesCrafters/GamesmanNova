@@ -29,13 +29,12 @@ pub mod solvers;
 /// Encodes the configuration of a game in a 64-bit unsigned integer. This also
 /// sets a limiting upper bound on the amount of possible non-equivalent states
 /// that can be achieved in a game.
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub struct State(pub u64);
+pub type State = u64;
 
 /// Encodes a possible move of a game in a 32-bit unsigned integer. This also
 /// sets a limit on the amount of possible distinct moves that can be made in
 /// a game.
-pub struct Move(u32);
+pub type Move = u32;
 
 /* ENUMERATIONS */
 

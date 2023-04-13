@@ -13,7 +13,7 @@ use crate::Value;
 /* SOLVER NAME */
 
 /// Defines this solver's name for GamesmanNova's interfaces.
-static SOLVER_NAME: &str = "tree";
+const SOLVER_NAME: &str = "tree";
 
 /* COMFORTER IMPLEMENTATION */
 
@@ -22,7 +22,7 @@ pub trait TreeSolve {
     /// Returns the value of an arbitrary state of the game.
     fn tree_solve(&self) -> Value;
     /// Returns the name of this solver type.
-    fn tree_solver_name(&self) -> &'static str;
+    fn tree_solver_name(&self) -> &str;
 }
 
 /// Blanket implementation of the tree solver for all tree solvable games.
@@ -32,7 +32,7 @@ impl<G: TreeSolvable> TreeSolve for G {
         Value::Win(0)
     }
 
-    fn tree_solver_name(&self) -> &'static str {
+    fn tree_solver_name(&self) -> &str {
         SOLVER_NAME
     }
 }

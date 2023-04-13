@@ -13,7 +13,7 @@ use crate::Value;
 /* SOLVER NAME */
 
 /// Defines this solver's name for GamesmanNova's interfaces.
-static SOLVER_NAME: &str = "tier";
+const SOLVER_NAME: &str = "tier";
 
 /* COMFORTER IMPLEMENTATION */
 
@@ -22,7 +22,7 @@ pub trait TierSolve {
     /// Returns the value of an arbitrary state of the game.
     fn tier_solve(&self) -> Value;
     /// Returns the name of this solver type.
-    fn tier_solver_name(&self) -> &'static str;
+    fn tier_solver_name(&self) -> &str;
 }
 
 /// Blanket implementation of the tier solver for all tier solvable games.
@@ -32,7 +32,7 @@ impl<G: TierSolvable> TierSolve for G {
         Value::Win(0)
     }
 
-    fn tier_solver_name(&self) -> &'static str {
+    fn tier_solver_name(&self) -> &str {
         SOLVER_NAME
     }
 }

@@ -127,8 +127,6 @@ pub struct AnalyzeArgs {
 /// such as web API calls, scripting, or simple human-readable output.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Output {
-    /// Default plaintext output.
-    Default,
     /// Beautiful and readable output.
     Formatted,
     /// JSON output.

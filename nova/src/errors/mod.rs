@@ -7,5 +7,13 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-/* USER INPUT ERRORS */
+use std::error::Error;
+
+pub mod implementation;
 pub mod user;
+
+pub trait NovaError
+where
+    Self: Error,
+{
+}

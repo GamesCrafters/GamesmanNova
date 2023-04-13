@@ -9,13 +9,13 @@
 use strsim::damerau_levenshtein;
 
 /// Returns the most similar string to `model` in the collection.
-pub fn most_similar(model: &str, candidates: Vec<&str>) -> String {
+pub fn most_similar(model: &str, all: Vec<&str>) -> String {
     let mut best = usize::MAX;
     let mut closest = "";
-    let mut curr = 0;
-    for s in candidates {
+    let mut curr;
+    for s in all {
         curr = damerau_levenshtein(model, s);
-        if curr < best {
+        if curr <= best {
             closest = s;
             best = curr;
         }

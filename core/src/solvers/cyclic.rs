@@ -13,7 +13,7 @@ use crate::Value;
 /* SOLVER NAME */
 
 /// Defines this solver's name for GamesmanNova's interfaces.
-static SOLVER_NAME: &str = "cyclic";
+const SOLVER_NAME: &str = "cyclic";
 
 /* COMFORTER IMPLEMENTATION */
 
@@ -22,7 +22,7 @@ pub trait CyclicSolve {
     /// Returns the value of an arbitrary state of the game.
     fn cyclic_solve(&self) -> Value;
     /// Returns the name of this solver type.
-    fn cyclic_solver_name(&self) -> &'static str;
+    fn cyclic_solver_name(&self) -> &str;
 }
 
 /// Blanket implementation of the cyclic solver for all cyclically solvable games.
@@ -32,7 +32,7 @@ impl<G: CyclicallySolvable> CyclicSolve for G {
         Value::Win(0)
     }
 
-    fn cyclic_solver_name(&self) -> &'static str {
+    fn cyclic_solver_name(&self) -> &str {
         SOLVER_NAME
     }
 }

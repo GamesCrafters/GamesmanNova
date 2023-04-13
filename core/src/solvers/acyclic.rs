@@ -15,7 +15,7 @@ use std::collections::{HashMap, HashSet};
 /* SOLVER NAME */
 
 /// Defines this solver's name for GamesmanNova's interfaces.
-static SOLVER_NAME: &str = "acyclic";
+const SOLVER_NAME: &str = "acyclic";
 
 /* COMFORTER IMPLEMENTATION */
 
@@ -24,7 +24,7 @@ pub trait AcyclicSolve {
     /// Returns the value of an arbitrary state of the game.
     fn acyclic_solve(&self) -> Value;
     /// Returns the name of this solver type.
-    fn acyclic_solver_name(&self) -> &'static str;
+    fn acyclic_solver_name(&self) -> &str;
 }
 
 /// Blanket implementation of the acyclic solver for all acyclically solvable games.
@@ -35,7 +35,7 @@ impl<G: AcyclicallySolvable> AcyclicSolve for G {
         traverse(default_entry, self, &mut seen)
     }
 
-    fn acyclic_solver_name(&self) -> &'static str {
+    fn acyclic_solver_name(&self) -> &str {
         SOLVER_NAME
     }
 }
@@ -49,11 +49,11 @@ where
     G: Game,
     G: AcyclicallySolvable,
 {
-    if let Some(out) = game.value(state) {
+    if let Some(out) = G::value(state) {
         return out;
     }
     let mut available: HashSet<Value> = HashSet::new();
-    for state in game.children(state) {
+    for state in G::children(state) {
         if let Some(out) = seen.get(&state).copied() {
             available.insert(out);
         } else {

@@ -6,14 +6,16 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+/* INFRA IMPORTS */
+
 use crate::implement;
-use std::collections::HashSet;
 use core::{
     archetypes::{AcyclicGame, Game, SmallGame},
     solvers::{acyclic::AcyclicSolve, cyclic::CyclicSolve, tiered::TierSolve},
     solvers::{AcyclicallySolvable, CyclicallySolvable, TierSolvable},
     State, Value,
 };
+use std::collections::{HashMap, HashSet};
 
 implement! { for Session =>
     AcyclicGame,
@@ -23,42 +25,54 @@ implement! { for Session =>
     SmallGame
 }
 
-const STARTING_COINS: u64 = 1000;
+/* GAME IMPLEMENTATION */
+
+const STARTING_COINS: State = 1000;
 
 /// Represents a 10-to-0-by-1-or-2 game instance.
-pub struct Session;
+pub struct Session {
+    coins: State,
+}
 
 impl Session {
-    /// Spawns a new game session.
-    pub fn new() -> Self { Session {} }
+    /// Spawns a new 10-to-0-by-1-or-2 game session.
+    pub fn new() -> Self {
+        Session {
+            coins: STARTING_COINS,
+        }
+    }
 }
 
 impl Game for Session {
     fn state(&self) -> State {
-        State(STARTING_COINS)
+        self.coins
     }
-    fn children(&self, state: State) -> HashSet<State> {
+
+    fn children(state: State) -> HashSet<State> {
         let mut children = HashSet::new();
-        if state.0 >= 2 {
-            children.insert(State(state.0 - 2));
+        if state >= 2 {
+            children.insert(state - 2);
         }
-        if state.0 >= 1 {
-            children.insert(State(state.0 - 1));
+        if state >= 1 {
+            children.insert(state - 1);
         }
         children
     }
-    fn value(&self, state: State) -> Option<Value> {
-        if state.0 > 0 {
+
+    fn value(state: State) -> Option<Value> {
+        if state > 0 {
             None
         } else {
             Some(Value::Lose(0))
         }
     }
-    fn solvers(&self) -> Vec<(&'static str, fn(&Self) -> Value)> {
+
+    fn solvers(&self) -> Vec<(Option<&str>, fn(&Self) -> Value)> {
         vec![
-            (self.acyclic_solver_name(), Self::acyclic_solve),
-            (self.cyclic_solver_name(), Self::cyclic_solve),
-            (self.tier_solver_name(), Self::tier_solve),
+            (None, Self::acyclic_solve),
+            (Some(self.acyclic_solver_name()), Self::acyclic_solve),
+            (Some(self.cyclic_solver_name()), Self::cyclic_solve),
+            (Some(self.tier_solver_name()), Self::tier_solve),
         ]
     }
 }

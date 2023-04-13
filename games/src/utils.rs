@@ -18,6 +18,7 @@
 ///
 /// ```rust
 /// implement! { for Game =>
+///     AcyclicGame,
 ///     AcyclicallySolvable,
 ///     TreeSolvable,
 ///     TierSolvable

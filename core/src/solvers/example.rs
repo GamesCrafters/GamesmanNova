@@ -55,7 +55,7 @@ use crate::Value;
 /* SOLVER NAME */
 
 /// Defines this solver's name for GamesmanNova's interfaces.
-static SOLVER_NAME: &str = "<characteristic>";  // <-- STEP 4
+const SOLVER_NAME: &str = "<characteristic>";  // <-- STEP 4
 
 /* COMFORTER IMPLEMENTATION */
 
@@ -65,7 +65,7 @@ static SOLVER_NAME: &str = "<characteristic>";  // <-- STEP 4
 //     /// Returns the value of an arbitrary state of the game.
 //     fn <characteristic>_solve(&self) -> Value;
 //     /// Returns the name of this solver type.
-//     fn <characteristic>_solver_name() -> &'static str;
+//     fn <characteristic>_solver_name() -> &str;
 // }
 
 // STEP 6 (uncomment the code block below)
@@ -74,7 +74,7 @@ static SOLVER_NAME: &str = "<characteristic>";  // <-- STEP 4
 //     fn <characteristic>_solve(&self) -> Value {
 //         // WRITE YOUR SOLVING ALGORITHM HERE    <-- STEP 7
 //     }
-//     fn <characteristic>_solver_name() -> &'static str {
+//     fn <characteristic>_solver_name() -> &str {
 //         SOLVER_NAME
 //     }
 // }

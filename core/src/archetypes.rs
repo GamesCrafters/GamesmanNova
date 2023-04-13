@@ -20,7 +20,7 @@ use crate::{
     solvers::{AcyclicallySolvable, CyclicallySolvable, TierSolvable, TreeSolvable},
     State, Value,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /* TRAITS */
 
@@ -30,12 +30,15 @@ pub trait Game {
     /// or an analysis.
     fn state(&self) -> State;
     /// Returns the set of possible states one move away from `state`.
-    fn children(&self, state: State) -> HashSet<State>;
+    fn children(state: State) -> HashSet<State>;
     /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
-    fn value(&self, state: State) -> Option<Value>;
+    fn value(state: State) -> Option<Value>;
     /// Returns all the solvers available to solve the game in order of
-    /// overall efficiency, including their interface names.
-    fn solvers(&self) -> Vec<(&'static str, fn(&Self) -> Value)>;
+    /// overall efficiency, including their interface names. The option
+    /// to choose a default solver in the implementation of this function
+    /// is allowed by making one of them mapped to `None`, as opposed to
+    /// `Some(&str)`.
+    fn solvers(&self) -> Vec<(Option<&str>, fn(&Self) -> Value)>;
 }
 
 /// One of the simplest types of game. Here, every ramification of the game is
