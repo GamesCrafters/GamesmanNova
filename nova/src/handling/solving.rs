@@ -6,28 +6,43 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::user::UserError;
+use crate::errors::UserError;
+use core::solvers::Solvable;
 use core::{archetypes::Game, Value};
 use std::process;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value
 /// or an error containing what was actually passed in versus what was
 /// probably meant to be passed in.
-pub fn solve_by_names(game: &str, solver: Option<String>) -> Result<Value, UserError> {
-    match game {
-        "10-to-0-by-1-or-2" => {
-            let session = games::ten_to_zero_by_one_or_two::Session::new();
+pub fn solve_by_name(
+    target: &str,
+    variant: Option<String>,
+    solver: Option<String>,
+    read: bool,
+    write: bool,
+) -> Result<Value, UserError> {
+    match target {
+        "zero-by" => {
+            let session = games::zero_by::Session::initialize(variant);
             let found_solver = find_solver(&session, solver)?;
-            Ok(found_solver(&session))
+            Ok(found_solver(&session, read, write))
         }
         _ => {
-            let not_found_error = UserError::GameNotFoundError(game.to_owned());
+            let not_found_error = UserError::GameNotFoundError(target.to_owned());
             Err(not_found_error)
         }
     }
 }
 
-fn find_solver<G: Game>(session: &G, solver: Option<String>) -> Result<fn(&G) -> Value, UserError> {
+/* HELPER FUNCTIONS */
+
+fn find_solver<G>(
+    session: &G,
+    solver: Option<String>,
+) -> Result<fn(&G, bool, bool) -> Value, UserError>
+where
+    G: Solvable,
+{
     let available = session.solvers();
     if available.len() == 0 {
         println!("No solvers implemented for requested game.");

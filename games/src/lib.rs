@@ -15,7 +15,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 /// This is a list of the games implemented in GamesmanNova, by their names.
-pub const IMPLEMENTED_GAMES: [&str; 1] = ["10-to-0-by-1-or-2"];
+pub const IMPLEMENTED_GAMES: [&str; 1] = ["zero-by"];
 
 /* GAME MODULE DECLARATIONS */
 
@@ -24,7 +24,7 @@ pub const IMPLEMENTED_GAMES: [&str; 1] = ["10-to-0-by-1-or-2"];
 /* TIERED GAMES */
 
 /* ACYCLIC GAMES */
-pub mod ten_to_zero_by_one_or_two;
+pub mod zero_by;
 
 /* TREE GAMES */
 

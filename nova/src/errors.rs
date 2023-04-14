@@ -11,8 +11,6 @@
 use crate::utils::most_similar;
 use std::{error::Error, fmt};
 
-use super::NovaError;
-
 /// Parent type for all user-sourced errors.
 #[derive(Debug)]
 pub enum UserError {
@@ -26,7 +24,6 @@ pub enum UserError {
     SolverNotFoundError(String, Vec<String>),
 }
 
-impl NovaError for UserError {}
 impl Error for UserError {}
 
 impl fmt::Display for UserError {

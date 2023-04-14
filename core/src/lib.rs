@@ -24,9 +24,13 @@ pub mod archetypes;
 /// Algorithms for solving finite-state deterministic games.
 pub mod solvers;
 
-/* STRUCTS */
+/* TYPES */
 
-/// Encodes the configuration of a game in a 64-bit unsigned integer. This also
+/// Encodes the configuration of a game in a string, which allows game
+/// implementations to set themselves up differently depending on its contents.
+pub type Variant = String;
+
+/// Encodes the state of a game in a 64-bit unsigned integer. This also
 /// sets a limiting upper bound on the amount of possible non-equivalent states
 /// that can be achieved in a game.
 pub type State = u64;
@@ -44,9 +48,9 @@ pub type Move = u32;
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Value {
     /// Indicates that a player has won.
-    Win(u32),
+    Win(u8),
     /// Indicates that a player has lost.
-    Lose(u32),
+    Lose(u8),
     /// Indicates that the game is a tie.
-    Tie(u32),
+    Tie(u8),
 }

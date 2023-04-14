@@ -9,8 +9,9 @@
 
 use super::{choose_value, AcyclicallySolvable};
 use crate::archetypes::Game;
+use crate::databases::{bpdb::BPDatabase, Database};
 use crate::{State, Value};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /* SOLVER NAME */
 
@@ -20,23 +21,23 @@ const SOLVER_NAME: &str = "acyclic";
 /* COMFORTER IMPLEMENTATION */
 
 /// Indicates that a game has the capacity to perform an acyclic solve on itself.
-pub trait AcyclicSolve {
+pub trait AcyclicSolver {
     /// Returns the value of an arbitrary state of the game.
-    fn acyclic_solve(&self) -> Value;
+    fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.
-    fn acyclic_solver_name(&self) -> &str;
+    fn acyclic_solver_name() -> String;
 }
 
 /// Blanket implementation of the acyclic solver for all acyclically solvable games.
-impl<G: AcyclicallySolvable> AcyclicSolve for G {
-    fn acyclic_solve(&self) -> Value {
-        let default_entry = self.state();
-        let mut seen: HashMap<State, Value> = HashMap::new();
-        traverse(default_entry, self, &mut seen)
+impl<G: AcyclicallySolvable> AcyclicSolver for G {
+    fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value {
+        let state = game.default();
+        let mut db = BPDatabase::new(game.id(), read, write);
+        traverse(state, game, &mut db)
     }
 
-    fn acyclic_solver_name(&self) -> &str {
-        SOLVER_NAME
+    fn acyclic_solver_name() -> String {
+        SOLVER_NAME.to_owned()
     }
 }
 
@@ -44,23 +45,25 @@ impl<G: AcyclicallySolvable> AcyclicSolve for G {
 
 /// Recursive algorithm for traversing a game with DAG-structured states and
 /// returning the value of the entry point.
-fn traverse<G>(state: State, game: &G, seen: &mut HashMap<State, Value>) -> Value
+fn traverse<G>(state: State, game: &G, db: &mut BPDatabase) -> Value
 where
     G: Game,
     G: AcyclicallySolvable,
 {
-    if let Some(out) = G::value(state) {
+    if let Some(out) = game.value(state) {
         return out;
     }
     let mut available: HashSet<Value> = HashSet::new();
-    for state in G::children(state) {
-        if let Some(out) = seen.get(&state).copied() {
+    for state in game.adjacent(state) {
+        if let Some(out) = db.get(state).clone() {
             available.insert(out);
         } else {
-            let out = traverse(state, game, seen);
+            let out = traverse(state, game, db);
             available.insert(out);
-            seen.insert(state, out);
+            db.insert(state, Some(out));
         }
     }
-    choose_value(available)
+    let value = choose_value(available);
+    db.insert(state, Some(value));
+    value
 }

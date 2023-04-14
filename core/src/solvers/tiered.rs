@@ -20,19 +20,18 @@ const SOLVER_NAME: &str = "tier";
 /// Indicates that a game has the capacity to perform a tier solve on itself.
 pub trait TierSolve {
     /// Returns the value of an arbitrary state of the game.
-    fn tier_solve(&self) -> Value;
+    fn tier_solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.
-    fn tier_solver_name(&self) -> &str;
+    fn tier_solver_name() -> String;
 }
 
 /// Blanket implementation of the tier solver for all tier solvable games.
 impl<G: TierSolvable> TierSolve for G {
-    fn tier_solve(&self) -> Value {
-        // TODO
-        Value::Win(0)
+    fn tier_solve(game: &Self, read: bool, write: bool) -> Value {
+        todo!()
     }
 
-    fn tier_solver_name(&self) -> &str {
-        SOLVER_NAME
+    fn tier_solver_name() -> String {
+        SOLVER_NAME.to_owned()
     }
 }

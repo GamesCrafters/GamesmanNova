@@ -18,28 +18,31 @@
 
 use crate::{
     solvers::{AcyclicallySolvable, CyclicallySolvable, TierSolvable, TreeSolvable},
-    State, Value,
+    State, Value, Variant,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-/* TRAITS */
+/* BASE TRAITS */
 
 /// A generic deterministic finite-state game or puzzle.
 pub trait Game {
-    /// Returns the state of the game from which to base or continue a solve
-    /// or an analysis.
-    fn state(&self) -> State;
+    /// Allows for the specification of a game variant and the initialization
+    /// of a game's internal representation.
+    fn initialize(variant: Option<Variant>) -> Self
+    where
+        Self: Sized;
     /// Returns the set of possible states one move away from `state`.
-    fn children(state: State) -> HashSet<State>;
+    fn adjacent(&self, state: State) -> HashSet<State>;
     /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
-    fn value(state: State) -> Option<Value>;
-    /// Returns all the solvers available to solve the game in order of
-    /// overall efficiency, including their interface names. The option
-    /// to choose a default solver in the implementation of this function
-    /// is allowed by making one of them mapped to `None`, as opposed to
-    /// `Some(&str)`.
-    fn solvers(&self) -> Vec<(Option<&str>, fn(&Self) -> Value)>;
+    fn value(&self, state: State) -> Option<Value>;
+    /// Returns the game's default state.
+    fn default(&self) -> State;
+    /// Returns an ID unique to this game and consistent across calls from the
+    /// same variant.
+    fn id(&self) -> String;
 }
+
+/* MARKABLE TRAITS */
 
 /// One of the simplest types of game. Here, every ramification of the game is
 /// mutually exclusive of all others -- if you choose to make a move from many,

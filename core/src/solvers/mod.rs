@@ -26,11 +26,26 @@ pub mod cyclic;
 
 /* SOLVING MARKER TRAITS */
 
+/// Indicates that a game is solvable, and offers a function to retrieve
+/// the solvers that can solve the game.
+pub trait Solvable
+where
+    Self: Game,
+{
+    /// Returns all the solvers available to solve the game in order of
+    /// overall efficiency, including their interface names. The option
+    /// to choose a default solver in the implementation of this function
+    /// is allowed by making one of them mapped to `None`, as opposed to
+    /// `Some(String)`.
+    fn solvers(&self) -> Vec<(Option<String>, fn(&Self, bool, bool) -> Value)>;
+}
+
 /// Indicates that a game is solvable using methods only available to games
 /// whose state graphs are acyclic (which includes tree games).
 pub trait AcyclicallySolvable
 where
     Self: Game,
+    Self: Solvable,
 {
 }
 
@@ -38,6 +53,7 @@ where
 pub trait CyclicallySolvable
 where
     Self: Game,
+    Self: Solvable,
 {
 }
 
@@ -46,6 +62,7 @@ where
 pub trait TierSolvable
 where
     Self: Game,
+    Self: Solvable,
 {
 }
 
@@ -54,6 +71,7 @@ where
 pub trait TreeSolvable
 where
     Self: Game,
+    Self: Solvable,
 {
 }
 
@@ -63,8 +81,8 @@ where
 /// a possible win or tie, or with the greatest remoteness in the case of an
 /// inevitable loss.
 pub fn choose_value(available: HashSet<Value>) -> Value {
-    let mut w_rem = u32::MAX;
-    let mut t_rem = u32::MAX;
+    let mut w_rem = u8::MAX;
+    let mut t_rem = u8::MAX;
     let mut l_rem = 0;
     let mut win = false;
     let mut tie = false;

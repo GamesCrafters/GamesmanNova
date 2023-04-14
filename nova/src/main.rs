@@ -16,18 +16,17 @@
 
 use clap::Parser;
 use core::Value;
-use errors::{user::UserError, NovaError};
+use errors::UserError;
+use games::IMPLEMENTED_GAMES;
+use handling::solving::solve_by_name;
 use interfaces::terminal::cli::*;
 use serde_json::json;
-use solving::solve_by_names;
 use std::process;
 
 /* MODULES */
 
-mod analyzing;
 mod errors;
-mod interfacing;
-mod solving;
+mod handling;
 mod utils;
 
 /* PROGRAM ENTRY */
@@ -37,13 +36,16 @@ fn main() {
     let result: Result<(), UserError>;
     match &cli.command {
         Commands::Tui(args) => {
-            result = tui(args, cli.quiet, cli.verbose, cli.yes);
+            result = tui(args, cli.quiet, cli.yes);
         }
         Commands::Solve(args) => {
-            result = solve(args, cli.quiet, cli.verbose, cli.yes);
+            result = solve(args, cli.quiet, cli.yes);
         }
         Commands::Analyze(args) => {
-            result = analyze(args, cli.quiet, cli.verbose, cli.yes);
+            result = analyze(args, cli.quiet, cli.yes);
+        }
+        Commands::List(args) => {
+            result = list(args, cli.quiet);
         }
     }
     if let Err(e) = result {
@@ -55,24 +57,40 @@ fn main() {
 
 /* SUBCOMMAND EXECUTORS */
 
-/// Spawns a terminal user interface
-fn tui(args: &TuiArgs, q: bool, v: bool, y: bool) -> Result<(), UserError> {
+fn tui(args: &TuiArgs, q: bool, y: bool) -> Result<(), UserError> {
     todo!()
 }
 
-fn solve(args: &SolveArgs, q: bool, v: bool, y: bool) -> Result<(), UserError> {
-    let value = solve_by_names(&args.target, args.solver.clone())?;
-    format_print(value, args);
+fn solve(args: &SolveArgs, q: bool, y: bool) -> Result<(), UserError> {
+    let value = solve_by_name(
+        &args.target,
+        args.variant.clone(),
+        args.solver.clone(),
+        args.read,
+        args.write,
+    )?;
+    if !q {
+        format_print_value(value, args);
+    }
     Ok(())
 }
 
-fn analyze(args: &AnalyzeArgs, q: bool, v: bool, y: bool) -> Result<(), UserError> {
+fn analyze(args: &AnalyzeArgs, q: bool, y: bool) -> Result<(), UserError> {
     todo!()
 }
 
-fn format_print(value: Value, args: &SolveArgs) {
+fn list(args: &ListArgs, q: bool) -> Result<(), UserError> {
+    if !q {
+        format_print_list(args);
+    }
+    Ok(())
+}
+
+/* HELPER FUNCTIONS */
+
+fn format_print_value(value: Value, args: &SolveArgs) {
     let value_str: &str;
-    let remoteness: u32;
+    let remoteness: u8;
     match value {
         Value::Lose(rem) => {
             value_str = "lose";
@@ -105,5 +123,30 @@ fn format_print(value: Value, args: &SolveArgs) {
         }
     } else {
         println!("{} in {}", value_str, remoteness);
+    }
+}
+
+fn format_print_list(args: &ListArgs) {
+    if let Some(format) = args.output {
+        match format {
+            Output::Formatted => {
+                println!("Here are the game targets available:\n");
+                for (i, game) in IMPLEMENTED_GAMES.iter().enumerate() {
+                    println!("{}. {}\n", i, game);
+                }
+            }
+            Output::Json => {
+                let mut contents: String = String::new();
+                for game in IMPLEMENTED_GAMES {
+                    contents += &format!("\"{}\",\n", game);
+                }
+                let json = json!({ "games": [contents] });
+                println!("{}", json);
+            }
+        }
+    } else {
+        for game in IMPLEMENTED_GAMES {
+            println!("{}\n", game);
+        }
     }
 }

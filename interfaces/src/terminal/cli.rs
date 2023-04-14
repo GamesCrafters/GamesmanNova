@@ -16,7 +16,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 /// GamesmanNova is a project for solving finite-state deterministic abstract
 /// strategy games. In addition to solving one of the implemented games, there
 /// are also domain-specific analyzers and databases available to provide
-/// insight about games and to store their full solutions efficienlty.
+/// insight about games and to store their full solutions efficiently.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
@@ -30,9 +30,6 @@ pub struct Cli {
     /// Send no output to STDOUT during execution.
     #[arg(short, long, group = "out")]
     pub quiet: bool,
-    /// Provide extra execution information to STDOUT.
-    #[arg(short, long, group = "out")]
-    pub verbose: bool,
     /// Skips prompts for confirming destructive operations.
     #[arg(short, long)]
     pub yes: bool,
@@ -47,6 +44,8 @@ pub enum Commands {
     Solve(SolveArgs),
     /// Analyze a game's state graph.
     Analyze(AnalyzeArgs),
+    /// Provide available functionality.
+    List(ListArgs),
 }
 
 /* ARGUMENT AND OPTION DEFINITIONS */
@@ -56,12 +55,10 @@ pub enum Commands {
 /// the list of available games, in addition to other miscellaneous offerings.
 #[derive(Args)]
 pub struct TuiArgs {
-    /* REQUIRED ARGUMENTS */
+    /* DEFAULTS PROVIDED */
     /// Game to display (optional).
     #[arg(short, long)]
-    pub game: Option<String>,
-
-    /* DEFAULTS PROVIDED */
+    pub target: Option<String>,
     /// Enter TUI in debug mode.
     #[arg(short, long)]
     pub debug: bool,
@@ -83,6 +80,8 @@ pub struct SolveArgs {
     pub target: String,
 
     /* DEFAULTS PROVIDED */
+    /// Solve a specific variant of target.
+    pub variant: Option<String>,
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<Output>,
@@ -115,6 +114,8 @@ pub struct AnalyzeArgs {
     pub target: String,
 
     /* DEFAULTS PROVIDED */
+    /// Analyze a specific variant of target.
+    pub variant: Option<String>,
     /// Only perform the analysis if there is already a pre-existing database.
     #[arg(short, long)]
     pub read: bool,
@@ -123,11 +124,24 @@ pub struct AnalyzeArgs {
     pub output: Option<Output>,
 }
 
+/// Provides a list of implemented functionality that can be used as arguments
+/// for other commands. Default behavior:
+/// * Provides a list of implemented games (which are valid `--target`s)
+#[derive(Args)]
+pub struct ListArgs {
+    /* DEFAULTS PROVIDED */
+    /// Set output in a specific format.
+    #[arg(short, long)]
+    pub output: Option<Output>,
+}
+
+/* DEFINITIONS */
+
 /// Allows calls to return output in different formats for different purposes,
 /// such as web API calls, scripting, or simple human-readable output.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Output {
-    /// Beautiful and readable output.
+    /// Readable output.
     Formatted,
     /// JSON output.
     Json,
