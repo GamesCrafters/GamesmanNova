@@ -9,7 +9,11 @@
 
 use crate::{State, Value};
 
+/* DBMS IMLPEMENTATIONS */
+
 pub mod bpdb;
+
+/* TRAITS */
 
 /// Database management system interface for storing game state to value
 /// mappings.

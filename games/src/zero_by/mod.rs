@@ -1,6 +1,13 @@
-//! # 10-to-0-by-1-or-2 Game Module
+//! # Zero-By Game Module
 //!
-//! 10-to-0-by-1-or-2 is a small acyclic game.
+//! Zero-By is a small acyclic game, where two players take turns removing 
+//! one of certain amounts of elements from a set of N elements. For example,
+//! players could take turns removing either one or two coins from a stack
+//! of ten, which would be an instance of Ten to Zero by One or Two (coins).
+//! 
+//! This module encapsulates the commonalities for all Zero-By games, allowing
+//! users to specify which abstract instance of the Zero-By game they wish to
+//! emulate.
 //!
 //! #### Authorship
 //!
@@ -11,7 +18,7 @@
 use crate::implement;
 use core::{
     archetypes::{AcyclicGame, Game, SmallGame},
-    solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolve, tiered::TierSolve},
+    solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolver, tiered::TierSolver},
     solvers::{AcyclicallySolvable, CyclicallySolvable, Solvable, TierSolvable},
     State, Value, Variant,
 };
@@ -27,28 +34,32 @@ implement! { for Session =>
 
 /* GAME IMPLEMENTATION */
 
-const DEFAULT_STARTING_COINS: State = 1000;
+const DEFAULT_FROM: State = 10;
+const DEFAULT_BY: [u16; 2] = [1, 2];
 
-/// Represents a 10-to-0-by-1-or-2 game instance.
+/// Represents a Zero-By game instance.
 pub struct Session {
-    starting_coins: State,
+    id: Option<String>,
+    from: State,
+    by: Vec<u16>
 }
 
 impl Game for Session {
     fn initialize(variant: Option<Variant>) -> Self {
         if let Some(num) = variant {
-            Session {
-                starting_coins: num.parse::<u64>().unwrap(),
-            }
+            // Turn variant into FROM and BY
+            todo!()
         } else {
             Session {
-                starting_coins: DEFAULT_STARTING_COINS,
+                id: None,
+                from: DEFAULT_FROM,
+                by: DEFAULT_BY.to_vec()
             }
         }
     }
 
-    fn default(&self) -> State {
-        self.starting_coins
+    fn start(&self) -> State {
+        self.from
     }
 
     fn adjacent(&self, state: State) -> HashSet<State> {
@@ -71,7 +82,11 @@ impl Game for Session {
     }
 
     fn id(&self) -> String {
-        format!("zero-by.{}", self.starting_coins)
+        if let Some(id) = self.id.clone() {
+            format!("zero-by.{}", id)
+        } else {
+            "zero-by".to_owned()
+        }
     }
 }
 

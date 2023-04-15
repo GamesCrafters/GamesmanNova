@@ -24,7 +24,7 @@ pub mod tiered;
 /// Blanket implementation of a solver for all cyclic games.
 pub mod cyclic;
 
-/* SOLVING MARKER TRAITS */
+/* TRAITS */
 
 /// Indicates that a game is solvable, and offers a function to retrieve
 /// the solvers that can solve the game.
@@ -40,11 +40,12 @@ where
     fn solvers(&self) -> Vec<(Option<String>, fn(&Self, bool, bool) -> Value)>;
 }
 
+/* SOLVING MARKER */
+
 /// Indicates that a game is solvable using methods only available to games
 /// whose state graphs are acyclic (which includes tree games).
 pub trait AcyclicallySolvable
 where
-    Self: Game,
     Self: Solvable,
 {
 }
@@ -52,7 +53,6 @@ where
 /// Indicates that a game is solvable in a generally inefficient manner.
 pub trait CyclicallySolvable
 where
-    Self: Game,
     Self: Solvable,
 {
 }
@@ -61,7 +61,6 @@ where
 /// connected components and solved taking advantage of this.
 pub trait TierSolvable
 where
-    Self: Game,
     Self: Solvable,
 {
 }
@@ -70,7 +69,6 @@ where
 /// with unique move paths to all states.
 pub trait TreeSolvable
 where
-    Self: Game,
     Self: Solvable,
 {
 }

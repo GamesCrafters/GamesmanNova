@@ -1,6 +1,7 @@
 //! # Nova Utilities Module
 //!
-//! This module provides common functionality to much of Nova's behavior.
+//! This module factors out common behavior of the command execution handling
+//! modules in this crate.
 //!
 //! #### Authorship
 //!

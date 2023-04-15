@@ -36,13 +36,13 @@ fn main() {
     let result: Result<(), UserError>;
     match &cli.command {
         Commands::Tui(args) => {
-            result = tui(args, cli.quiet, cli.yes);
+            result = tui(args, cli.quiet);
         }
         Commands::Solve(args) => {
-            result = solve(args, cli.quiet, cli.yes);
+            result = solve(args, cli.quiet);
         }
         Commands::Analyze(args) => {
-            result = analyze(args, cli.quiet, cli.yes);
+            result = analyze(args, cli.quiet);
         }
         Commands::List(args) => {
             result = list(args, cli.quiet);
@@ -57,30 +57,31 @@ fn main() {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs, q: bool, y: bool) -> Result<(), UserError> {
+fn tui(args: &TuiArgs, quiet: bool) -> Result<(), UserError> {
     todo!()
 }
 
-fn solve(args: &SolveArgs, q: bool, y: bool) -> Result<(), UserError> {
+fn solve(args: &SolveArgs, quiet: bool) -> Result<(), UserError> {
+    confirm_potential_overwrite(args);
     let value = solve_by_name(
         &args.target,
-        args.variant.clone(),
-        args.solver.clone(),
+        &args.variant,
+        &args.solver,
         args.read,
         args.write,
     )?;
-    if !q {
-        format_print_value(value, args);
+    if !quiet {
+        format_print_solve_result(value, args);
     }
     Ok(())
 }
 
-fn analyze(args: &AnalyzeArgs, q: bool, y: bool) -> Result<(), UserError> {
+fn analyze(args: &AnalyzeArgs, quiet: bool) -> Result<(), UserError> {
     todo!()
 }
 
-fn list(args: &ListArgs, q: bool) -> Result<(), UserError> {
-    if !q {
+fn list(args: &ListArgs, quiet: bool) -> Result<(), UserError> {
+    if !quiet {
         format_print_list(args);
     }
     Ok(())
@@ -88,7 +89,7 @@ fn list(args: &ListArgs, q: bool) -> Result<(), UserError> {
 
 /* HELPER FUNCTIONS */
 
-fn format_print_value(value: Value, args: &SolveArgs) {
+fn format_print_solve_result(value: Value, args: &SolveArgs) {
     let value_str: &str;
     let remoteness: u8;
     match value {
@@ -147,6 +148,23 @@ fn format_print_list(args: &ListArgs) {
     } else {
         for game in IMPLEMENTED_GAMES {
             println!("{}\n", game);
+        }
+    }
+}
+
+fn confirm_potential_overwrite(args: &SolveArgs) {
+    if (!args.yes) && args.write {
+        println!("This may overwrite an existing solution database. Are you sure? [y/n]: ");
+        let mut yn: String = "".to_owned();
+        while !(yn == "n" || yn == "N" || yn == "y" || yn == "Y") {
+            yn = String::new();
+            std::io::stdin()
+                .read_line(&mut yn)
+                .expect("Failed to read user confirmation.");
+            yn = yn.trim().to_string();
+        }
+        if yn == "n" || yn == "N" {
+            process::exit(exitcode::OK)
         }
     }
 }

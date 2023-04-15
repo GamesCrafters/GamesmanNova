@@ -1,6 +1,6 @@
 //! # Nova Solving Module
 //!
-//! This module contains handling behavior for all `nova solve ...` requests.
+//! This module contains handling behavior for all `nova solve` requests.
 //!
 //! #### Authorship
 //!
@@ -15,16 +15,16 @@ use std::process;
 /// or an error containing what was actually passed in versus what was
 /// probably meant to be passed in.
 pub fn solve_by_name(
-    target: &str,
-    variant: Option<String>,
-    solver: Option<String>,
+    target: &String,
+    variant: &Option<String>,
+    solver: &Option<String>,
     read: bool,
     write: bool,
 ) -> Result<Value, UserError> {
-    match target {
+    match &target[0..] {
         "zero-by" => {
-            let session = games::zero_by::Session::initialize(variant);
-            let found_solver = find_solver(&session, solver)?;
+            let session = games::zero_by::Session::initialize(variant.clone());
+            let found_solver = find_solver(&session, solver.clone())?;
             Ok(found_solver(&session, read, write))
         }
         _ => {

@@ -17,16 +17,17 @@ const SOLVER_NAME: &str = "tier";
 
 /* COMFORTER IMPLEMENTATION */
 
-/// Indicates that a game has the capacity to perform a tier solve on itself.
-pub trait TierSolve {
-    /// Returns the value of an arbitrary state of the game.
+/// Indicates that a game could theoretically be solved by tiers.
+pub trait TierSolver {
+    /// Returns the value of an arbitrary state of the game, and uses `read` 
+    /// and `write` for specifying I/O preferences to database implementations.
     fn tier_solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.
     fn tier_solver_name() -> String;
 }
 
 /// Blanket implementation of the tier solver for all tier solvable games.
-impl<G: TierSolvable> TierSolve for G {
+impl<G: TierSolvable> TierSolver for G {
     fn tier_solve(game: &Self, read: bool, write: bool) -> Value {
         todo!()
     }

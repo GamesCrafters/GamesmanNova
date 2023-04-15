@@ -17,8 +17,8 @@ const SOLVER_NAME: &str = "cyclic";
 
 /* COMFORTER IMPLEMENTATION */
 
-/// Indicates that a game has the capacity to perform an cyclic solve on itself.
-pub trait CyclicSolve {
+/// Indicates that a game could theoretically be solved cyclically.
+pub trait CyclicSolver {
     /// Returns the value of an arbitrary state of the game.
     fn cyclic_solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.
@@ -26,7 +26,7 @@ pub trait CyclicSolve {
 }
 
 /// Blanket implementation of the cyclic solver for all cyclically solvable games.
-impl<G: CyclicallySolvable> CyclicSolve for G {
+impl<G: CyclicallySolvable> CyclicSolver for G {
     fn cyclic_solve(game: &Self, read: bool, write: bool) -> Value {
         todo!()
     }

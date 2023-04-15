@@ -35,10 +35,10 @@ pub trait Game {
     fn adjacent(&self, state: State) -> HashSet<State>;
     /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
     fn value(&self, state: State) -> Option<Value>;
-    /// Returns the game's default state.
-    fn default(&self) -> State;
+    /// Returns the game's starting state.
+    fn start(&self) -> State;
     /// Returns an ID unique to this game and consistent across calls from the
-    /// same variant.
+    /// same game variant.
     fn id(&self) -> String;
 }
 

@@ -13,11 +13,14 @@
 //! 
 //! ```rust
 //! // Add this below the existing ones
-//! pub trait <characteristic>lySolvable
+//! pub trait <characteristic>allySolvable
 //! where
 //!     Self: Game,
+//!     Self: Solvable,
 //! {
-//!     /* INCLUDE ANY FUNCTIONS YOUR SOLVER NEEDS BEYOND THE GAME TRAIT */
+//!     // Please include any functions your solver will need to communicate
+//!     // with a game implementation (beyond what is provided by the Game
+//!     // trait) here.
 //! }
 //! ```
 //!
@@ -43,7 +46,9 @@
 //!          outlined by the trait from Step 5." 
 //!
 //! STEP 7 - Write your solving algorithm in the solve method within the 
-//!          implementation you created in Step 6.
+//!          implementation you created in Step 6. Make sure you supply the
+//!          `read` and `write` arguments to a database implementation (see
+//!          another implemented solver for an example).
 //! 
 //! #### Authorship
 //!
@@ -61,20 +66,25 @@ const SOLVER_NAME: &str = "<characteristic>";  // <-- STEP 4
 
 // STEP 5 (uncomment the code block below)
 
-// pub trait <characteristic>Solve {
-//     /// Returns the value of an arbitrary state of the game.
-//     fn <characteristic>_solve(&self) -> Value;
+// /// Indicates that a game could theoretically be solved <characteristic>ally.
+// pub trait <characteristic>Solver {
+//     /// Returns the value of an arbitrary state of the game, and uses `read` 
+//     /// and `write` for specifying I/O preferences to database implementations.
+//     fn <characteristic>_solve(game: &Self, read: bool, write: bool) -> Value;
 //     /// Returns the name of this solver type.
-//     fn <characteristic>_solver_name() -> &str;
+//     fn <characteristic>_solver_name() -> String;
 // }
 
 // STEP 6 (uncomment the code block below)
 
-// impl<G: <characteristic>lySolvable> <characteristic>Solve for G {
-//     fn <characteristic>_solve(&self) -> Value {
-//         // WRITE YOUR SOLVING ALGORITHM HERE    <-- STEP 7
+// /// Blanket implementation of the <characteristic> solver for all <characteristic>ally
+// /// solvable games.
+// impl<G: <characteristic>allySolvable> <characteristic>Solver for G {
+//     fn <characteristic>_solve(game: &Self, read: bool, write: bool) -> Value {
+//         todo!()  <-- STEP 7
 //     }
-//     fn <characteristic>_solver_name() -> &str {
-//         SOLVER_NAME
+//
+//     fn <characteristic>_solver_name() -> String {
+//         SOLVER_NAME.to_owned()
 //     }
 // }

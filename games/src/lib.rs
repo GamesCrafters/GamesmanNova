@@ -24,6 +24,9 @@ pub const IMPLEMENTED_GAMES: [&str; 1] = ["zero-by"];
 /* TIERED GAMES */
 
 /* ACYCLIC GAMES */
+
+/// A simple game about taking turns removing different amounts of elements
+/// from a set of different sizes until there are none left.
 pub mod zero_by;
 
 /* TREE GAMES */
@@ -32,4 +35,5 @@ pub mod zero_by;
 
 /* SHARED BEHAVIOR */
 
+/// Factored-out behavior common to multiple game implementations.
 pub mod utils;

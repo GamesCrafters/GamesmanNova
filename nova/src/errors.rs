@@ -1,8 +1,7 @@
-//! # User Errors Module
+//! # Errors Module
 //!
-//! This module defines the errors that can happen as a result of user input.
-//! These errors are not for malformed input, but rather things that happen
-//! as a result of the user not knowing the offerings of the program.
+//! This module defines the errors that can happen during execution, only as
+//! a result of a Nova-specific reason.
 //!
 //! #### Authorship
 //!
@@ -11,7 +10,7 @@
 use crate::utils::most_similar;
 use std::{error::Error, fmt};
 
-/// Parent type for all user-sourced errors.
+/// Parent type for all user-sourced errors, such as malformed inputs.
 #[derive(Debug)]
 pub enum UserError {
     /// An error to indicate that a user input the name of a game which is not

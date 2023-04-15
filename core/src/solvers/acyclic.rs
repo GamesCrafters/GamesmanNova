@@ -20,9 +20,10 @@ const SOLVER_NAME: &str = "acyclic";
 
 /* COMFORTER IMPLEMENTATION */
 
-/// Indicates that a game has the capacity to perform an acyclic solve on itself.
+/// Indicates that a game could theoretically be solved acyclically.
 pub trait AcyclicSolver {
-    /// Returns the value of an arbitrary state of the game.
+    /// Returns the value of an arbitrary state of the game, and uses `read` 
+    /// and `write` for specifying I/O preferences to database implementations.
     fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.
     fn acyclic_solver_name() -> String;
@@ -31,7 +32,7 @@ pub trait AcyclicSolver {
 /// Blanket implementation of the acyclic solver for all acyclically solvable games.
 impl<G: AcyclicallySolvable> AcyclicSolver for G {
     fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value {
-        let state = game.default();
+        let state = game.start();
         let mut db = BPDatabase::new(game.id(), read, write);
         traverse(state, game, &mut db)
     }
