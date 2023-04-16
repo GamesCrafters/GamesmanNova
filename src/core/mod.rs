@@ -1,5 +1,4 @@
 #![warn(missing_docs)]
-
 //! # GamesmanNova Core Library
 //!
 //! `core` is a collection of analyzers, databases, and solvers which can be
@@ -18,9 +17,6 @@ pub mod analyzers;
 /// Database formats suited for storing different kinds of solver results.
 pub mod databases;
 
-/// Types of games based on their fundamental characteristics.
-pub mod archetypes;
-
 /// Algorithms for solving finite-state deterministic games.
 pub mod solvers;
 
@@ -37,11 +33,6 @@ pub type Variant = String;
 /// sets a limiting upper bound on the amount of possible non-equivalent states
 /// that can be achieved in a game.
 pub type State = u64;
-
-/// Encodes a possible move of a game in a 32-bit unsigned integer. This also
-/// sets a limit on the amount of possible distinct moves that can be made in
-/// a game.
-pub type Move = u32;
 
 /* ENUMERATIONS */
 

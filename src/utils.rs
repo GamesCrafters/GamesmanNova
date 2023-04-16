@@ -1,13 +1,27 @@
-//! # Game Utilities Module
+//! # Nova Utilities Module
 //!
-//! This module includes useful functionality common in the process of writing
-//! game implementations.
+//! This module factors out common behavior across this project.
 //!
 //! #### Authorship
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-/* MACROS */
+use strsim::damerau_levenshtein;
+
+/// Returns the most similar string to `model` in the collection.
+pub fn most_similar(model: &str, all: Vec<&str>) -> String {
+    let mut best = usize::MAX;
+    let mut closest = "";
+    let mut curr;
+    for s in all {
+        curr = damerau_levenshtein(model, s);
+        if curr <= best {
+            closest = s;
+            best = curr;
+        }
+    }
+    closest.to_owned()
+}
 
 /// Implements multiple traits for a single concrete type. The traits
 /// implemented must be marker traits; in other words, they must have no

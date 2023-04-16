@@ -87,7 +87,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -112,8 +112,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "0.1.0"
+name = "dirmod"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d44a4b001572800efb4089ec9072e7bef4eae45b50f8fa9b42839204fab6e57"
+dependencies = [
+ "dirmod-codegen",
+]
+
+[[package]]
+name = "dirmod-codegen"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6189e78ee8dceff4cf04d5c0dd5aa9dba4fcbe3edbd675e063d1be6b7c92fe9"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "smallvec",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "errno"
@@ -143,13 +160,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de853764b47027c2e862a995c34978ffa63c1501f2e15f987ba11bd4f9bba193"
 
 [[package]]
-name = "games"
-version = "0.1.0"
-dependencies = [
- "core",
-]
-
-[[package]]
 name = "heck"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -160,13 +170,6 @@ name = "hermit-abi"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fed44880c466736ef9a5c5b5facefb5ed0785676d0c02d612db14e54f0d84286"
-
-[[package]]
-name = "interfaces"
-version = "0.1.0"
-dependencies = [
- "clap",
-]
 
 [[package]]
 name = "io-lifetimes"
@@ -210,14 +213,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d59d8c75012853d2e872fb56bc8a2e53718e2cafe1a4c823143141c6d90c322f"
 
 [[package]]
+name = "maybe-uninit"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
+
+[[package]]
 name = "nova"
 version = "0.1.0"
 dependencies = [
  "clap",
- "core",
+ "dirmod",
  "exitcode",
- "games",
- "interfaces",
  "serde_json",
  "strsim",
 ]
@@ -284,10 +291,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "smallvec"
+version = "0.6.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b97fcaeba89edba30f044a10c6a3cc39df9c3f17d7cd829dd1446cab35f890e0"
+dependencies = [
+ "maybe-uninit",
+]
+
+[[package]]
 name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
+name = "syn"
+version = "1.0.109"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
 
 [[package]]
 name = "syn"

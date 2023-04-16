@@ -7,7 +7,7 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use crate::{State, Value};
+use crate::core::{State, Value};
 
 /* DBMS IMLPEMENTATIONS */
 

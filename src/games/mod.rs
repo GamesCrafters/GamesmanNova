@@ -1,5 +1,4 @@
 #![warn(missing_docs)]
-
 //! # GamesmanNova Games Library
 //!
 //! The `games` crate includes implementations for games intended to be
@@ -17,23 +16,9 @@
 /// This is a list of the games implemented in GamesmanNova, by their names.
 pub const IMPLEMENTED_GAMES: [&str; 1] = ["zero-by"];
 
+/// Trait declarations for different marked classes of games.
+pub mod archetypes;
+
 /* GAME MODULE DECLARATIONS */
 
-/* CYCLIC GAMES */
-
-/* TIERED GAMES */
-
-/* ACYCLIC GAMES */
-
-/// A simple game about taking turns removing different amounts of elements
-/// from a set of different sizes until there are none left.
-pub mod zero_by;
-
-/* TREE GAMES */
-
-/* OTHER GAMES */
-
-/* SHARED BEHAVIOR */
-
-/// Factored-out behavior common to multiple game implementations.
-pub mod utils;
+dirmod::all!(default pub; except archetypes);

@@ -15,13 +15,13 @@
 
 /* INFRA IMPORTS */
 
-use crate::implement;
-use core::{
-    archetypes::{AcyclicGame, Game, SmallGame},
+use super::archetypes::{AcyclicGame, Game, SmallGame};
+use crate::core::{
     solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolver, tiered::TierSolver},
     solvers::{AcyclicallySolvable, CyclicallySolvable, Solvable, TierSolvable},
     State, Value, Variant,
 };
+use crate::implement;
 use std::collections::HashSet;
 
 implement! { for Session =>

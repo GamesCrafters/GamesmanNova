@@ -7,8 +7,9 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::errors::UserError;
-use core::solvers::Solvable;
-use core::{archetypes::Game, Value};
+use crate::games::archetypes::Game;
+use crate::core::solvers::Solvable;
+use crate::core::Value;
 use std::process;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value
@@ -23,7 +24,7 @@ pub fn solve_by_name(
 ) -> Result<Value, UserError> {
     match &target[0..] {
         "zero-by" => {
-            let session = games::zero_by::Session::initialize(variant.clone());
+            let session = crate::games::zero_by::Session::initialize(variant.clone());
             let found_solver = find_solver(&session, solver.clone())?;
             Ok(found_solver(&session, read, write))
         }

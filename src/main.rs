@@ -1,5 +1,4 @@
 #![warn(missing_docs)]
-
 //! # GamesmanNova Executioner
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
@@ -15,18 +14,22 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use clap::Parser;
-use core::Value;
-use errors::UserError;
-use games::IMPLEMENTED_GAMES;
-use handling::solving::solve_by_name;
-use interfaces::terminal::cli::*;
 use serde_json::json;
 use std::process;
 
+use crate::core::Value;
+use crate::errors::UserError;
+use crate::games::IMPLEMENTED_GAMES;
+use crate::operations::solving::solve_by_name;
+use crate::interfaces::terminal::cli::*;
+
 /* MODULES */
 
+mod core;
+mod games;
+mod interfaces;
+mod operations;
 mod errors;
-mod handling;
 mod utils;
 
 /* PROGRAM ENTRY */

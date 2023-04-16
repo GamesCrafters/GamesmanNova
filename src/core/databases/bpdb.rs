@@ -7,7 +7,7 @@
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
 use super::Database;
-use crate::{State, Value};
+use crate::core::{State, Value};
 
 /// An implementation of a Bit-Perfect DBMS which exposes the option to force a
 /// disk read, a write, or non-persistent behavior (at least beyond program

@@ -16,7 +16,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::{
+use crate::core::{
     solvers::{AcyclicallySolvable, CyclicallySolvable, TierSolvable, TreeSolvable},
     State, Value, Variant,
 };

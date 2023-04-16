@@ -9,7 +9,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::Value;
-use crate::archetypes::Game;
+use crate::games::archetypes::Game;
 use std::collections::HashSet;
 
 /// Blanket implementation of a solver for all tree-like games.

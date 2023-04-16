@@ -8,9 +8,9 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::{choose_value, AcyclicallySolvable};
-use crate::archetypes::Game;
-use crate::databases::{bpdb::BPDatabase, Database};
-use crate::{State, Value};
+use crate::games::archetypes::Game;
+use crate::core::databases::{bpdb::BPDatabase, Database};
+use crate::core::{State, Value};
 use std::collections::HashSet;
 
 /* SOLVER NAME */
@@ -29,7 +29,8 @@ pub trait AcyclicSolver {
     fn acyclic_solver_name() -> String;
 }
 
-/// Blanket implementation of the acyclic solver for all acyclically solvable games.
+/// Blanket implementation of the acyclic solver for all acyclically solvable 
+/// games.
 impl<G: AcyclicallySolvable> AcyclicSolver for G {
     fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value {
         let state = game.start();
