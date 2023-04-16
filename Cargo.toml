@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "nova",
-    "list-modules",
-    "get-session",
+    "proc-macros/list-modules",
+    "proc-macros/get-session",
 ]
