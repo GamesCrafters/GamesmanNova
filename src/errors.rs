@@ -33,7 +33,7 @@ impl fmt::Display for UserError {
                     f,
                     "The game '{}' was not found among the offerings. Perhaps you meant '{}'?",
                     input,
-                    most_similar(&input[0..], crate::games::IMPLEMENTED_GAMES.to_vec())
+                    most_similar(&input[0..], crate::games::LIST.to_vec())
                 )
             }
             Self::SolverNotFoundError(name, list) => {

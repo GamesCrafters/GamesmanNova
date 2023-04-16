@@ -19,7 +19,7 @@ const SOLVER_NAME: &str = "tier";
 
 /// Indicates that a game could theoretically be solved by tiers.
 pub trait TierSolver {
-    /// Returns the value of an arbitrary state of the game, and uses `read` 
+    /// Returns the value of an arbitrary state of the game, and uses `read`
     /// and `write` for specifying I/O preferences to database implementations.
     fn tier_solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.

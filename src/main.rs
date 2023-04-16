@@ -19,17 +19,16 @@ use std::process;
 
 use crate::core::Value;
 use crate::errors::UserError;
-use crate::games::IMPLEMENTED_GAMES;
-use crate::operations::solving::solve_by_name;
 use crate::interfaces::terminal::cli::*;
+use crate::operations::solving::solve_by_name;
 
 /* MODULES */
 
 mod core;
+mod errors;
 mod games;
 mod interfaces;
 mod operations;
-mod errors;
 mod utils;
 
 /* PROGRAM ENTRY */
@@ -42,6 +41,9 @@ fn main() {
             result = tui(args, cli.quiet);
         }
         Commands::Solve(args) => {
+            for x in games::LIST {
+                println!("{}", x);
+            }
             result = solve(args, cli.quiet);
         }
         Commands::Analyze(args) => {
@@ -135,13 +137,13 @@ fn format_print_list(args: &ListArgs) {
         match format {
             Output::Formatted => {
                 println!("Here are the game targets available:\n");
-                for (i, game) in IMPLEMENTED_GAMES.iter().enumerate() {
+                for (i, game) in games::LIST.iter().enumerate() {
                     println!("{}. {}\n", i, game);
                 }
             }
             Output::Json => {
                 let mut contents: String = String::new();
-                for game in IMPLEMENTED_GAMES {
+                for game in games::LIST {
                     contents += &format!("\"{}\",\n", game);
                 }
                 let json = json!({ "games": [contents] });
@@ -149,7 +151,7 @@ fn format_print_list(args: &ListArgs) {
             }
         }
     } else {
-        for game in IMPLEMENTED_GAMES {
+        for game in games::LIST {
             println!("{}\n", game);
         }
     }

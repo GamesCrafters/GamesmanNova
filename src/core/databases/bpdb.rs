@@ -11,7 +11,7 @@ use crate::core::{State, Value};
 
 /// An implementation of a Bit-Perfect DBMS which exposes the option to force a
 /// disk read, a write, or non-persistent behavior (at least beyond program
-/// execution, as no guarantees are provided about disk usage limits during 
+/// execution, as no guarantees are provided about disk usage limits during
 /// execution).
 pub struct BPDatabase {
     /// Used to identify the database file should the contents be persisted.

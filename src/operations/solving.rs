@@ -6,10 +6,10 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::UserError;
-use crate::games::archetypes::Game;
 use crate::core::solvers::Solvable;
 use crate::core::Value;
+use crate::errors::UserError;
+use crate::games::archetypes::Game;
 use std::process;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value

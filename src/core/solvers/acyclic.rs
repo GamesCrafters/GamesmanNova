@@ -8,9 +8,9 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::{choose_value, AcyclicallySolvable};
-use crate::games::archetypes::Game;
 use crate::core::databases::{bpdb::BPDatabase, Database};
 use crate::core::{State, Value};
+use crate::games::archetypes::Game;
 use std::collections::HashSet;
 
 /* SOLVER NAME */
@@ -22,14 +22,14 @@ const SOLVER_NAME: &str = "acyclic";
 
 /// Indicates that a game could theoretically be solved acyclically.
 pub trait AcyclicSolver {
-    /// Returns the value of an arbitrary state of the game, and uses `read` 
+    /// Returns the value of an arbitrary state of the game, and uses `read`
     /// and `write` for specifying I/O preferences to database implementations.
     fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.
     fn acyclic_solver_name() -> String;
 }
 
-/// Blanket implementation of the acyclic solver for all acyclically solvable 
+/// Blanket implementation of the acyclic solver for all acyclically solvable
 /// games.
 impl<G: AcyclicallySolvable> AcyclicSolver for G {
     fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value {

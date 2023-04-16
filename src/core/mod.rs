@@ -24,8 +24,8 @@ pub mod solvers;
 
 /// Encodes the configuration of a game in a string, which allows game
 /// implementations to set themselves up differently depending on its contents.
-/// The protocol used to map a variant string to a specific game setup is 
-/// decided by the implementation of a game, so reading game-specific 
+/// The protocol used to map a variant string to a specific game setup is
+/// decided by the implementation of a game, so reading game-specific
 /// documentation will be necessary to porperly form a variant string.
 pub type Variant = String;
 
