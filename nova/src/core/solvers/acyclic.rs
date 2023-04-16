@@ -10,7 +10,7 @@
 use super::{choose_value, AcyclicallySolvable};
 use crate::core::databases::{bpdb::BPDatabase, Database};
 use crate::core::{State, Value};
-use crate::games::archetypes::Game;
+use crate::games::Game;
 use std::collections::HashSet;
 
 /* SOLVER NAME */

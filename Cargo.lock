@@ -214,9 +214,7 @@ checksum = "d59d8c75012853d2e872fb56bc8a2e53718e2cafe1a4c823143141c6d90c322f"
 
 [[package]]
 name = "list-modules"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c40f2cf6957c0e149dd92e669f3b0e2507a243cb888448bba6821e4e16053422"
+version = "0.1.5"
 dependencies = [
  "proc-macro2",
  "quote",

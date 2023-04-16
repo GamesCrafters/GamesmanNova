@@ -15,7 +15,7 @@
 
 /* INFRA IMPORTS */
 
-use super::archetypes::{AcyclicGame, Game, SmallGame};
+use super::{AcyclicGame, Game, SmallGame};
 use crate::core::{
     solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolver, tiered::TierSolver},
     solvers::{AcyclicallySolvable, CyclicallySolvable, Solvable, TierSolvable},
@@ -47,7 +47,7 @@ pub struct Session {
 impl Game for Session {
     fn initialize(variant: Option<Variant>) -> Self {
         if let Some(num) = variant {
-            // Turn variant into FROM and BY
+            // Turn variant string into FROM and BY options
             todo!()
         } else {
             Session {

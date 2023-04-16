@@ -1,4 +1,13 @@
-//! # Archetypes Module
+#![warn(missing_docs)]
+//! # GamesmanNova Games Library
+//!
+//! The `games` crate includes implementations for games intended to be
+//! solved. To be able to solve a game, with GamesmanNova, it must satisfy
+//! the following characteristics/constraints:
+//!
+//! * It must have a finite amount of possible states and moves
+//! * No probability must be involved in state transitions
+//! * It must be reasonably "sized" (in terms of number of unique states)
 //!
 //! This module contains overarching classes of games in the form of traits.
 //! In general, these are not always mutually exclusive; it is the case that
@@ -21,6 +30,34 @@ use crate::core::{
     State, Value, Variant,
 };
 use std::collections::HashSet;
+
+/* INTEGRATION AUTOMATION PROCEDURAL MACROS */
+
+/* Looks in this directory (games/) and expands to a collection of
+// module definitions as follows:
+//
+// ```
+// pub mod game_1;
+// pub mod game_2;
+// ...
+// pub mod game_n;
+// ```
+*/
+dirmod::all!(default pub; except archetypes);
+
+/* Does the same thing, but instead of generating module definitions it
+// automatically creates a constant list of their names as follows:
+//
+// ```
+// pub const LIST: [&str; n] = [
+//    "game_1",
+//    "game_2",
+//    ...
+//    "game_n",
+// ];
+// ```
+*/
+list_modules::here!("src/games/");
 
 /* BASE TRAITS */
 

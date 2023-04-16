@@ -1,0 +1,17 @@
+[package]
+name = "list-modules"
+version = "0.1.5"
+edition = "2021"
+description = "A procedural macro for generating a list of string slices of the names of the modules inside a source code directory of a project."
+license = "	GPL-3.0-or-later"
+author = "Max Fierro <maxfierro@berkeley.edu>"
+repository = "https://github.com/maxfierrog/list-modules"
+keywords = ["macro", "modules", "list"]
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "2.0"
+
+[lib]
+proc-macro = true
