@@ -1,5 +1,6 @@
 [workspace]
 members = [
     "nova",
-    "list-mod",
+    "list-modules",
+    "get-session",
 ]

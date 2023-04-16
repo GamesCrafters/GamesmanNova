@@ -37,6 +37,10 @@
 //! ```
 //!
 //! Note that this is the only guaranteed behavior.
+//!
+//! #### Authorship
+//!
+//! - Max Fierro, 4/16/2023 (maxfierro@berkeley.edu)
 
 extern crate proc_macro;
 

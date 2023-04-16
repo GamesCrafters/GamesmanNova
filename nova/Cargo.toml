@@ -16,4 +16,5 @@ exitcode = "1.1.2"
 strsim = "0.10.0"
 serde_json = "1.0"
 dirmod = "0.1.5"
-list-modules = { path = "../list-mod"}
+list-modules = { path = "../list-modules"}
+get-session = { path = "../get-session"}
