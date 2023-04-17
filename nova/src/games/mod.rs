@@ -1,5 +1,4 @@
-#![warn(missing_docs)]
-//! # GamesmanNova Games Library
+//! # Game Implementations Module
 //!
 //! The `games` crate includes implementations for games intended to be
 //! solved. To be able to solve a game, with GamesmanNova, it must satisfy

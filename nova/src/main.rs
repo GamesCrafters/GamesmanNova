@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-//! # GamesmanNova Executioner
+//! # Execution Module
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
 //! `interfaces` to provide an entry point to all the functionality of the
@@ -41,9 +41,6 @@ fn main() {
             result = tui(args, cli.quiet);
         }
         Commands::Solve(args) => {
-            for x in games::LIST {
-                println!("{}", x);
-            }
             result = solve(args, cli.quiet);
         }
         Commands::Analyze(args) => {

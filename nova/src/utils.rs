@@ -1,4 +1,4 @@
-//! # Nova Utilities Module
+//! # Utilities Module
 //!
 //! This module factors out common behavior across this project.
 //!

@@ -4,7 +4,6 @@ version = "0.1.6"
 edition = "2021"
 description = "A procedural macro for generating a list of string slices of the names of the modules inside a source code directory of a project."
 license = "	GPL-3.0-or-later"
-author = "Max Fierro <maxfierro@berkeley.edu>"
 repository = "https://github.com/maxfierrog/list-modules"
 keywords = ["macro", "modules", "list"]
 

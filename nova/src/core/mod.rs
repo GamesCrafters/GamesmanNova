@@ -1,5 +1,4 @@
-#![warn(missing_docs)]
-//! # GamesmanNova Core Library
+//! # Core Behavior Module
 //!
 //! `core` is a collection of analyzers, databases, and solvers which can be
 //! applied to any deterministic finite-state abstract strategy game through
@@ -11,13 +10,8 @@
 
 /* MODULES */
 
-/// Tools for game state graph aggregation, reduction, and visualization.
 pub mod analyzers;
-
-/// Database formats suited for storing different kinds of solver results.
 pub mod databases;
-
-/// Algorithms for solving finite-state deterministic games.
 pub mod solvers;
 
 /* TYPES */

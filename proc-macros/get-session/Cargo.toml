@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 description = "A procedural macro for making a GamesmanNova game Session out of a string."
 license = "	GPL-3.0-or-later"
-author = "Max Fierro <maxfierro@berkeley.edu>"
 
 [dependencies]
 proc-macro2 = "1.0"

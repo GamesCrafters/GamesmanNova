@@ -12,16 +12,11 @@ use super::Value;
 use crate::games::Game;
 use std::collections::HashSet;
 
-/// Blanket implementation of a solver for all tree-like games.
+/* MODULES */
+
 pub mod tree;
-
-/// Blanket implementation of a solver for all acyclic games.
 pub mod acyclic;
-
-/// Blanket implementation of a solver for all tiered games.
 pub mod tiered;
-
-/// Blanket implementation of a solver for all cyclic games.
 pub mod cyclic;
 
 /* TRAITS */

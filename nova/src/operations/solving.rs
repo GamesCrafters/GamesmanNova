@@ -1,4 +1,4 @@
-//! # Nova Solving Module
+//! # Solving Execution Module
 //!
 //! This module contains handling behavior for all `nova solve` requests.
 //!
@@ -22,28 +22,22 @@ pub fn solve_by_name(
     read: bool,
     write: bool,
 ) -> Result<Value, UserError> {
-    match &target[0..] {
-        "zero-by" => {
-            let session = crate::games::zero_by::Session::initialize(variant.clone());
-            let found_solver = find_solver(&session, solver.clone())?;
-            Ok(found_solver(&session, read, write))
-        }
-        _ => {
-            let not_found_error = UserError::GameNotFoundError(target.to_owned());
-            Err(not_found_error)
-        }
+    if !crate::games::LIST.contains(&&target[0..]) {
+        Err(UserError::GameNotFoundError(target.to_owned()))
+    } else {
+        let target = &target[0..];
+        let session = get_session::generate_match!("src/games/")(variant.to_owned());
+        let solver_fn = find_solver(&session, solver.clone())?;
+        Ok(solver_fn(&session, read, write))
     }
 }
 
 /* HELPER FUNCTIONS */
 
-fn find_solver<G>(
+fn find_solver<G: Solvable>(
     session: &G,
     solver: Option<String>,
-) -> Result<fn(&G, bool, bool) -> Value, UserError>
-where
-    G: Solvable,
-{
+) -> Result<fn(&G, bool, bool) -> Value, UserError> {
     let available = session.solvers();
     if available.len() == 0 {
         println!("No solvers implemented for requested game.");

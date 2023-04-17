@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 description = "A centralized system for solving finite, deterministic, complete-information, abstract-strategy games."
 license = "	GPL-3.0-or-later"
-author = "Max Fierro <maxfierro@berkeley.edu>"
 repository = "https://github.com/GamesCrafters/GamesmanNova"
 keywords = ["game", "solver"]
 
