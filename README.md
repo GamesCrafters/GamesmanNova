@@ -16,11 +16,11 @@ Rewrite Classic in Rust. This project modernizes GamesmanClassic's infrastructur
 
 It will be best to keep development highly involved and sequential for these tasks. 
 
-- [ ] Write abstract infrastructure and scaffolding through the use of Rust's powerful module, trait, type, and macro system.
-- [ ] Write a basic command line interface for observing general behavior.
+- [x] Write abstract infrastructure and scaffolding through the use of Rust's powerful module, trait, type, and macro system.
+- [x] Write a basic command line interface for observing general behavior.
 - [ ] Write module tests for abstract solvers, databases, and analyzers.
-- [ ] Develop an abstract database interface system through traits.
-- [ ] Integrate database interfaces with solvers obscurely (users cannot choose which DB to use).
+- [x] Develop an abstract database interface system through traits.
+- [x] Integrate database interfaces with solvers obscurely (users cannot choose which DB to use).
 - [ ] Write database/solver integration tests. 
 - [ ] Implement or port games from Classic.
 
@@ -28,7 +28,6 @@ It will be best to keep development highly involved and sequential for these tas
 
 It will be possible to start taking care of these tasks concurrently, as most infrastructure will have taken shape by then, and it will be about conforming to it (as opposed to defining it).
 
-- [ ] Set up documentation site.
 - [ ] Develop new interfaces.
 - [ ] Include or port more games.
 - [ ] Write more solvers, databases, and analyzers as research permits.

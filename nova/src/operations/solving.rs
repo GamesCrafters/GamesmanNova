@@ -21,13 +21,14 @@ pub fn solve_by_name(
     solver: &Option<String>,
     read: bool,
     write: bool,
+    quiet: bool,
 ) -> Result<Value, UserError> {
     if !crate::games::LIST.contains(&&target[0..]) {
         Err(UserError::GameNotFoundError(target.to_owned()))
     } else {
         let target = &target[0..];
         let session = get_session::generate_match!("src/games/")(variant.to_owned());
-        let solver_fn = find_solver(&session, solver.clone())?;
+        let solver_fn = find_solver(&session, solver.clone(), quiet)?;
         Ok(solver_fn(&session, read, write))
     }
 }
@@ -37,10 +38,13 @@ pub fn solve_by_name(
 fn find_solver<G: Solvable>(
     session: &G,
     solver: Option<String>,
+    quiet: bool,
 ) -> Result<fn(&G, bool, bool) -> Value, UserError> {
     let available = session.solvers();
     if available.len() == 0 {
-        println!("No solvers implemented for requested game.");
+        if !quiet {
+            println!("No solvers implemented for requested game.");
+        }
         process::exit(exitcode::SOFTWARE);
     }
     if let Some(target) = solver {
@@ -63,7 +67,9 @@ fn find_solver<G: Solvable>(
         if let Some((_, solver_func)) = session.solvers().get(0) {
             return Ok(solver_func.to_owned());
         } else {
-            println!("No solvers implemented for requested game.");
+            if !quiet {
+                println!("No solvers implemented for requested game.");
+            }
             process::exit(exitcode::SOFTWARE);
         }
     }

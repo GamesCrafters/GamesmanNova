@@ -36,9 +36,9 @@ pub type State = u64;
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Value {
     /// Indicates that a player has won.
-    Win(u8),
+    Win(u32),
     /// Indicates that a player has lost.
-    Lose(u8),
+    Lose(u32),
     /// Indicates that the game is a tie.
-    Tie(u8),
+    Tie(u32),
 }

@@ -76,6 +76,17 @@ pub trait Game {
     /// Returns an ID unique to this game and consistent across calls from the
     /// same game variant.
     fn id(&self) -> String;
+    /// Returns useful information about the game.
+    fn info(&self) -> GameInformation;
+}
+
+/// Contains useful information about a game.
+pub struct GameInformation {
+    pub name: String,
+    pub author: String,
+    pub description: String,
+    pub variant_pattern: String,
+    pub variant_default: String,
 }
 
 /* MARKABLE TRAITS */

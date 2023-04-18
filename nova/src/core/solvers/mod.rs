@@ -12,12 +12,12 @@ use super::Value;
 use crate::games::Game;
 use std::collections::HashSet;
 
-/* MODULES */
+/* SOLVER MODULES */
 
-pub mod tree;
 pub mod acyclic;
-pub mod tiered;
 pub mod cyclic;
+pub mod tiered;
+pub mod tree;
 
 /* TRAITS */
 
@@ -74,8 +74,8 @@ where
 /// a possible win or tie, or with the greatest remoteness in the case of an
 /// inevitable loss.
 pub fn choose_value(available: HashSet<Value>) -> Value {
-    let mut w_rem = u8::MAX;
-    let mut t_rem = u8::MAX;
+    let mut w_rem = u32::MAX;
+    let mut t_rem = u32::MAX;
     let mut l_rem = 0;
     let mut win = false;
     let mut tie = false;

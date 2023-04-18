@@ -51,7 +51,9 @@ fn main() {
         }
     }
     if let Err(e) = result {
-        println!("{}", e);
+        if !cli.quiet {
+            println!("{}", e);
+        }
         process::exit(exitcode::USAGE);
     }
     process::exit(exitcode::OK);
@@ -71,10 +73,9 @@ fn solve(args: &SolveArgs, quiet: bool) -> Result<(), UserError> {
         &args.solver,
         args.read,
         args.write,
+        quiet,
     )?;
-    if !quiet {
-        format_print_solve_result(value, args);
-    }
+    format_print_solve_result(value, args);
     Ok(())
 }
 
@@ -93,7 +94,7 @@ fn list(args: &ListArgs, quiet: bool) -> Result<(), UserError> {
 
 fn format_print_solve_result(value: Value, args: &SolveArgs) {
     let value_str: &str;
-    let remoteness: u8;
+    let remoteness: u32;
     match value {
         Value::Lose(rem) => {
             value_str = "lose";

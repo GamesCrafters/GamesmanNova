@@ -8,6 +8,6 @@
 
 /* MODULES */
 
-pub mod terminal;
 pub mod graphical;
 pub mod networked;
+pub mod terminal;
