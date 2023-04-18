@@ -101,7 +101,7 @@ impl Game for Session {
     fn adjacent(&self, state: State) -> HashSet<State> {
         let mut children = HashSet::new();
         for choice in self.by.iter() {
-            if state > *choice {
+            if state >= *choice {
                 children.insert(state - choice);
             }
         }
