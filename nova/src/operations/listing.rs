@@ -38,8 +38,8 @@ pub fn printf_game_info(args: &InfoArgs, game: &String) -> Result<(), NovaError>
                     json!({
                         "game": info.name,
                         "author": info.author,
-                        "about": info.about.replace("\n", " "),
-                        "variant-protocol": info.variant_protocol.replace("\n", " "),
+                        "about": info.about.replace('\n', " "),
+                        "variant-protocol": info.variant_protocol.replace('\n', " "),
                         "variant-default": info.variant_default,
                         "variant-pattern": info.variant_pattern,
                     })
