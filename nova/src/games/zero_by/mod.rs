@@ -63,7 +63,7 @@ fn decode_variant(v: Variant) -> Session {
         println!("Variant string malformed.");
         process::exit(exitcode::USAGE);
     }
-    let mut from_by = v.split("-")
+    let mut from_by = v.split('-')
         .map(|int_string| {
             int_string.parse::<u64>()
                 .expect("Could not parse variant.")
@@ -72,8 +72,8 @@ fn decode_variant(v: Variant) -> Session {
     Session {
         variant: Some(v),
         from: {
-            if let Some(from) = from_by.get(0) {
-                from.clone().into()
+            if let Some(from) = from_by.first() {
+                *from
             } else {
                 panic!("Could not parse variant.")
             }

@@ -7,7 +7,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::core::solvers::Solvable;
-use crate::core::Value;
+use crate::core::{Value, SolverFn};
 use crate::errors::UserError;
 use crate::games::Game;
 use std::process;
@@ -39,9 +39,9 @@ fn find_solver<G: Solvable>(
     session: &G,
     solver: Option<String>,
     quiet: bool,
-) -> Result<fn(&G, bool, bool) -> Value, UserError> {
+) -> Result<SolverFn<G>, UserError> {
     let available = session.solvers();
-    if available.len() == 0 {
+    if available.is_empty() {
         if !quiet {
             println!("No solvers implemented for requested game.");
         }
@@ -57,15 +57,15 @@ fn find_solver<G: Solvable>(
                 names.push(candidate.clone().to_owned());
             }
         }
-        return Err(UserError::SolverNotFoundError(target, names));
+        Err(UserError::SolverNotFoundError(target, names))
     } else {
         for (solver_name, solver_func) in available {
-            if let None = solver_name {
+            if solver_name.is_none() {
                 return Ok(solver_func.to_owned());
             }
         }
         if let Some((_, solver_func)) = session.solvers().get(0) {
-            return Ok(solver_func.to_owned());
+            Ok(solver_func.to_owned())
         } else {
             if !quiet {
                 println!("No solvers implemented for requested game.");

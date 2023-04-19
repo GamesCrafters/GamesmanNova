@@ -28,6 +28,10 @@ pub type Variant = String;
 /// that can be achieved in a game.
 pub type State = u64;
 
+/// The signature of a function which can solve a game, taking in the game,
+/// and parameters read and write.
+pub type SolverFn<G> = fn(&G, bool, bool) -> Value;
+
 /* ENUMERATIONS */
 
 /// Indicates the value of a game state according to the game's rules. Contains

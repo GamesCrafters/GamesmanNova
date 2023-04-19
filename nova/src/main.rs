@@ -35,21 +35,20 @@ mod utils;
 
 fn main() {
     let cli = Cli::parse();
-    let result: Result<(), UserError>;
-    match &cli.command {
+    let result: Result<(), UserError> = match &cli.command {
         Commands::Tui(args) => {
-            result = tui(args, cli.quiet);
+            tui(args, cli.quiet)
         }
         Commands::Solve(args) => {
-            result = solve(args, cli.quiet);
+            solve(args, cli.quiet)
         }
         Commands::Analyze(args) => {
-            result = analyze(args, cli.quiet);
+            analyze(args, cli.quiet)
         }
         Commands::List(args) => {
-            result = list(args, cli.quiet);
+            list(args, cli.quiet)
         }
-    }
+    };
     if let Err(e) = result {
         if !cli.quiet {
             println!("{}", e);

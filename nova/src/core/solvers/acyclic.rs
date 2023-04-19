@@ -57,7 +57,7 @@ where
     }
     let mut available: HashSet<Value> = HashSet::new();
     for state in game.adjacent(state) {
-        if let Some(out) = db.get(state).clone() {
+        if let Some(out) = *db.get(state) {
             available.insert(out);
         } else {
             let out = traverse(state, game, db);
