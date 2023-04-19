@@ -30,7 +30,7 @@ pub type State = u64;
 
 /// The signature of a function which can solve a game, taking in the game,
 /// and parameters read and write.
-pub type SolverFn<G> = fn(&G, bool, bool) -> Value;
+pub type Solver<G> = fn(&G, bool, bool) -> Value;
 
 /* ENUMERATIONS */
 

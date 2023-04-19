@@ -8,7 +8,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use super::Value;
+use super::{Solver, Value};
 use crate::games::Game;
 use std::collections::HashSet;
 
@@ -32,7 +32,7 @@ where
     /// to choose a default solver in the implementation of this function
     /// is allowed by making one of them mapped to `None`, as opposed to
     /// `Some(String)`.
-    fn solvers(&self) -> Vec<(Option<String>, fn(&Self, bool, bool) -> Value)>;
+    fn solvers(&self) -> Vec<(Option<String>, Solver<Self>)>;
 }
 
 /* SOLVING MARKER */

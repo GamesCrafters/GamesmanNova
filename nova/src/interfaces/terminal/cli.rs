@@ -27,7 +27,7 @@ pub struct Cli {
     pub command: Commands,
 
     /* DEFAULTS PROVIDED */
-    /// Send no output to STDOUT during execution.
+    /// Send no output to STDOUT during successful execution.
     #[arg(short, long, group = "out")]
     pub quiet: bool,
 }
@@ -41,8 +41,8 @@ pub enum Commands {
     Solve(SolveArgs),
     /// Analyze a game's state graph.
     Analyze(AnalyzeArgs),
-    /// List available games.
-    List(ListArgs),
+    /// Provide information about offerings.
+    Info(InfoArgs),
 }
 
 /* ARGUMENT AND OPTION DEFINITIONS */
@@ -132,12 +132,16 @@ pub struct AnalyzeArgs {
     pub output: Option<Output>,
 }
 
-/// Provides a list of implemented functionality that can be used as arguments
-/// for other commands. Default behavior:
-/// * Provides a list of implemented games (which are valid `--target`s)
+/// Provides information about available games (or about their specifications,
+/// if provided a `--target` argument). Default behavior:
+/// * Provides a list of implemented games (which are valid `--target`s).
+/// * Provides output unformatted.
 #[derive(Args)]
-pub struct ListArgs {
+pub struct InfoArgs {
     /* DEFAULTS PROVIDED */
+    /// Specify game for which to provide information about.
+    #[arg(short, long)]
+    pub target: Option<String>,
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<Output>,
@@ -149,8 +153,8 @@ pub struct ListArgs {
 /// such as web API calls, scripting, or simple human-readable output.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum Output {
-    /// Readable and helpful format.
-    Formatted,
+    /// Extra content or formatting where appropriate.
+    Extra,
     /// JSON format.
     Json,
 }

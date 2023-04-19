@@ -84,7 +84,8 @@ pub trait Game {
 pub struct GameInformation {
     pub name: String,
     pub author: String,
-    pub description: String,
+    pub about: String,
+    pub variant_protocol: String,
     pub variant_pattern: String,
     pub variant_default: String,
 }

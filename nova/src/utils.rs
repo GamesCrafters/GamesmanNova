@@ -6,7 +6,18 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
+use crate::errors::UserError;
 use strsim::damerau_levenshtein;
+
+/// Checks if the game exists among the offerings and returns an error if
+/// it does not. Includes a suggestion in the error information.
+pub fn check_game_exists(name: &String) -> Result<(), UserError> {
+    if !crate::games::LIST.contains(&&name[0..]) {
+        Err(UserError::GameNotFoundError(name.to_owned()))
+    } else {
+        Ok(())
+    }
+}
 
 /// Returns the most similar string to `model` in the collection.
 pub fn most_similar(model: &str, all: Vec<&str>) -> String {

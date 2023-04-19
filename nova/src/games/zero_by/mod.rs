@@ -19,7 +19,7 @@ use super::{AcyclicGame, Game, SmallGame, GameInformation};
 use crate::core::{
     solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolver, tiered::TierSolver},
     solvers::{AcyclicallySolvable, CyclicallySolvable, Solvable, TierSolvable},
-    State, Value, Variant,
+    State, Value, Variant, Solver
 };
 use crate::implement;
 use std::collections::HashSet;
@@ -38,15 +38,23 @@ implement! { for Session =>
 
 const NAME: &str = "Zero-By";
 const AUTHOR: &str = "Max Fierro";
-const DESCRIPTION: &str = 
+const ABOUT: &str = 
 "Two players take turns removing a number of elements from a set of arbitrary
 size. They can make a choice of how many elements to remove (and of how many
 elements to start out with) based on the game variant. The player who is left
 with 0 elements in their turn loses. A player cannot remove more elements than
 currently available in the set.";
-
+const VARIANT_PROTOCOL: &str =
+"The variant string should be a dash-separated group of two or more positive 
+integers. For example, '239-232-23-6-3-6' is valid but '598', '-23-1-5', and
+'fifteen-2-5' are not. The first integer represents the beginning number of
+elements in the set, and the rest are choices that the players have when they
+need to remove a number of pieces on their turn. Note that the numbers can be
+repeated, but if you repeat the first number it will be a win for the player
+with the first turn in 1 move. If you repeat any of the rest of the numbers,
+the only consequence will be a slight decrease in performance.";
 const VARIANT_DEFAULT: &str = "10-1-2";
-const VARIANT_PATTERN: &str = r"^\d+(?:-\d+)*$";
+const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
 
 /* GAME IMPLEMENTATION */
 
@@ -71,13 +79,7 @@ fn decode_variant(v: Variant) -> Session {
         .collect::<Vec<u64>>();
     Session {
         variant: Some(v),
-        from: {
-            if let Some(from) = from_by.first() {
-                *from
-            } else {
-                panic!("Could not parse variant.")
-            }
-        },
+        from: *from_by.first().unwrap(),
         by: {
             from_by.remove(0);
             from_by
@@ -126,17 +128,18 @@ impl Game for Session {
 
     fn info(&self) -> GameInformation {
         GameInformation {
-            name:            NAME.to_owned(),
-            author:          AUTHOR.to_owned(),
-            description:     DESCRIPTION.to_owned(),
-            variant_pattern: VARIANT_PATTERN.to_owned(),
-            variant_default: VARIANT_DEFAULT.to_owned(),
+            name:             NAME.to_owned(),
+            author:           AUTHOR.to_owned(),
+            about:            ABOUT.to_owned(),
+            variant_protocol: VARIANT_PROTOCOL.to_owned(),
+            variant_pattern:  VARIANT_PATTERN.to_owned(),
+            variant_default:  VARIANT_DEFAULT.to_owned(),
         }
     }
 }
 
 impl Solvable for Session {
-    fn solvers(&self) -> Vec<(Option<String>, fn(&Self, bool, bool) -> Value)> {
+    fn solvers(&self) -> Vec<(Option<String>, Solver<Self>)> {
         vec![
             (None,                              Self::acyclic_solve),
             (Some(Self::acyclic_solver_name()), Self::acyclic_solve),
