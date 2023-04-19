@@ -6,14 +6,14 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::UserError;
+use crate::errors::NovaError;
 use strsim::damerau_levenshtein;
 
 /// Checks if the game exists among the offerings and returns an error if
 /// it does not. Includes a suggestion in the error information.
-pub fn check_game_exists(name: &String) -> Result<(), UserError> {
+pub fn check_game_exists(name: &String) -> Result<(), NovaError> {
     if !crate::games::LIST.contains(&&name[0..]) {
-        Err(UserError::GameNotFoundError(name.to_owned()))
+        Err(NovaError::GameNotFoundError(name.to_owned()))
     } else {
         Ok(())
     }

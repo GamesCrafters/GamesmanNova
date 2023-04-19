@@ -6,7 +6,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::UserError;
+use crate::errors::NovaError;
 use crate::interfaces::terminal::cli::*;
 use crate::utils::check_game_exists;
 use crate::{
@@ -17,7 +17,7 @@ use serde_json::json;
 
 /// Prints the formatted game information according to the output specified in
 /// `args`.
-pub fn printf_game_info(args: &InfoArgs, game: &String) -> Result<(), UserError> {
+pub fn printf_game_info(args: &InfoArgs, game: &String) -> Result<(), NovaError> {
     check_game_exists(game)?;
     let target = &game[0..];
     let session = get_session::generate_match!("src/games/")(None);

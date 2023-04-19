@@ -21,7 +21,7 @@
 //! ...expands to the folloing `match` statement:
 //!
 //!
-//! ```rust
+//! ```none
 //! match target {
 //!     "module_1" => crate::games::module_1::Session::initialize,
 //!     "module_2" => crate::games::module_2::Session::initialize,
@@ -67,7 +67,7 @@ use std::fs;
 /// ...expands to the folloing `match` statement:
 ///
 ///
-/// ```rust
+/// ```none
 /// match target {
 ///     "module_1" => crate::games::module_1::Session::initialize,
 ///     "module_2" => crate::games::module_2::Session::initialize,

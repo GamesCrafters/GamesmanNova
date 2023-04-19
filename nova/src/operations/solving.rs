@@ -8,7 +8,7 @@
 
 use crate::core::solvers::Solvable;
 use crate::core::{Solver, Value};
-use crate::errors::UserError;
+use crate::errors::NovaError;
 use crate::games::Game;
 use crate::interfaces::terminal::cli::{Output, SolveArgs};
 use crate::utils::check_game_exists;
@@ -25,7 +25,7 @@ pub fn solve_by_name(
     read: bool,
     write: bool,
     quiet: bool,
-) -> Result<Value, UserError> {
+) -> Result<Value, NovaError> {
     check_game_exists(target)?;
     let target = &target[0..];
     let session = get_session::generate_match!("src/games/")(variant.to_owned());
@@ -99,7 +99,7 @@ fn find_solver<G: Solvable>(
     session: &G,
     solver: Option<String>,
     quiet: bool,
-) -> Result<Solver<G>, UserError> {
+) -> Result<Solver<G>, NovaError> {
     let available = session.solvers();
     if available.is_empty() {
         if !quiet {
@@ -117,7 +117,7 @@ fn find_solver<G: Solvable>(
                 names.push(candidate.clone().to_owned());
             }
         }
-        Err(UserError::SolverNotFoundError(target, names))
+        Err(NovaError::SolverNotFoundError(target, names))
     } else {
         for (solver_name, solver_func) in available {
             if solver_name.is_none() {

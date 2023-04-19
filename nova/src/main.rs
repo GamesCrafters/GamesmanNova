@@ -17,7 +17,7 @@ use clap::Parser;
 use std::process;
 
 use crate::core::Value;
-use crate::errors::UserError;
+use crate::errors::NovaError;
 use crate::interfaces::terminal::cli::*;
 use crate::operations::*;
 
@@ -34,11 +34,11 @@ mod utils;
 
 fn main() {
     let cli = Cli::parse();
-    let result: Result<(), UserError> = match &cli.command {
+    let result: Result<(), NovaError> = match &cli.command {
         Commands::Tui(args) => tui(args, cli.quiet),
+        Commands::Info(args) => list(args, cli.quiet),
         Commands::Solve(args) => solve(args, cli.quiet),
         Commands::Analyze(args) => analyze(args, cli.quiet),
-        Commands::Info(args) => list(args, cli.quiet),
     };
     if let Err(e) = result {
         if !cli.quiet {
@@ -51,15 +51,15 @@ fn main() {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs, quiet: bool) -> Result<(), UserError> {
+fn tui(args: &TuiArgs, quiet: bool) -> Result<(), NovaError> {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs, quiet: bool) -> Result<(), UserError> {
+fn analyze(args: &AnalyzeArgs, quiet: bool) -> Result<(), NovaError> {
     todo!()
 }
 
-fn solve(args: &SolveArgs, quiet: bool) -> Result<(), UserError> {
+fn solve(args: &SolveArgs, quiet: bool) -> Result<(), NovaError> {
     solving::confirm_potential_overwrite(args);
     let value = solving::solve_by_name(
         &args.target,
@@ -75,7 +75,7 @@ fn solve(args: &SolveArgs, quiet: bool) -> Result<(), UserError> {
     Ok(())
 }
 
-fn list(args: &InfoArgs, quiet: bool) -> Result<(), UserError> {
+fn list(args: &InfoArgs, quiet: bool) -> Result<(), NovaError> {
     if !quiet {
         if let Some(game) = &args.target {
             listing::printf_game_info(args, game)?;

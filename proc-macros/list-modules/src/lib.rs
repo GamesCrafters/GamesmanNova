@@ -26,7 +26,7 @@
 //!
 //! ...will result in the following list expansion:
 //!
-//! ```rust
+//! ```none
 //! pub const LIST: [&str; N] = [
 //!     "child_1",
 //!     "child_2",
@@ -77,7 +77,7 @@ use std::fs;
 ///
 /// ...will result in the following list expansion:
 ///
-/// ```rust
+/// ```none
 /// pub const LIST: [&str; N] = [
 ///     "child_1",
 ///     "child_2",

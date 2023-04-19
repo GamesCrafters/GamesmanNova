@@ -44,6 +44,9 @@ size. They can make a choice of how many elements to remove (and of how many
 elements to start out with) based on the game variant. The player who is left
 with 0 elements in their turn loses. A player cannot remove more elements than
 currently available in the set.";
+
+const VARIANT_DEFAULT: &str = "10-1-2";
+const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
 const VARIANT_PROTOCOL: &str =
 "The variant string should be a dash-separated group of two or more positive 
 integers. For example, '239-232-23-6-3-6' is valid but '598', '-23-1-5', and
@@ -53,8 +56,6 @@ need to remove a number of pieces on their turn. Note that the numbers can be
 repeated, but if you repeat the first number it will be a win for the player
 with the first turn in 1 move. If you repeat any of the rest of the numbers,
 the only consequence will be a slight decrease in performance.";
-const VARIANT_DEFAULT: &str = "10-1-2";
-const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
 
 /* GAME IMPLEMENTATION */
 
@@ -63,28 +64,6 @@ pub struct Session {
     variant: Option<String>,
     from: State,
     by: Vec<u64>
-}
-
-fn decode_variant(v: Variant) -> Session {
-    let re = Regex::new(VARIANT_PATTERN).unwrap();
-    if !re.is_match(&v) {
-        println!("Variant string malformed.");
-        process::exit(exitcode::USAGE);
-    }
-    let mut from_by = v.split('-')
-        .map(|int_string| {
-            int_string.parse::<u64>()
-                .expect("Could not parse variant.")
-        })
-        .collect::<Vec<u64>>();
-    Session {
-        variant: Some(v),
-        from: *from_by.first().unwrap(),
-        by: {
-            from_by.remove(0);
-            from_by
-        }
-    }
 }
 
 impl Game for Session {
@@ -146,5 +125,55 @@ impl Solvable for Session {
             (Some(Self::cyclic_solver_name()),  Self::cyclic_solve),
             (Some(Self::tier_solver_name()),    Self::tier_solve),
         ]
+    }
+}
+
+/* HELPER FUNCTIONS */
+
+fn decode_variant(v: Variant) -> Session {
+    let re = Regex::new(VARIANT_PATTERN).unwrap();
+    if !re.is_match(&v) {
+        println!("Variant string malformed.");
+        process::exit(exitcode::USAGE);
+    }
+    let mut from_by = v.split('-')
+        .map(|int_string| {
+            int_string.parse::<u64>()
+                .expect("Could not parse variant.")
+        })
+        .collect::<Vec<u64>>();
+    Session {
+        variant: Some(v),
+        from: *from_by.first().unwrap(),
+        by: {
+            from_by.remove(0);
+            from_by
+        }
+    }
+}
+
+/* TESTS */
+
+#[cfg(test)]
+mod test {
+    use regex::Regex;
+    use crate::games::{
+        Game,
+        zero_by::{Session, VARIANT_DEFAULT, VARIANT_PATTERN}
+    };
+
+    #[test]
+    fn default_variant_matches_variant_pattern() {
+        let re = Regex::new(VARIANT_PATTERN).unwrap();
+        assert!(re.is_match(VARIANT_DEFAULT));
+    }
+
+    #[test]
+    fn init_with_no_variant_is_the_same_as_with_default_variant() {
+        let with_none = Session::initialize(None);
+        let with_default = Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
+        assert_eq!(with_none.variant, with_default.variant);
+        assert_eq!(with_none.from, with_default.from);
+        assert_eq!(with_none.by, with_default.by);
     }
 }
