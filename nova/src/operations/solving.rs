@@ -27,7 +27,7 @@ pub fn solve_by_name(
     quiet: bool,
 ) -> Result<Value, NovaError> {
     check_game_exists(target)?;
-    let target = &target[0..];
+    let target: &str = target;
     let session = get_session::generate_match!("src/games/")(variant.to_owned());
     let solver_fn = find_solver(&session, solver.clone(), quiet)?;
     Ok(solver_fn(&session, read, write))

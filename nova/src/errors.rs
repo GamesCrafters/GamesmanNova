@@ -33,7 +33,7 @@ impl fmt::Display for NovaError {
                     f,
                     "The game '{}' was not found among the offerings. Perhaps you meant '{}'?",
                     input,
-                    most_similar(&input[0..], crate::games::LIST.to_vec())
+                    most_similar(input, crate::games::LIST.to_vec())
                 )
             }
             Self::SolverNotFoundError(name, list) => {
@@ -41,7 +41,7 @@ impl fmt::Display for NovaError {
                     f,
                     "The solver '{}' was not found among the offerings. Perhaps you meant '{}'?",
                     name,
-                    most_similar(&name[0..], list.iter().map(|s| &s[0..]).collect())
+                    most_similar(name, list.iter().map(|s| &s[0..]).collect())
                 )
             }
         }

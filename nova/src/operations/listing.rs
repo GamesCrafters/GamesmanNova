@@ -19,7 +19,7 @@ use serde_json::json;
 /// `args`.
 pub fn printf_game_info(args: &InfoArgs, game: &String) -> Result<(), NovaError> {
     check_game_exists(game)?;
-    let target = &game[0..];
+    let target: &str = game;
     let session = get_session::generate_match!("src/games/")(None);
     let info: GameInformation = session.info();
     if let Some(format) = args.output {

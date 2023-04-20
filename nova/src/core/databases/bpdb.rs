@@ -33,7 +33,7 @@ impl Database for BPDatabase {
         todo!()
     }
 
-    fn get(&self, state: State) -> &Option<Value> {
+    fn get(&self, state: State) -> Option<&Value> {
         todo!()
     }
 
