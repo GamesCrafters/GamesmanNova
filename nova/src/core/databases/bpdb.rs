@@ -6,6 +6,9 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use super::Database;
 use crate::core::{State, Value};
 
@@ -16,25 +19,50 @@ use crate::core::{State, Value};
 pub struct BPDatabase {
     /// Used to identify the database file should the contents be persisted.
     id: String,
-    /// Indicates that the database should try to fetch contents from a file,
-    /// and fail if there is no such file.
     read: bool,
-    /// Indicates that the database should persist its contents beyond runtime
-    /// in a local file, or overwrite it should it already exist.
     write: bool,
+    mem: HashMap<State, Mutex<Value>>,
 }
 
 impl Database for BPDatabase {
     fn new(id: String, read: bool, write: bool) -> Self {
-        BPDatabase { id, read, write }
+        if read && write {
+            panic!("Cannot operate in read and write modes simultaneously.")
+        }
+        BPDatabase {
+            id,
+            read,
+            write,
+            mem: HashMap::new(),
+        }
+    }
+ 
+    fn put(&mut self, state: State, value: Value) {
+        if !self.read {
+            if self.write {
+                // Check if there is a logger thread, make one if not
+                // Send update to logger thread
+                // Once in a while, send signal to checkpoint thread
+                todo!()
+            }
+            self.mem.insert(state, Mutex::new(value));
+        }
     }
 
-    fn insert(&mut self, state: State, value: Option<Value>) {
-        todo!()
-    }
-
-    fn get(&self, state: State) -> Option<&Value> {
-        todo!()
+    fn get(&self, state: State) -> Option<Value> {
+        if self.read {
+            // Get checkpoint transmitter and send request for record with state
+            // Wait for message including record using checkpoint transmitter
+            // Return retrieved record
+            todo!()
+        } else {
+            if let Some(mutex) = self.mem.get(&state) {
+                let lock = mutex.lock().unwrap();
+                Some(*lock)
+            } else {
+                None
+            }
+        }
     }
 
     fn delete(&mut self, state: State) {

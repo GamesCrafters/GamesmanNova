@@ -33,8 +33,10 @@ pub trait AcyclicSolver {
 /// games.
 impl<G: AcyclicallySolvable> AcyclicSolver for G {
     fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value {
-        let state = game.start();
+        // let mut db = BPDatabase::new(game.id(), read, write);
+        // let db = Arc::new(Mutex::new(db));
         let mut db = BPDatabase::new(game.id(), read, write);
+        let state = game.start();
         traverse(state, game, &mut db)
     }
 
@@ -58,14 +60,14 @@ where
     let mut available: HashSet<Value> = HashSet::new();
     for state in game.adjacent(state) {
         if let Some(out) = db.get(state) {
-            available.insert(*out);
+            available.insert(out);
         } else {
             let out = traverse(state, game, db);
             available.insert(out);
-            db.insert(state, Some(out));
+            db.put(state, out);
         }
     }
     let value = choose_value(available);
-    db.insert(state, Some(value));
+    db.put(state, value);
     value
 }

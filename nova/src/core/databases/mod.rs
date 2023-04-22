@@ -26,9 +26,9 @@ pub trait Database {
     where
         Self: Sized;
     /// Create a new record.
-    fn insert(&mut self, state: State, value: Option<Value>);
+    fn put(&mut self, state: State, value: Value);
     /// Read a record. Returns `None` if record does not exist.
-    fn get(&self, state: State) -> Option<&Value>;
+    fn get(&self, state: State) -> Option<Value>;
     /// Delete a record.
     fn delete(&mut self, state: State);
 }
