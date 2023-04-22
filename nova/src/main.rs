@@ -36,7 +36,7 @@ fn main() {
     let cli = Cli::parse();
     let result: Result<(), NovaError> = match &cli.command {
         Commands::Tui(args) => tui(args, cli.quiet),
-        Commands::Info(args) => list(args, cli.quiet),
+        Commands::Info(args) => info(args, cli.quiet),
         Commands::Solve(args) => solve(args, cli.quiet),
         Commands::Analyze(args) => analyze(args, cli.quiet),
     };
@@ -75,7 +75,7 @@ fn solve(args: &SolveArgs, quiet: bool) -> Result<(), NovaError> {
     Ok(())
 }
 
-fn list(args: &InfoArgs, quiet: bool) -> Result<(), NovaError> {
+fn info(args: &InfoArgs, quiet: bool) -> Result<(), NovaError> {
     if !quiet {
         if let Some(game) = &args.target {
             listing::printf_game_info(args, game)?;
