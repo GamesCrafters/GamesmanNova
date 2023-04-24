@@ -7,7 +7,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::core::solvers::Solvable;
-use crate::core::{Solver, Value};
+use crate::core::{Solver, StateDescription, Value};
 use crate::errors::NovaError;
 use crate::games::Game;
 use crate::interfaces::terminal::cli::{Output, SolveArgs};
@@ -37,20 +37,24 @@ pub fn solve_by_name(
 /// if any.
 pub fn printf_solve_result(value: Value, args: &SolveArgs) {
     let value_str: &str;
-    let remoteness: u32;
+    let des: StateDescription;
+    let mut remoteness = 0;
     match value {
-        Value::Lose(rem) => {
+        Value::Lose(description) => {
             value_str = "lose";
-            remoteness = rem;
+            des = description;
         }
-        Value::Tie(rem) => {
+        Value::Tie(description) => {
             value_str = "tie";
-            remoteness = rem;
+            des = description;
         }
-        Value::Win(rem) => {
+        Value::Win(description) => {
             value_str = "win";
-            remoteness = rem;
+            des = description;
         }
+    }
+    if let Some(rem) = des.remoteness {
+        remoteness = rem;
     }
     if let Some(format) = args.output {
         match format {

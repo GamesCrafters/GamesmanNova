@@ -19,7 +19,7 @@ use super::{AcyclicGame, Game, SmallGame, GameInformation};
 use crate::core::{
     solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolver, tiered::TierSolver},
     solvers::{AcyclicallySolvable, CyclicallySolvable, Solvable, TierSolvable},
-    State, Value, Variant, Solver
+    State, Value, Variant, Solver, StateDescription
 };
 use crate::implement;
 use std::collections::HashSet;
@@ -93,7 +93,13 @@ impl Game for Session {
         if state > 0 {
             None
         } else {
-            Some(Value::Lose(0))
+            Some(Value::Lose({
+                StateDescription {
+                    remoteness: Some(0),
+                    min_exclusion: Some(0),
+                    win_by: Some(0)
+                }
+            }))
         }
     }
 

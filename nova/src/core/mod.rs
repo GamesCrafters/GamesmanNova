@@ -28,21 +28,51 @@ pub type Variant = String;
 /// that can be achieved in a game.
 pub type State = u64;
 
+/// Represents how far away a state is from its corresponding terminal state.
+pub type Remoteness = u8;
+
+/// Gives a metric for determining how much of an advantage one player has.
+pub type WinBy = u8;
+
+/// Stands for 'minimum excluded value' -- for any given state, it is the
+/// minimum amount of moves one has to make before getting to any end state.
+pub type MinExclusion = u8;
+
 /// The signature of a function which can solve a game, taking in the game,
 /// and parameters read and write.
 pub type Solver<G> = fn(&G, bool, bool) -> Value;
 
-/* ENUMERATIONS */
+/* GAME STATE CHARACTERISTICS */
 
 /// Indicates the value of a game state according to the game's rules. Contains
 /// remoteness information (how far away a state is from its corresponding
 /// terminal state).
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Value {
     /// Indicates that a player has won.
-    Win(u32),
+    Win(StateDescription),
     /// Indicates that a player has lost.
-    Lose(u32),
+    Lose(StateDescription),
     /// Indicates that the game is a tie.
-    Tie(u32),
+    Tie(StateDescription),
 }
+
+macro_rules! gamestate_features {
+    ($($name:ident; $type:ty),+) => {
+        #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+        pub struct StateDescription {
+            $(pub $name: Option<$type>,)+
+        }
+
+        #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+        pub struct StateDescriptionMask {
+            $(pub $name: bool,)+
+        }
+    }
+}
+
+gamestate_features!(
+    rem; Remoteness,
+    mex; MinExclusion,
+    wby; WinBy
+);
