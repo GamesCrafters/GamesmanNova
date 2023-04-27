@@ -78,9 +78,9 @@ fn solve(args: &SolveArgs, quiet: bool) -> Result<(), NovaError> {
 fn info(args: &InfoArgs, quiet: bool) -> Result<(), NovaError> {
     if !quiet {
         if let Some(game) = &args.target {
-            listing::printf_game_info(args, game)?;
+            informing::printf_game_info(args, game)?;
         } else {
-            listing::printf_game_list(args);
+            informing::printf_game_list(args);
         }
     }
     Ok(())

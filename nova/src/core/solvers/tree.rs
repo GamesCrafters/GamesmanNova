@@ -25,7 +25,6 @@ pub trait TreeSolver {
     fn tree_solver_name() -> String;
 }
 
-/// Blanket implementation of the tree solver for all tree solvable games.
 impl<G: TreeSolvable> TreeSolver for G {
     fn tree_solve(game: &Self, read: bool, write: bool) -> Value {
         todo!()

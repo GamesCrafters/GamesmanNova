@@ -13,7 +13,7 @@ use crate::core::{State, Value};
 
 /* DBMS IMLPEMENTATIONS */
 
-pub mod bpdb;
+pub mod streamdb;
 
 /* TRAITS */
 
@@ -27,13 +27,10 @@ pub trait Database {
     fn new(name: String, mode: DatabaseMode) -> Self
     where
         Self: Sized;
-
     /// Create a new record.
     fn put(&mut self, state: State, value: Value);
-
     /// Read a record. Returns `None` if record does not exist.
     fn get(&self, state: State) -> Option<Value>;
-
     /// Delete a record.
     fn delete(&mut self, state: State);
 }
@@ -42,10 +39,8 @@ pub trait Database {
 pub enum DatabaseMode {
     /// Makes no attempt at persisting the information passed in.
     Virtual,
-
     /// Only sources data from a file with the same name as the database.
     ReadOnly,
-
     /// Persists the state information provided into a file with the same name.
     Default,
 }
