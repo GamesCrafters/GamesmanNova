@@ -7,19 +7,17 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use std::path::Path;
-
 use crate::core::{State, Value};
 
-/* DBMS IMLPEMENTATIONS */
+/* DBMS IMPLEMENTATIONS */
 
-pub mod streamdb;
+pub mod stream_db;
 
 /* TRAITS */
 
 /// Database management system interface for storing game state to value
 /// mappings.
-pub trait Database {
+pub trait DatabaseManager {
     /// Instantiate a new database. If `read` is true, it will attempt to read
     /// an existing database using the information in `id`. If write is true,
     /// it will attempt to overwrite or write a new database with `id`. If

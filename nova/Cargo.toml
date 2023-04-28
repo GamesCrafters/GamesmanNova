@@ -7,16 +7,43 @@ license = "	GPL-3.0-or-later"
 repository = "https://github.com/GamesCrafters/GamesmanNova"
 keywords = ["game", "solver"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+
+# Command-line application toolkit - used to make the command-line interface
 clap = { version = "4.1.8", features = ["derive"] }
-crossbeam-channel = "0.5"
+
+# Byte casting - used in low-level database to store data as bytes
 bytemuck = "1.13.1"
+
+# UNIX-standard exit codes - used for program exits
 exitcode = "1.1.2"
+
+# String similarity - used to make suggestions for malformed user input
 strsim = "0.10.0"
+
+# JSON serialization - used to provide JSON-formatted output
 serde_json = "1.0"
+
+# Auto-module procedural macro - used to automate games' inclusion into the module tree
 dirmod = "0.1.5"
+
+# Regular expressions - used for making game variant protocol string patterns
 regex = "1"
+
+# Multithreading - used for database and solver performance
+rayon = "1.7"
+
+# Sparse linear algebra - used for opimizing memory usage
+sprs = "0.11.0"
+
+# Integer trait marker - used for creating functions and structs generic over all integer types
+num-integer = "0.1"
+
+# Multithreading - used to establish multiple-consumer multiple-producer channels
+crossbeam-channel = "0.5.8"
+
+# Module listing procedural macro - used for generating a static list of game names from module names
 list-modules = { path = "../proc-macros/list-modules"}
+
+# Match generation procedural macro - used for matching game name inputs to solver functions and names
 get-session = { path = "../proc-macros/get-session"}
