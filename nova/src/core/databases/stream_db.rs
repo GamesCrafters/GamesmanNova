@@ -1,10 +1,12 @@
 use crate::core::databases::DatabaseMode;
 use rayon::{ThreadPool, ThreadPoolBuilder};
-use crossbeam_channel::unbounded;
 use std::collections::BTreeMap;
 use std::fs::{File, OpenOptions};
-use std::{path::Path, sync::Mutex, thread};
+use std::io::Write;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{mpsc, Arc};
 use std::thread::JoinHandle;
+use std::{path::Path, sync::Mutex, thread};
 
 /* DEFINITIONS */
 
@@ -53,16 +55,12 @@ struct Record {
     value: u8,
 }
 
-enum LogMessage {
-    Update(Record),
+enum LoggerMessage {
+    Update(Record, Arc<Mutex<File>>),
     Checkpoint,
 }
 
-enum WriteMessage {
-    Checkpoint,
-}
-
-/* IMPLEMENTATION */
+/* DATABASE IMPLEMENTATION */
 
 impl ByteDB<'_> {
     fn initialize(
@@ -70,7 +68,7 @@ impl ByteDB<'_> {
         directory: &Path,
         mode: DatabaseMode,
         log_size: u128,
-        log_num: u128
+        log_num: u128,
     ) -> Self {
         // Initialize a thread pool for logging and writing.
         let mut threads: ThreadPool;
@@ -105,9 +103,9 @@ impl ByteDB<'_> {
     fn update(&mut self, record: Record, page: usize) {
         let target_lock = self.memory.get(page).unwrap_or(&Mutex::new(Page::new()));
         if let Ok(mut page) = target_lock.lock() {
-
+            //
             // TODO: Send update to logging worker thread
-
+            //
             page.insert(record.offset, record.value);
         } else {
             panic!("A database page in memory was poisoned by a thread.");
@@ -133,11 +131,118 @@ impl ByteDB<'_> {
 
 /* SERIALIZER WORKER */
 
+/// Wrapper for a worker thread whose only purpose is to persist the operations
+/// made on a `ByteDB` to disk atomically and durably using write-ahead logging
+/// and file checkpoints.
+struct ByteStreamSerializer<'a> {
+    /// Name of the database. Used to name log and database files.
+    identifier: &'a String,
+    /// Target directory to store log and database files.
+    directory: &'a Path,
+    /// Write-ahead log currently being written to.
+    log_file: Arc<Mutex<File>>,
+    /// Number of new log files that have been produced in total.
+    log_count: u64,
+    /// Handle of the worker thread handling logging.
+    handle: JoinHandle<()>,
+    /// Sender for the logging thread's communication channel.
+    sender: Sender<LoggerMessage>,
+}
 
+impl ByteStreamSerializer<'_> {
+    fn new(identifier: &String, directory: &Path) -> Self {
+        let log_count = 0;
+        let (sender, receiver) = mpsc::channel();
+        let log_file = Self::generate_log(directory, identifier, log_count);
+        let log_file = Arc::new(Mutex::new(log_file));
+        let handle = Self::spawn_listener(receiver);
+        ByteStreamSerializer {
+            identifier,
+            directory,
+            log_file,
+            log_count,
+            handle,
+            sender,
+        }
+    }
 
-/* PAGE DATA STRUCTURE  */
+    fn order_update(&self, record: Record) {
+        let log_reference = Arc::clone(&self.log_file);
+        let message = LoggerMessage::Update(record, log_reference);
+        if let Err(e) = self.sender.send(message) {
+            eprintln!("Error sending update order to logger: {:?}", e);
+            todo!("Handle logger sender errors gracefully.");
+        }
+    }
 
-/// A sparse, addressable sequence of bytes that initializes to all-zeros.
+    fn order_checkpoint(&self) {
+        let message = LoggerMessage::Checkpoint;
+        if let Err(e) = self.sender.send(message) {
+            eprintln!("Error sending checkpoint order to logger: {:?}", e);
+            todo!("Handle logger sender errors gracefully.");
+        }
+    }
+
+    /* Associated methods... */
+
+    fn spawn_listener(receiver: Receiver<LoggerMessage>) -> JoinHandle<()> {
+        thread::spawn(move || match receiver.recv() {
+            Ok(message) => match message {
+                LoggerMessage::Update(record, file_reference) => {
+                    let log = unlock_file(file_reference);
+                    Self::perform_log_update(record, log);
+                }
+                LoggerMessage::Checkpoint => {}
+            },
+            Err(e) => {
+                eprintln!("Logger failed to receive a message: {:?}", e);
+                todo!("Handle failures when logger receiver fails.");
+            }
+        })
+    }
+
+    fn perform_checkpoint() {
+        todo!()
+    }
+
+    fn perform_log_update(record: Record, log: &mut File) {
+        let mut data: [u8; 9] = [0; 9];
+        let index: [u8; 8] = bytemuck::cast(record.offset);
+        data[..8].copy_from_slice(&index);
+        data[8] = record.value;
+        if let Err(e) = log.write_all(&data) {
+            eprintln!("Error writing update to log buffer:  {:?}", e);
+            if let Err(e) = log.flush() {
+                eprintln!("Error flushing log contents to disk: {:?}", e);
+            }
+            todo!("Handle failures when writing to logfile.");
+        }
+    }
+
+    fn generate_log(directory: &Path, identifier: &String, log_count: u64) -> File {
+        let mut new_name = identifier.clone();
+        new_name.push_str(".log");
+        new_name.push_str(&log_count.to_string());
+        let new_filepath = directory.join(new_name);
+        OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(new_filepath)
+            .expect("Failed to create new log file.")
+    }
+}
+
+/* DATABASE PAGE */
+
+/// Hybrid data structure consisting of a `BTreeMap` top layer with byte
+/// arrays of static size as values and integers as keys. Made as alternative
+/// to a really long vector of bytes (where inserting a single element to a
+/// very high index, for example, wastes a lot of capacity).
+///
+/// TODO: Implement a cache to avoid searching the B-Tree when doing sequential
+///       accesses (i.e. cache a reference to the last accessed block). This
+///       will require knowledge of `Arc`.
 struct Page {
     data: BTreeMap<usize, [u8; BLOCK_MASK + 1]>,
 }
@@ -181,6 +286,18 @@ impl Page {
                 new_block[lower] = value;
                 self.data.insert(upper, new_block);
             }
+        }
+    }
+}
+
+/* HELPER FUNCTIONS */
+
+fn unlock_file<'a>(reference: Arc<Mutex<File>>) -> &'a mut File {
+    match reference.lock() {
+        Ok(log) => &mut (*log),
+        Err(e) => {
+            eprintln!("Error locking log file: {:?}", e);
+            todo!("Handle log file locking errors gracefully.");
         }
     }
 }
