@@ -47,3 +47,9 @@ list-modules = { path = "../proc-macros/list-modules"}
 
 # Match generation procedural macro - used for matching game name inputs to solver functions and names
 get-session = { path = "../proc-macros/get-session"}
+
+# Provides a thread pool abstraction - used for persisting log files during storage engine checkpoints
+threadpool = "1.8.1"
+
+# Counts the number of CPUs on a host - used for finding the number of threads to use
+num_cpus = "1.15.0"
