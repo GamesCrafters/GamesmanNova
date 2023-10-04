@@ -7,7 +7,7 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use super::TreeSolvable;
+use crate::games::TreeSolvable;
 use crate::Value;
 
 /* SOLVER NAME */
@@ -18,20 +18,25 @@ const SOLVER_NAME: &str = "tree";
 /* COMFORTER IMPLEMENTATION */
 
 /// Indicates that a game could theoretically be solved as a tree.
-pub trait TreeSolver {
+pub trait TreeSolver
+{
     /// Returns the value of an arbitrary state of the game.
-    fn tree_solve(game: &Self, read: bool, write: bool) -> Value;
+    fn solve(game: &Self, read: bool, write: bool) -> Value;
+
     /// Returns the name of this solver type.
-    fn tree_solver_name() -> String;
+    fn name() -> String;
 }
 
 /// Blanket implementation of the tree solver for all tree solvable games.
-impl<G: TreeSolvable> TreeSolver for G {
-    fn tree_solve(game: &Self, read: bool, write: bool) -> Value {
+impl<G: TreeSolvable> TreeSolver for G
+{
+    fn solve(game: &Self, read: bool, write: bool) -> Value
+    {
         todo!()
     }
 
-    fn tree_solver_name() -> String {
+    fn name() -> String
+    {
         SOLVER_NAME.to_owned()
     }
 }

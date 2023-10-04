@@ -7,7 +7,7 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use crate::core::{State, Value};
+use crate::models::{State, Value};
 
 /* DBMS IMLPEMENTATIONS */
 
@@ -17,7 +17,8 @@ pub mod bpdb;
 
 /// Database management system interface for storing game state to value
 /// mappings.
-pub trait Database {
+pub trait Database
+{
     /// Instantiate a new database. If `read` is true, it will attempt to read
     /// an existing database using the information in `id`. If write is true,
     /// it will attempt to overwrite or write a new database with `id`. If

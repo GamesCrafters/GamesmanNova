@@ -8,72 +8,23 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use super::{Solver, Value};
-use crate::games::Game;
+use super::Value;
 use std::collections::HashSet;
 
 /* SOLVER MODULES */
 
 pub mod acyclic;
 pub mod cyclic;
-pub mod tiered;
+pub mod tier;
 pub mod tree;
-
-/* TRAITS */
-
-/// Indicates that a game is solvable, and offers a function to retrieve
-/// the solvers that can solve the game.
-pub trait Solvable
-where
-    Self: Game,
-{
-    /// Returns all the solvers available to solve the game in order of
-    /// overall efficiency, including their interface names. The option
-    /// to choose a default solver in the implementation of this function
-    /// is allowed by making one of them mapped to `None`, as opposed to
-    /// `Some(String)`.
-    fn solvers(&self) -> Vec<(Option<String>, Solver<Self>)>;
-}
-
-/* SOLVING MARKER */
-
-/// Indicates that a game is solvable using methods only available to games
-/// whose state graphs are acyclic (which includes tree games).
-pub trait AcyclicallySolvable
-where
-    Self: Solvable,
-{
-}
-
-/// Indicates that a game is solvable in a generally inefficient manner.
-pub trait CyclicallySolvable
-where
-    Self: Solvable,
-{
-}
-
-/// Indicates that a game's state graph can be partitioned into independent
-/// connected components and solved taking advantage of this.
-pub trait TierSolvable
-where
-    Self: Solvable,
-{
-}
-
-/// Indicates that a game is solvable using methods only available to games
-/// with unique move paths to all states.
-pub trait TreeSolvable
-where
-    Self: Solvable,
-{
-}
 
 /* HELPER FUNCTIONS */
 
 /// Returns the most favorable value with the least remoteness in the case of
 /// a possible win or tie, or with the greatest remoteness in the case of an
 /// inevitable loss.
-pub fn choose_value(available: HashSet<Value>) -> Value {
+pub fn choose_value(available: HashSet<Value>) -> Value
+{
     let mut w_rem = u32::MAX;
     let mut t_rem = u32::MAX;
     let mut l_rem = 0;

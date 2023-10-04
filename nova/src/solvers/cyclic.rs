@@ -7,7 +7,7 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use super::CyclicallySolvable;
+use crate::games::CyclicallySolvable;
 use crate::Value;
 
 /* SOLVER NAME */
@@ -18,20 +18,25 @@ const SOLVER_NAME: &str = "cyclic";
 /* COMFORTER IMPLEMENTATION */
 
 /// Indicates that a game could theoretically be solved cyclically.
-pub trait CyclicSolver {
+pub trait CyclicSolver
+{
     /// Returns the value of an arbitrary state of the game.
-    fn cyclic_solve(game: &Self, read: bool, write: bool) -> Value;
+    fn solve(game: &Self, read: bool, write: bool) -> Value;
     /// Returns the name of this solver type.
-    fn cyclic_solver_name() -> String;
+    fn name() -> String;
 }
 
-/// Blanket implementation of the cyclic solver for all cyclically solvable games.
-impl<G: CyclicallySolvable> CyclicSolver for G {
-    fn cyclic_solve(game: &Self, read: bool, write: bool) -> Value {
+/// Blanket implementation of the cyclic solver for all cyclically solvable
+/// games.
+impl<G: CyclicallySolvable> CyclicSolver for G
+{
+    fn solve(game: &Self, read: bool, write: bool) -> Value
+    {
         todo!()
     }
 
-    fn cyclic_solver_name() -> String {
+    fn name() -> String
+    {
         SOLVER_NAME.to_owned()
     }
 }

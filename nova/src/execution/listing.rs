@@ -17,14 +17,16 @@ use serde_json::json;
 
 /// Prints the formatted game information according to the output specified in
 /// `args`.
-pub fn printf_game_info(args: &InfoArgs, game: &String) -> Result<(), NovaError> {
+pub fn printf_game_info(args: &InfoArgs, game: &String)
+    -> Result<(), NovaError>
+{
     check_game_exists(game)?;
     let target: &str = game;
     let session = get_session::generate_match!("src/games/")(None);
     let info: GameInformation = session.info();
     if let Some(format) = args.output {
         match format {
-            Output::Extra => {
+            OutputFormat::Extra => {
                 println!("\tGame:\n{}\n", info.name);
                 println!("\tAuthor:\n{}\n", info.author);
                 println!("\tDescription:\n{}\n", info.about);
@@ -32,7 +34,7 @@ pub fn printf_game_info(args: &InfoArgs, game: &String) -> Result<(), NovaError>
                 println!("\tVariant Default:\n{}\n", info.variant_default);
                 println!("\tVariant Pattern:\n{}\n", info.variant_pattern);
             }
-            Output::Json => {
+            OutputFormat::Json => {
                 println!(
                     "{}",
                     json!({
@@ -53,16 +55,17 @@ pub fn printf_game_info(args: &InfoArgs, game: &String) -> Result<(), NovaError>
 }
 
 /// Prints the formatted game list according to the output specified in `args`.
-pub fn printf_game_list(args: &InfoArgs) {
+pub fn printf_game_list(args: &InfoArgs)
+{
     if let Some(format) = args.output {
         match format {
-            Output::Extra => {
+            OutputFormat::Extra => {
                 println!("Here are the game targets available:\n");
                 for (i, game) in games::LIST.iter().enumerate() {
                     println!("{}. {}", i, game);
                 }
             }
-            Output::Json => {
+            OutputFormat::Json => {
                 let mut contents: String = String::new();
                 for game in games::LIST {
                     contents += &format!("\"{}\",\n", game);
