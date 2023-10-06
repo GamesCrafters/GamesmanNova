@@ -20,7 +20,8 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 #[command(propagate_version = true)]
-pub struct Cli {
+pub struct Cli
+{
     /* REQUIRED COMMANDS */
     /// Available subcommands for the main 'nova' command.
     #[command(subcommand)]
@@ -34,7 +35,8 @@ pub struct Cli {
 
 /// Subcommand choices, specified as `nova <subcommand>`.
 #[derive(Subcommand)]
-pub enum Commands {
+pub enum Commands
+{
     /// Start the terminal user interface.
     Tui(TuiArgs),
     /// Solve a game from the start position.
@@ -53,7 +55,8 @@ pub enum Commands {
 /// and prompt the user for confirmation before executing any potentially
 /// destructive operations.
 #[derive(Args)]
-pub struct TuiArgs {
+pub struct TuiArgs
+{
     /* DEFAULTS PROVIDED */
     /// Game to display (optional).
     #[arg(short, long)]
@@ -77,7 +80,8 @@ pub struct TuiArgs {
 /// * Prompts the user before executing any potentially destructive operations
 /// (such as overwriting a game database).
 #[derive(Args)]
-pub struct SolveArgs {
+pub struct SolveArgs
+{
     /* REQUIRED ARGUMENTS */
     /// Target game name.
     pub target: String,
@@ -88,7 +92,7 @@ pub struct SolveArgs {
     pub variant: Option<String>,
     /// Set output in a specific format.
     #[arg(short, long)]
-    pub output: Option<Output>,
+    pub output: Option<OutputFormat>,
     /// Attempt to use a specific solver to solve the game.
     #[arg(short, long)]
     pub solver: Option<String>,
@@ -112,7 +116,8 @@ pub struct SolveArgs {
 /// * Should writing to disk be necessary to perform the solve, the database
 /// file is deleted once the `analyzer` is finished.
 #[derive(Args)]
-pub struct AnalyzeArgs {
+pub struct AnalyzeArgs
+{
     /* REQUIRED ARGUMENTS */
     /// Target game name.
     pub target: String,
@@ -129,7 +134,7 @@ pub struct AnalyzeArgs {
     pub read: bool,
     /// Set output in a specific format.
     #[arg(short, long)]
-    pub output: Option<Output>,
+    pub output: Option<OutputFormat>,
 }
 
 /// Provides information about available games (or about their specifications,
@@ -137,14 +142,15 @@ pub struct AnalyzeArgs {
 /// * Provides a list of implemented games (which are valid `--target`s).
 /// * Provides output unformatted.
 #[derive(Args)]
-pub struct InfoArgs {
+pub struct InfoArgs
+{
     /* DEFAULTS PROVIDED */
     /// Specify game for which to provide information about.
     #[arg(short, long)]
     pub target: Option<String>,
     /// Set output in a specific format.
     #[arg(short, long)]
-    pub output: Option<Output>,
+    pub output: Option<OutputFormat>,
 }
 
 /* DEFINITIONS */
@@ -152,7 +158,8 @@ pub struct InfoArgs {
 /// Allows calls to return output in different formats for different purposes,
 /// such as web API calls, scripting, or simple human-readable output.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum Output {
+pub enum OutputFormat
+{
     /// Extra content or formatting where appropriate.
     Extra,
     /// JSON format.

@@ -24,129 +24,130 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::core::{
-    solvers::{AcyclicallySolvable, CyclicallySolvable, TierSolvable, TreeSolvable},
-    State, Value, Variant,
-};
-use std::collections::HashSet;
+use crate::models::{Solver, State, Value, Variant};
 
 /* INTEGRATION AUTOMATION PROCEDURAL MACROS */
 
 /* Looks in this directory (games/) and expands to a collection of
-// module definitions as follows:
-//
-// ```
-// pub mod game_1;
-// pub mod game_2;
-// ...
-// pub mod game_n;
-// ```
-*/
-dirmod::all!(default pub; except archetypes);
+ * module definitions as follows:
+ *
+ * ```
+ * pub mod game_1;
+ * pub mod game_2;
+ * ...
+ * pub mod game_n;
+ * ```
+ */
+dirmod::all!(default pub);
 
 /* Does the same thing, but instead of generating module definitions it
-// automatically creates a constant list of their names as follows:
-//
-// ```
-// pub const LIST: [&str; n] = [
-//    "game_1",
-//    "game_2",
-//    ...
-//    "game_n",
-// ];
-// ```
-*/
+ * automatically creates a constant list of their names as follows:
+ *
+ * ```
+ * pub const LIST: [&str; n] = [
+ *    "game_1",
+ *    "game_2",
+ *    ...
+ *    "game_n",
+ * ];
+ * ```
+ */
 list_modules::here!("src/games/");
 
-/* BASE TRAITS */
+/* BASE CONSTRUCTS */
 
 /// A generic deterministic finite-state game or puzzle.
-pub trait Game {
-    /// Allows for the specification of a game variant and the initialization
-    /// of a game's internal representation.
+pub trait Game
+{
+    /// Allows for the specification of a game variant and the initialization of
+    /// a game's internal representation.
     fn initialize(variant: Option<Variant>) -> Self
     where
         Self: Sized;
-    /// Returns the set of possible states one move away from `state`.
-    fn adjacent(&self, state: State) -> HashSet<State>;
-    /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
-    fn value(&self, state: State) -> Option<Value>;
-    /// Returns the game's starting state.
-    fn start(&self) -> State;
+
     /// Returns an ID unique to this game and consistent across calls from the
     /// same game variant.
     fn id(&self) -> String;
+
     /// Returns useful information about the game.
     fn info(&self) -> GameInformation;
 }
 
 /// Contains useful information about a game.
-pub struct GameInformation {
+pub struct GameInformation
+{
+    /// Known name for the game.
     pub name: String,
+
+    /// The people who implemented the game.
     pub author: String,
+
+    /// General introduction to the game.
     pub about: String,
+
+    /// Explanation of how to use strings to communicate which variant a user
+    /// wishes to play to the implementation.
     pub variant_protocol: String,
+
+    /// Regular expression pattern that all variant strings must match.
     pub variant_pattern: String,
+
+    /// Default variant string to be used when none is specified.
     pub variant_default: String,
 }
 
-/* MARKABLE TRAITS */
-
-/// One of the simplest types of game. Here, every ramification of the game is
-/// mutually exclusive of all others -- if you choose to make a move from many,
-/// there is no way of getting to a state as if you had made another.
-pub trait TreeGame
-where
-    Self: Game,
-    Self: AcyclicallySolvable,
-    Self: CyclicallySolvable,
-    Self: TierSolvable,
-    Self: TreeSolvable,
-{
-}
-
-/// In acyclic games, it is possible to get to a state in more than one way.
-/// They are generally all
-pub trait AcyclicGame
-where
-    Self: Game,
-    Self: AcyclicallySolvable,
-    Self: CyclicallySolvable,
-    Self: TierSolvable,
-{
-}
-
-/// In a tiered game, you can choose a way to split up the game state graph
-/// into connected components such that they themselves form an acyclic graph,
-/// which has significant implications for solving algorithms.
-pub trait TieredGame
-where
-    Self: Game,
-    Self: CyclicallySolvable,
-    Self: TierSolvable,
-{
-}
-
-/// In cyclic games, there are no guarantees as to whether or not you can
-/// partition the state graph into tiers, reach each state uniquely, or have
-/// all possible move sequences be finite.
-pub trait CyclicGame
-where
-    Self: Game,
-    Self: CyclicallySolvable,
-{
-}
-
-/// A relatively small game.
-pub trait SmallGame
+/// Indicates that a game is solvable, and offers a function to retrieve
+/// the solvers that can solve the game.
+pub trait Solvable
 where
     Self: Game,
 {
+    /// Returns the set of possible states one move away from `state`.
+    fn adjacent(&self, state: State) -> Vec<State>;
+
+    /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
+    fn value(&self, state: State) -> Option<Value>;
+
+    /// Returns the game's starting state.
+    fn start(&self) -> State;
+
+    /// Returns all the solvers available to solve the game in order of
+    /// overall efficiency, including their interface names. The option
+    /// to choose a default solver in the implementation of this function
+    /// is allowed by making one of them mapped to `None`, as opposed to
+    /// `Some(String)`.
+    fn solvers(&self) -> Vec<(String, Solver<Self>)>;
 }
 
-/// A relatively large game.
-pub trait LargeGame
+/* SOLVING MARKERS */
+
+/// Indicates that a game's state graph can be partitioned into independent
+/// connected components and solved taking advantage of this.
+pub trait TierSolvable
 where
-    Self: Game,
+    Self: Solvable,
+{
+}
+
+/// Indicates that a game is solvable in a generally inefficient manner.
+pub trait CyclicallySolvable
+where
+    Self: Solvable,
+{
+}
+
+/// Indicates that a game is solvable using methods only available to games
+/// whose state graphs are acyclic (which includes tree games).
+pub trait AcyclicallySolvable
+where
+    Self: Solvable,
+{
+}
+
+/// Indicates that a game is solvable using methods only available to games
+/// with unique move paths to all states.
+pub trait TreeSolvable
+where
+    Self: Solvable,
 {
 }

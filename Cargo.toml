@@ -4,3 +4,4 @@ members = [
     "proc-macros/list-modules",
     "proc-macros/get-session",
 ]
+resolver = "2"

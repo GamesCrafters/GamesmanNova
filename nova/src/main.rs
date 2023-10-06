@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+#![allow(unused_variables)]
 //! # Execution Module
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
@@ -16,23 +17,27 @@
 use clap::Parser;
 use std::process;
 
-use crate::core::Value;
 use crate::errors::NovaError;
+use crate::execution::*;
 use crate::interfaces::terminal::cli::*;
-use crate::operations::*;
+use crate::models::Value;
 
 /* MODULES */
 
-mod core;
+mod analyzers;
+mod databases;
 mod errors;
+mod execution;
 mod games;
 mod interfaces;
-mod operations;
+mod models;
+mod solvers;
 mod utils;
 
 /* PROGRAM ENTRY */
 
-fn main() {
+fn main()
+{
     let cli = Cli::parse();
     let result: Result<(), NovaError> = match &cli.command {
         Commands::Tui(args) => tui(args, cli.quiet),
@@ -51,31 +56,28 @@ fn main() {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs, quiet: bool) -> Result<(), NovaError> {
+fn tui(args: &TuiArgs, quiet: bool) -> Result<(), NovaError>
+{
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs, quiet: bool) -> Result<(), NovaError> {
+fn analyze(args: &AnalyzeArgs, quiet: bool) -> Result<(), NovaError>
+{
     todo!()
 }
 
-fn solve(args: &SolveArgs, quiet: bool) -> Result<(), NovaError> {
+fn solve(args: &SolveArgs, quiet: bool) -> Result<(), NovaError>
+{
     solving::confirm_potential_overwrite(args);
-    let value = solving::solve_by_name(
-        &args.target,
-        &args.variant,
-        &args.solver,
-        args.read,
-        args.write,
-        quiet,
-    )?;
+    let value = solving::solve_by_name(args, quiet)?;
     if !quiet {
         solving::printf_solve_result(value, args);
     }
     Ok(())
 }
 
-fn info(args: &InfoArgs, quiet: bool) -> Result<(), NovaError> {
+fn info(args: &InfoArgs, quiet: bool) -> Result<(), NovaError>
+{
     if !quiet {
         if let Some(game) = &args.target {
             listing::printf_game_info(args, game)?;

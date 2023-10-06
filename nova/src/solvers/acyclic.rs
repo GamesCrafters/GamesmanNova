@@ -7,10 +7,10 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use super::{choose_value, AcyclicallySolvable};
-use crate::core::databases::{bpdb::BPDatabase, Database};
-use crate::core::{State, Value};
-use crate::games::Game;
+use super::choose_value;
+use crate::databases::{bpdb::BPDatabase, Database};
+use crate::games::AcyclicallySolvable;
+use crate::models::{State, Value};
 use std::collections::HashSet;
 
 /* SOLVER NAME */
@@ -21,18 +21,22 @@ const SOLVER_NAME: &str = "acyclic";
 /* COMFORTER IMPLEMENTATION */
 
 /// Indicates that a game could theoretically be solved acyclically.
-pub trait AcyclicSolver {
+pub trait AcyclicSolver
+{
     /// Returns the value of an arbitrary state of the game, and uses `read`
     /// and `write` for specifying I/O preferences to database implementations.
-    fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value;
+    fn solve(game: &Self, read: bool, write: bool) -> Value;
+
     /// Returns the name of this solver type.
-    fn acyclic_solver_name() -> String;
+    fn name() -> String;
 }
 
 /// Blanket implementation of the acyclic solver for all acyclically solvable
 /// games.
-impl<G: AcyclicallySolvable> AcyclicSolver for G {
-    fn acyclic_solve(game: &Self, read: bool, write: bool) -> Value {
+impl<G: AcyclicallySolvable> AcyclicSolver for G
+{
+    fn solve(game: &Self, read: bool, write: bool) -> Value
+    {
         // let mut db = BPDatabase::new(game.id(), read, write);
         // let db = Arc::new(Mutex::new(db));
         let mut db = BPDatabase::new(game.id(), read, write);
@@ -40,7 +44,8 @@ impl<G: AcyclicallySolvable> AcyclicSolver for G {
         traverse(state, game, &mut db)
     }
 
-    fn acyclic_solver_name() -> String {
+    fn name() -> String
+    {
         SOLVER_NAME.to_owned()
     }
 }
@@ -51,11 +56,10 @@ impl<G: AcyclicallySolvable> AcyclicSolver for G {
 /// returning the value of the entry point.
 fn traverse<G>(state: State, game: &G, db: &mut BPDatabase) -> Value
 where
-    G: Game,
     G: AcyclicallySolvable,
 {
     if let Some(out) = game.value(state) {
-        return out;
+        return out
     }
     let mut available: HashSet<Value> = HashSet::new();
     for state in game.adjacent(state) {

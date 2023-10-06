@@ -7,11 +7,11 @@
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
 use crate::errors::NovaError;
-use strsim::damerau_levenshtein;
 
 /// Checks if the game exists among the offerings and returns an error if
 /// it does not. Includes a suggestion in the error information.
-pub fn check_game_exists(name: &String) -> Result<(), NovaError> {
+pub fn check_game_exists(name: &String) -> Result<(), NovaError>
+{
     if !crate::games::LIST.contains(&&name[0..]) {
         Err(NovaError::GameNotFoundError(name.to_owned()))
     } else {
@@ -20,12 +20,13 @@ pub fn check_game_exists(name: &String) -> Result<(), NovaError> {
 }
 
 /// Returns the most similar string to `model` in the collection.
-pub fn most_similar(model: &str, all: Vec<&str>) -> String {
+pub fn most_similar(model: &str, all: Vec<&str>) -> String
+{
     let mut best = usize::MAX;
     let mut closest = "";
     let mut curr;
     for s in all {
-        curr = damerau_levenshtein(model, s);
+        curr = strsim::damerau_levenshtein(model, s);
         if curr <= best {
             closest = s;
             best = curr;
@@ -41,7 +42,7 @@ pub fn most_similar(model: &str, all: Vec<&str>) -> String {
 ///
 /// Example usage:
 ///
-/// ```rust
+/// ```ignore
 /// implement! { for Game =>
 ///     AcyclicGame,
 ///     AcyclicallySolvable,
@@ -52,12 +53,12 @@ pub fn most_similar(model: &str, all: Vec<&str>) -> String {
 ///
 /// ...which expands to the following:
 ///
-/// ```rust
-/// impl AcyclicallySolvable for Game { }
+/// ```ignore
+/// impl AcyclicallySolvable for Game {}
 ///
-/// impl TreeSolvable for Game { }
+/// impl TreeSolvable for Game {}
 ///
-/// impl TierSolvable for Game { }
+/// impl TierSolvable for Game {}
 /// ```
 #[macro_export]
 macro_rules! implement {

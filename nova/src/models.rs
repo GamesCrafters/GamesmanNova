@@ -1,18 +1,11 @@
-//! # Core Behavior Module
+//! # Data Models Module
 //!
-//! `core` is a collection of analyzers, databases, and solvers which can be
-//! applied to any deterministic finite-state abstract strategy game through
-//! common abstract interfaces.
+//! This module contains centralized definitions for custom datatypes used
+//! throughout the project.
 //!
 //! #### Authorship
 //!
-//! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
-
-/* MODULES */
-
-pub mod analyzers;
-pub mod databases;
-pub mod solvers;
+//! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
 /* TYPES */
 
@@ -38,11 +31,14 @@ pub type Solver<G> = fn(&G, bool, bool) -> Value;
 /// remoteness information (how far away a state is from its corresponding
 /// terminal state).
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub enum Value {
+pub enum Value
+{
     /// Indicates that a player has won.
     Win(u32),
+
     /// Indicates that a player has lost.
     Lose(u32),
+
     /// Indicates that the game is a tie.
     Tie(u32),
 }
