@@ -89,24 +89,28 @@ use std::fs;
 ///
 /// Note that this is the only guaranteed behavior.
 #[proc_macro]
-pub fn here(__input: TokenStream) -> TokenStream {
+pub fn here(__input: TokenStream) -> TokenStream
+{
     // Get the absolute path of the directory where the macro was called from
-    let __manifest_dir =
-        env::var("CARGO_MANIFEST_DIR").expect("Failed to get Cargo manifest directory");
-    let mut __macro_call_path =
-        fs::canonicalize(__manifest_dir).expect("Failed to canonicalize Cargo manifest directory");
+    let __manifest_dir = env::var("CARGO_MANIFEST_DIR")
+        .expect("Failed to get Cargo manifest directory");
+    let mut __macro_call_path = fs::canonicalize(__manifest_dir)
+        .expect("Failed to canonicalize Cargo manifest directory");
     __macro_call_path.push(__input.to_string().trim_matches('"'));
 
-    // Collect the module names by iterating over the entries in the full base directory
+    // Collect the module names by iterating over the entries in the full base
+    // directory
     let __internal_module_names: Vec<String> = fs::read_dir(__macro_call_path)
         .expect("Failed to read directory")
         .filter_map(|entry| {
             if let Ok(entry) = entry {
                 if let Some(entry_name) = entry.file_name().to_str() {
                     if entry_name.ends_with(".rs") && entry_name != "mod.rs" {
-                        return Some(entry_name[..entry_name.len() - 3].to_owned());
+                        return Some(
+                            entry_name[..entry_name.len() - 3].to_owned(),
+                        )
                     } else if entry_name != "mod.rs" {
-                        return Some(entry_name.to_owned());
+                        return Some(entry_name.to_owned())
                     }
                 }
             }
