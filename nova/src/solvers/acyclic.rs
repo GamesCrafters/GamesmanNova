@@ -37,8 +37,6 @@ impl<G: AcyclicallySolvable> AcyclicSolver for G
 {
     fn solve(game: &Self, read: bool, write: bool) -> Value
     {
-        // let mut db = BPDatabase::new(game.id(), read, write);
-        // let db = Arc::new(Mutex::new(db));
         let mut db = BPDatabase::new(game.id(), read, write);
         let state = game.start();
         traverse(state, game, &mut db)
@@ -62,7 +60,7 @@ where
         return out
     }
     let mut available: HashSet<Value> = HashSet::new();
-    for state in game.adjacent(state) {
+    for state in game.transition(state) {
         if let Some(out) = db.get(state) {
             available.insert(out);
         } else {

@@ -14,8 +14,8 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::{
-    AcyclicallySolvable, CyclicallySolvable, Game, GameInformation, Solvable,
-    TierSolvable,
+    AcyclicallySolvable, CyclicallySolvable, Game, GameData, Solvable,
+    TierSolvable, Automaton,
 };
 use crate::implement;
 use crate::{
@@ -25,10 +25,11 @@ use crate::{
 use regex::Regex;
 use std::process;
 
-/* CONSTANTS */
+/* GAME DATA */
 
 const NAME: &str = "Zero-By";
 const AUTHOR: &str = "Max Fierro";
+const CATEGORY: &str = "Two-player game";
 const ABOUT: &str = 
 "Two players take turns removing a number of elements from a set of arbitrary \
 size. They can make a choice of how many elements to remove (and of how many \
@@ -77,12 +78,13 @@ impl Game for Session
         }
     }
 
-    fn info(&self) -> GameInformation
+    fn info(&self) -> GameData
     {
-        GameInformation {
+        GameData {
             name: NAME.to_owned(),
             author: AUTHOR.to_owned(),
             about: ABOUT.to_owned(),
+            category: CATEGORY.to_owned(),
             variant_protocol: VARIANT_PROTOCOL.to_owned(),
             variant_pattern: VARIANT_PATTERN.to_owned(),
             variant_default: VARIANT_DEFAULT.to_owned(),
@@ -96,31 +98,34 @@ implement! { for Session =>
     CyclicallySolvable
 }
 
-impl Solvable for Session
+impl Automaton<State> for Session
 {
     fn start(&self) -> State
     {
         self.from
     }
 
-    fn adjacent(&self, state: State) -> Vec<State>
+    fn transition(&self, state: State) -> Vec<State>
     {
-        let mut children = Vec::new();
-        for choice in self.by.iter() {
-            if state >= *choice {
-                children.push(state - choice);
-            }
-        }
-        children
+        self.by
+            .iter()
+            .cloned()
+            .filter(|&mv| state >= mv)
+            .map(|mv| state - mv)
+            .collect::<Vec<State>>()
     }
 
+    fn accepts(&self, state: State) -> bool
+    {
+        state == 0
+    }
+}
+
+impl Solvable for Session
+{
     fn value(&self, state: State) -> Option<Value>
     {
-        if state > 0 {
-            None
-        } else {
-            Some(Value::Lose(0))
-        }
+        if state > 0 { None } else { Some(Value::Lose(0)) }
     }
 
     fn solvers(&self) -> Vec<(String, Solver<Self>)>
