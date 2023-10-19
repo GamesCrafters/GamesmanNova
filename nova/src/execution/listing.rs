@@ -11,7 +11,7 @@ use crate::interfaces::terminal::cli::*;
 use crate::utils::check_game_exists;
 use crate::{
     games,
-    games::{Game, GameInformation},
+    games::{Game, GameData},
 };
 use serde_json::json;
 
@@ -23,13 +23,14 @@ pub fn printf_game_info(args: &InfoArgs, game: &String)
     check_game_exists(game)?;
     let target: &str = game;
     let session = get_session::generate_match!("src/games/")(None);
-    let info: GameInformation = session.info();
+    let info: GameData = session.info();
     if let Some(format) = args.output {
         match format {
             OutputFormat::Extra => {
                 println!("\tGame:\n{}\n", info.name);
                 println!("\tAuthor:\n{}\n", info.author);
                 println!("\tDescription:\n{}\n", info.about);
+                println!("\tCategory:\n{}\n", info.category);
                 println!("\tVariant Protocol:\n{}\n", info.variant_protocol);
                 println!("\tVariant Default:\n{}\n", info.variant_default);
                 println!("\tVariant Pattern:\n{}\n", info.variant_pattern);
@@ -40,8 +41,9 @@ pub fn printf_game_info(args: &InfoArgs, game: &String)
                     json!({
                         "game": info.name,
                         "author": info.author,
-                        "about": info.about.replace('\n', " "),
-                        "variant-protocol": info.variant_protocol.replace('\n', " "),
+                        "about": info.about,
+                        "category": info.category,
+                        "variant-protocol": info.variant_protocol,
                         "variant-default": info.variant_default,
                         "variant-pattern": info.variant_pattern,
                     })
