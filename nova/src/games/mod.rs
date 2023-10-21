@@ -89,6 +89,8 @@ pub struct GameData
 /// information and procedures related to one for performing tasks which are
 /// independent of the structure of the underlying game.
 pub trait Game
+where
+    Self: Automaton<State>,
 {
     /// Allows for the specification of a game variant and the initialization of
     /// a game's internal representation. Calling this with a different
@@ -195,10 +197,32 @@ pub trait Automaton<S>
 pub trait Solvable
 where
     Self: Game,
-    Self: Automaton<State>,
 {
-    /// Returns `None` if the state is non-terminal, and a `Value` otherwise.
-    fn value(&self, state: State) -> Option<Value>;
+    /// Returns a square matrix _W_ of dimension `n x n` (where `n` is the
+    /// number of players in the game) such that the entry `W[i][j]` indicates
+    /// the utility player `i` obtains for the utility of player `j`. For
+    /// example:
+    ///
+    /// ```none
+    ///                     [[2, 7, 5],
+    ///                 W =  [3, 1, 5],
+    ///                      [2, 1, 3]]
+    /// ```
+    ///
+    /// Indicates that Player 2 gains 3 utility units for each unit of utility
+    /// Player 1 receives, because `W[2] == [3, 1, 5]`, and `W[2][1] == 3`.
+    fn weights(&self) -> Vec<Vec<i32>>;
+
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal, returns `None`, as non-terminal states
+    /// represent no intrinsic utility to players.
+    fn utility(&self, state: State) -> Option<Vec<i32>>;
+
+    /// Given a `state`, returns an identifier for a player whose turn it is. If
+    /// `n` is the number of players in the game, this should not return values
+    /// outside the range `[0, n)`.
+    fn turn(&self, state: State) -> usize;
 
     /// Returns all the solvers available to solve the game in order of
     /// overall efficiency, including their interface names. The option
