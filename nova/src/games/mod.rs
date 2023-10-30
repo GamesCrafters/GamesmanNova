@@ -16,7 +16,9 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::models::{Solver, State, Value, Variant};
+use nalgebra::{Matrix, Matrix1, SMatrix, SVector, Vector1};
+
+use crate::models::{Solver, State, Variant};
 
 /* INTEGRATION MACROS */
 
@@ -187,42 +189,99 @@ pub trait Automaton<S>
 
 /// Indicates that an economic game object can be consumed by at least one
 /// solving algorithm, and offers an associated method to retrieve the solvers
-/// that can solve the underlying game. Generic over a type **V** representing
-/// the different possibilities of a primitive strategic value associated with a
-/// game state (i.e. win, lose, or tie).
+/// that can solve the underlying game. Generic over **N** representing the
+/// number of players that the game can be solved for.
 ///
 /// Note that all solvable games must be traversable, which is why all
 /// implementers of this trait must also conform to the `Automaton<State>`
 /// interface with a state encoding of `State = u64`.
-pub trait Solvable
+///
+/// The method descriptions make ample mention of "utility." This notion is
+/// purely abstract, and it stands for the "goodness" that a player associates
+/// with a given state (much like the notion of "cost" is associated with
+/// "badness"). By being able to determine the utility value each player gains
+/// from all terminal positions in a game, we can fix which choice(s) they would
+/// make when they have the power to transform the state of the game. In turn,
+/// this allows us to explore the game tree and find strategies for the players
+/// which maximize their net utility at the end of the game.
+///
+/// The general working framework assumes the following algorithm of which
+/// state a player chooses to transition the game to on their turn, given that
+/// the state is non-terminal:
+///
+/// ```none
+/// Tuple result = (None, -inf)
+/// Matrix W = game.weights(current_state)
+/// Vector c = game.coalesce(current_state)
+/// for each state s in game.transition(current_state):
+///     Vector u = W.map(game.utility(s))
+///     Scalar r = u.dot(c)
+///     if r > result.1:
+///         result = (s, r)
+/// return result.0
+/// ```
+///
+/// This roughly translates to "the player whose turn it is makes the move which
+/// maximizes the utility of the players that they like, and minimizes the
+/// utility for the players that they don't like, taking into consideration any
+/// alliances they might have made."
+pub trait Solvable<const N: usize>
 where
     Self: Game,
 {
-    /// Returns a square matrix _W_ of dimension `n x n` (where `n` is the
+    /// Returns a square matrix _W_ of dimension `N x N` (where `N` is the
     /// number of players in the game) such that the entry `W[i][j]` indicates
-    /// the utility player `i` obtains for the utility of player `j`. For
-    /// example:
+    /// the utility player `i` obtains for the utility of player `j`.
+    ///
+    /// For example, a _W_ with `N = 3`,
     ///
     /// ```none
-    ///                     [[2, 7, 5],
-    ///                 W =  [3, 1, 5],
-    ///                      [2, 1, 3]]
+    ///                     [[ 0,  7,  5],
+    ///                 W =  [ 3, -1, -5],
+    ///                      [-2,  1,  3]]
     /// ```
     ///
-    /// Indicates that Player 2 gains 3 utility units for each unit of utility
-    /// Player 1 receives, because `W[2] == [3, 1, 5]`, and `W[2][1] == 3`.
-    fn weights(&self) -> Vec<Vec<i32>>;
+    /// ...indicates that Player 2 gains 3 utility units for each unit of
+    /// utility Player 1 receives, because `W[2] == [3, 1, 5]`, and `W[2][1]
+    /// == 3`.
+    fn weights(&self) -> SMatrix<i32, N, N>;
 
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, returns `None`, as non-terminal states
     /// represent no intrinsic utility to players.
-    fn utility(&self, state: State) -> Option<Vec<i32>>;
+    fn utility(&self, state: State) -> Option<SVector<i32, N>>;
 
-    /// Given a `state`, returns an identifier for a player whose turn it is. If
-    /// `n` is the number of players in the game, this should not return values
-    /// outside the range `[0, n)`.
-    fn turn(&self, state: State) -> usize;
+    /// Given a `state`, returns an embedding C for the player(s) whose "turn it
+    /// is." This idea is fairly abstract, so to exemplify, consider the initial
+    /// state of a game of Tic-Tac-Toe. Since Player 0 always moves first and
+    /// there are two players in total, this function would return the
+    /// following vector:
+    ///
+    /// ```none
+    ///                     C = [1, 0]
+    /// ```
+    ///
+    /// Since this was returned on Player 0's "turn to move," this tells us that
+    /// Player 0 wants to optimize for their own utility, without any regard
+    /// for Player 1's utility. Now imagine a 6-player game of Chinese
+    /// Checkers, where Player 0 and Player 1 are in a coalition. That is,
+    /// they are acting non-selfishly. If it is Player 0's turn, this
+    /// function could return the following vector:
+    ///
+    /// ```none
+    ///                     C = [4, 1, 0, 0, 0, 0]
+    /// ```
+    ///
+    /// This tells us that Player 0 provides some value to Player 1's utility,
+    /// even if it has no actual utility for Player 0 (the actual utility Player
+    /// 0 attributes to Player 1's utility is accounted for in `weights`).
+    ///
+    /// Additionally, note that if a player wants _everyone_ to lose "just as
+    /// bad", this would be equivalent to wanting everyone to win "just as
+    /// much". This functionally means that `kC = C`, which holds for all
+    /// `k` integer values.
+    fn coalesce(&self, state: State) -> SVector<i32, N>;
 
     /// Returns all the solvers available to solve the game in order of
     /// overall efficiency, including their interface names. The option
@@ -232,35 +291,75 @@ where
     fn solvers(&self) -> Vec<(String, Solver<Self>)>;
 }
 
+/* PUZZLE GAME BLANKET */
+
+pub trait Puzzle
+where
+    Self: Solvable<1>,
+{
+}
+
+impl<P> Solvable<1> for P
+where
+    P: Puzzle,
+{
+    fn weights(&self) -> SMatrix<i32, 1, 1>
+    {
+        Matrix1::new(1)
+    }
+
+    fn utility(&self, state: State) -> Option<SVector<i32, 1>>
+    {
+        if !self.accepts(state) {
+            None
+        } else {
+            Some(Vector1::new(1))
+        }
+    }
+
+    fn coalesce(&self, state: State) -> SVector<i32, 1>
+    {
+        Vector1::new(1)
+    }
+}
+
+/* BIPARTITE GAME BLANKET */
+
+pub trait Bipartite
+where
+    Self: Solvable<2>,
+{
+}
+
 /* SOLVING MARKERS */
 
 /// Indicates that a game's state graph can be partitioned into independent
 /// connected components and solved taking advantage of this.
-pub trait TierSolvable
+pub trait TierSolvable<const N: usize>
 where
-    Self: Solvable,
+    Self: Solvable<N>,
 {
 }
 
 /// Indicates that a game is solvable in a generally inefficient manner.
-pub trait CyclicallySolvable
+pub trait CyclicallySolvable<const N: usize>
 where
-    Self: Solvable,
+    Self: Solvable<N>,
 {
 }
 
 /// Indicates that a game is solvable using methods only available to games
 /// whose state graphs are acyclic (which includes tree games).
-pub trait AcyclicallySolvable
+pub trait AcyclicallySolvable<const N: usize>
 where
-    Self: Solvable,
+    Self: Solvable<N>,
 {
 }
 
 /// Indicates that a game is solvable using methods only available to games
 /// with unique move paths to all states.
-pub trait TreeSolvable
+pub trait TreeSolvable<const N: usize>
 where
-    Self: Solvable,
+    Self: Solvable<N>,
 {
 }
