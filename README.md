@@ -4,9 +4,9 @@ This is a re-focused spinoff of Dr. Dan Garcia's [GamesmanClassic](https://githu
 
 ## Installation
 
-Eventually Nova will be published as a binary crate to crates.io, which will allow you to get this on your computer with the rust toolchain via `cargo install nova` (or something like that). 
+Eventually Nova will be published as a binary crate to [crates.io](crates.io), which will reduce the following to `cargo install nova` (or something like that). 
 
-For now though, do the following to get set up:
+For now though, do the following to set things up:
 
 1. [Install the Rust compiler and toolchain](https://www.rust-lang.org/tools/install).
   
