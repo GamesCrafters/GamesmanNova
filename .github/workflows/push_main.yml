@@ -1,4 +1,4 @@
-name: Verify Forced Commit
+name: Verify
 
 on: 
   push:
