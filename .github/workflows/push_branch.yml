@@ -26,7 +26,8 @@ jobs:
     - name: Test
       run: cargo test --verbose
 
-  # Push formatting commit even if compilation/testing fails
+  # Push formatting commit even if compilation/testing fails. This does not
+  # push a commit if no formatting is required.
   format:
     runs-on: ubuntu-latest
     steps:
