@@ -1,4 +1,4 @@
-name: Format and verify
+name: Format and Verify
 
 on:
   push:
@@ -19,11 +19,13 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Format
-      run: cargo fmt --verbose
-      
     - name: Build
       run: cargo build --verbose
       
     - name: Test
       run: cargo test --verbose
+    
+    - name: Format and Commit
+      uses: mbrobbel/rustfmt-check@master
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}

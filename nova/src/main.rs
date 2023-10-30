@@ -36,8 +36,7 @@ mod utils;
 
 /* PROGRAM ENTRY */
 
-fn main()
-{
+fn main() {
     let cli = Cli::parse();
     let result: Result<(), NovaError> = match &cli.command {
         Commands::Tui(args) => tui(args, cli.quiet),
