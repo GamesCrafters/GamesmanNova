@@ -1,21 +1,31 @@
-name: Format and Verify
+name: Verify and Format
 
-on:
-  push:
-    branches:
-    - main
-  pull_request:
-    branches:
-    - main
+on: push
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  verify_feature:
     runs-on: ubuntu-latest
+    if: github.ref_name != 'main'
+    steps:
+    - uses: actions/checkout@v3
 
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Test
+      run: cargo test --verbose
+    
+    - name: Format and Commit
+      uses: mbrobbel/rustfmt-check@master
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  verify_main:
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'main'
     steps:
     - uses: actions/checkout@v3
 
@@ -24,8 +34,3 @@ jobs:
       
     - name: Test
       run: cargo test --verbose
-    
-    - name: Format and Commit
-      uses: mbrobbel/rustfmt-check@master
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
