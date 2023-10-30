@@ -1,4 +1,4 @@
-name: Verify
+name: Force Push to Main
 
 on: 
   push:
@@ -9,16 +9,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  main_commit:
+  compile:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-
     - name: Build
       run: cargo build --verbose
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
     - name: Test
       run: cargo test --verbose
-    
+  
+  check_format:
+    runs-on: ubuntu-latest
+    steps:
     - name: Format Check
       run: cargo fmt --verbose -- --check

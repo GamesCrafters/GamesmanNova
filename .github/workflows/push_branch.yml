@@ -1,4 +1,4 @@
-name: Verify and Format
+name: Push to Branch
 
 on: 
   push:
@@ -10,16 +10,27 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  branch_commit:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+  
+      - name: Build
+        run: cargo build --verbose
+
+  test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
 
-    - name: Build
-      run: cargo build --verbose
-
     - name: Test
       run: cargo test --verbose
+
+  # Push formatting commit even if compilation/testing fails
+  format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
     
     - name: Create Formatting Commit
       uses: mbrobbel/rustfmt-check@master
