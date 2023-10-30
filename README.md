@@ -13,7 +13,7 @@ For now though, do the following to set things up:
 3. Clone this repository to your preferred `location`.
 
 ```
-$ git clone https://github.com/GamesCrafters/GamesmanNova.git `location`
+$ git clone https://github.com/GamesCrafters/GamesmanNova.git location
 ```
 
 3. Go to your installation (`cd location`), and install the executable:
