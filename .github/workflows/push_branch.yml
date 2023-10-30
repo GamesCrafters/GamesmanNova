@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  verify_and_format_branch_commit:
+  branch_commit:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3

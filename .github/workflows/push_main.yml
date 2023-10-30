@@ -9,7 +9,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  verify_commit_to_main:
+  main_commit:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
