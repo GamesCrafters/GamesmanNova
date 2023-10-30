@@ -1,14 +1,17 @@
 name: Verify and Format
 
-on: push
+on: 
+  push:
+    branches:
+      - '**'
+      - '!main'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  verify_feature:
+  verify_branch:
     runs-on: ubuntu-latest
-    if: github.ref_name != 'main'
     steps:
     - uses: actions/checkout@v3
 
@@ -22,15 +25,3 @@ jobs:
       uses: mbrobbel/rustfmt-check@master
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
-
-  verify_main:
-    runs-on: ubuntu-latest
-    if: github.ref_name == 'main'
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build
-      run: cargo build --verbose
-      
-    - name: Test
-      run: cargo test --verbose
