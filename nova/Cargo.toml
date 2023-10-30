@@ -16,5 +16,6 @@ strsim = "0.10.0"
 serde_json = "1.0"
 dirmod = "0.1.5"
 regex = "1"
+nalgebra = "^0.32"
 list-modules = { path = "../proc-macros/list-modules"}
 get-session = { path = "../proc-macros/get-session"}
