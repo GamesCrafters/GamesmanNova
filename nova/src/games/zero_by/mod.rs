@@ -17,9 +17,10 @@ use super::{
     AcyclicallySolvable, CyclicallySolvable, Game, GameData, Solvable,
     TierSolvable, Automaton,
 };
+use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
 use crate::implement;
 use crate::{
-    models::{Solver, State, Value, Variant},
+    models::{Solver, State, Value, Variant, Turn},
     solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolver, tier::TierSolver},
 };
 use regex::Regex;
@@ -54,6 +55,7 @@ the only consequence will be a slight decrease in performance.";
 pub struct Session
 {
     variant: Option<String>,
+    players: Turn,
     from: State,
     by: Vec<u64>,
 }
@@ -121,33 +123,33 @@ impl Automaton<State> for Session
     }
 }
 
-impl Solvable for Session
+impl Solvable<2> for Session
 {
-    fn value(&self, state: State) -> Option<Value>
+    fn weights(&self) -> SMatrix<i32, 2, 2>
     {
-        if state > 0 { None } else { Some(Value::Lose(0)) }
+        Matrix2::new(1, 1, 1, 1);
+    }
+
+    fn utility(&self, state: State) -> Option<SVector<i32, 1>>
+    {
+        if !self.accepts(state) {
+            None
+        } else {
+            Some(Vector2::new(state % 2, (state + 1) % 2))
+        }
     }
 
     fn solvers(&self) -> Vec<(String, Solver<Self>)>
     {
-        vec![
-            (
-                <Session as AcyclicSolver>::name(),
-                <Session as AcyclicSolver>::solve,
-            ),
-            (
-                <Session as CyclicSolver>::name(),
-                <Session as CyclicSolver>::solve,
-            ),
-            (
-                <Session as TierSolver>::name(),
-                <Session as TierSolver>::solve,
-            ),
-        ]
+
     }
 }
 
 /* HELPER FUNCTIONS */
+
+impl Session {
+
+}
 
 fn decode_variant(v: Variant) -> Session
 {
@@ -173,6 +175,18 @@ fn decode_variant(v: Variant) -> Session
             from_by
         },
     }
+}
+
+fn encode_turn(state: State, player_count: Turn, turn: Turn) -> State 
+{
+    let turn_bits = 
+        (0 as Turn).leading_zeros() - player_count.leading_zeros();
+    let shifted_state = state << turn_bits;
+    shifted_state + turn
+}
+
+fn decode_turn(state: State, ) -> Turn {
+
 }
 
 /* TESTS */

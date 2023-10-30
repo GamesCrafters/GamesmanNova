@@ -16,7 +16,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use nalgebra::{Matrix, Matrix1, SMatrix, SVector, Vector1};
+use nalgebra::{Matrix1, SMatrix, SVector, Vector1};
 
 use crate::models::{Solver, State, Variant};
 
@@ -321,14 +321,6 @@ where
     {
         Vector1::new(1)
     }
-}
-
-/* BIPARTITE GAME BLANKET */
-
-pub trait Bipartite
-where
-    Self: Solvable<2>,
-{
 }
 
 /* SOLVING MARKERS */

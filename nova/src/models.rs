@@ -21,6 +21,14 @@ pub type Variant = String;
 /// that can be achieved in a game.
 pub type State = u64;
 
+/// Expresses whose turn it is in a game, where every player is assigned to a
+/// different integer. The fact that this only reaches `u16::MAX == 255` does
+/// mean that we should only be prepared to consider games of up to 255 players.
+/// This is a reasonable limitation, because considering games of any larger
+/// player count is computationally unfeasible in transferrable utility
+/// settings.
+pub type Turn = u8;
+
 /// The signature of a function which can solve a game, taking in the game,
 /// and parameters read and write.
 pub type Solver<G> = fn(&G, bool, bool) -> Value;
