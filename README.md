@@ -2,7 +2,33 @@
 
 This is a re-focused spinoff of Dr. Dan Garcia's [GamesmanClassic](https://github.com/GamesCrafters/GamesmanClassic), a system for strongly solving (_takes a deep breath_) complete-information turn-based deterministic abstract strategy games, such as Tic-Tac-Toe, Connect4, and Chess (if it weren't so darn big). In particular, the purpose of Nova is to take learnings and ambitions from GamesmanClassic and provide a software system with an architecture that can accommodate them through meaningful, equally performant, and safe abstractions. 
 
-## Important Fronts
+## Installation
+
+Eventually Nova will be published as a binary crate to crates.io, which will allow you to get this on your computer with the rust toolchain via `cargo install nova` (or something like that). 
+
+For now though, do the following to get set up:
+
+1. [Install the Rust compiler and toolchain](https://www.rust-lang.org/tools/install).
+  
+3. Clone this repository to your preferred `location`.
+
+```
+$ git clone https://github.com/GamesCrafters/GamesmanNova.git `location`
+```
+
+3. Go to your installation (`cd location`), and install the executable:
+
+```
+$ cargo install --path nova
+```
+
+> NOTE: The `nova` argument to `--path` here refers to the inner directory within the project, which is the Nova binary crate. It is not at the top level because this project also contains [procedural macros](https://doc.rust-lang.org/beta/reference/procedural-macros.html) as other crates of their own, meaning that the overall repository is a [cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html).
+
+This will add the `nova` executable to your list of cargo binaries. If you add this list of binaries to your `$PATH`, you will be able to call `nova` just like any other command.
+
+## Development
+
+### Important Fronts
 
 The current big objectives for this project are:
 
@@ -14,14 +40,14 @@ The current big objectives for this project are:
 * Implementing and wrapping a distributed MPI controller for solves on the Savio cluster.
 * Setting up some light CI to allow for contributions, both internal and external.
 
-## Subprojects
+### Subprojects
 
 Smaller modules currently being built:
 
 * An implementation of the [Crossteaser](https://www.jaapsch.net/puzzles/crosstsr.htm) puzzle.
 
-## Work
+### Contributing
 
-This project was created in affiliation with GamesCrafters, a computational game theory applied research group at UC Berkeley. CI is currently under development, so if you would like to contribute and are not part of GamesCrafters, feel free to reach out!
+This project was created in affiliation with GamesCrafters, a computational game theory applied research group at UC Berkeley. If you would like to contribute as someone outside the GamesCrafters org, feel free to fork the repository and open a PR. If you are part of the org, create a branch anytime and code away (but do let others know, so we can help or thank you). Some light CI is set up to ensure some loose measure of quality on the main branch (namely compilation, testing, and formatting checks).
 
 -- Max Fierro, maxfierro@berkeley.edu
