@@ -1,16 +1,16 @@
 # Nova
 
-This is a re-focused spinoff of Dr. Dan Garcia's [GamesmanClassic](https://github.com/GamesCrafters/GamesmanClassic), a system for strongly solving (_takes a deep breadth_) complete-information turn-based deterministic abstract strategy games, such as Tic-Tac-Toe, Connect4, and Chess (if it weren't so darn big). In particular, the purpose of Nova is to take learnings and ambitions from GamesmanClassic and provide a software system with an architecture that can accommodate them through meaningful, equally performant, and safe abstractions. 
+This is a re-focused spinoff of Dr. Dan Garcia's [GamesmanClassic](https://github.com/GamesCrafters/GamesmanClassic), a system for strongly solving (_takes a deep breath_) complete-information turn-based deterministic abstract strategy games, such as Tic-Tac-Toe, Connect4, and Chess (if it weren't so darn big). In particular, the purpose of Nova is to take learnings and ambitions from GamesmanClassic and provide a software system with an architecture that can accommodate them through meaningful, equally performant, and safe abstractions. 
 
 ## Important Fronts
 
-Current big objectives for this project:
+The current big objectives for this project are:
 
-* Supporting _N_-player non-transferrable utility games (e.g. tractable multiplayer variants of Chinese Checkers).
-* Supporting transferrable utility coalitional games (i.e. games where you can re-distribute winnings at the end among those who helped you win).
+* Supporting _N_-player non-transferrable utility games (e.g., tractable multiplayer variants of Chinese Checkers).
+* Supporting transferrable utility coalitional games (i.e., games where you can re-distribute winnings at the end among those who helped you win).
 * Creating a memory-efficient and thread-safe implementation of GamesmanClassic's database engine.
 * Designing a database file serialization protocol to make GamesmanClassic's databases compatible with Nova.
-* Building a wonderful terminal user interface, and expanding the current command-line interface.
+* Building a wonderful terminal user interface and expanding the current command-line interface.
 * Implementing and wrapping a distributed MPI controller for solves on the Savio cluster.
 * Setting up some light CI to allow for contributions, both internal and external.
 
