@@ -1,4 +1,4 @@
-name: Format, build, and test
+name: Format and verify
 
 on:
   push:
@@ -18,14 +18,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-      with:
-        toolchain: nightly
-        
+
     - name: Format
       run: cargo fmt --verbose
       
     - name: Build
       run: cargo build --verbose
       
-    - name: Run tests
+    - name: Test
       run: cargo test --verbose
