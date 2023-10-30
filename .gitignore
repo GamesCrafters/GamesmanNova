@@ -1,2 +1,12 @@
+# Compilation output
 /target
+/debug
+
+# Rustfmt backup files
+**/*.rs.bk
+
+# MS Visual Studio generates debugging info
+*.pdb
+
+# VSCode preferences
 /.vscode
