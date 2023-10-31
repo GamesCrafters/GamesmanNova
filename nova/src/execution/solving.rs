@@ -6,125 +6,54 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::NovaError;
-use crate::games::{Game, Solvable};
-use crate::interfaces::terminal::cli::{OutputFormat, SolveArgs};
-use crate::models::{Solver, Value};
-use crate::utils::check_game_exists;
-use serde_json::json;
+use crate::games::Solvable;
+use crate::interfaces::find_game;
+use crate::interfaces::terminal::cli::SolveArgs;
+use crate::models::{Record, Solver};
+use crate::utils::most_similar;
+use std::collections::HashMap;
 use std::process;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value
 /// or an error containing what was actually passed in versus what was
 /// probably meant to be passed in.
-pub fn solve_by_name(args: &SolveArgs, quiet: bool)
-    -> Result<Value, NovaError>
+pub fn solve_by_name(args: &SolveArgs, quiet: bool) -> Record
 {
-    check_game_exists(&args.target)?;
-    let target: &str = &args.target;
-    let session =
-        get_session::generate_match!("src/games/")(args.variant.to_owned());
-    let solver_fn = find_solver(&session, args.solver.clone(), quiet)?;
-    Ok(solver_fn(&session, args.read, args.write))
-}
-
-/// Prints the result of a solve on a particular game in the specified format,
-/// if any.
-pub fn printf_solve_result(value: Value, args: &SolveArgs)
-{
-    let value_str: &str;
-    let remoteness: u32;
-    match value {
-        Value::Lose(rem) => {
-            value_str = "lose";
-            remoteness = rem;
-        }
-        Value::Tie(rem) => {
-            value_str = "tie";
-            remoteness = rem;
-        }
-        Value::Win(rem) => {
-            value_str = "win";
-            remoteness = rem;
-        }
-    }
-    if let Some(format) = args.output {
-        match format {
-            OutputFormat::Extra => {
-                println!(
-                    "\nYou solved {}. The game is a {} for the first player in {} moves.\n",
-                    args.target, value_str, remoteness
-                );
-            }
-            OutputFormat::Json => {
-                let json = json!({
-                    "value": value_str,
-                    "remoteness": remoteness
-                });
-                println!("{}", json);
-            }
-        }
-    } else {
-        println!("{} in {}", value_str, remoteness);
-    }
-}
-
-/// Prompts the user to confirm their operation as appropriate according to
-/// the arguments of the solve command. Only asks for confirmation for
-/// potentially destructive operations.
-pub fn confirm_potential_overwrite(args: &SolveArgs)
-{
-    if (!args.yes) && args.write {
-        println!("This may overwrite an existing solution database. Are you sure? [y/n]: ");
-        let mut yn: String = "".to_owned();
-        while !(yn == "n" || yn == "N" || yn == "y" || yn == "Y") {
-            yn = String::new();
-            std::io::stdin()
-                .read_line(&mut yn)
-                .expect("Failed to read user confirmation.");
-            yn = yn.trim().to_string();
-        }
-        if yn == "n" || yn == "N" {
-            process::exit(exitcode::OK)
-        }
-    }
+    let game = find_game(args.target, args.variant);
+    let solver = find_solver(&game, args.solver.clone(), quiet);
+    solver(&game, args.mode)
 }
 
 /* HELPER FUNCTIONS */
 
-fn find_solver<G: Solvable>(
-    session: &G,
+/// Probes the provided game for a solver with the indicated name if one is
+/// provided. If no solver name is provided, returns any one of the solvers
+/// which the game returns.If no name match is found or if there are no solvers
+/// available, an error is provided to the user with a suggestion.
+fn find_solver<const N: usize, G: Solvable<N>>(
+    game: &G,
     solver: Option<String>,
     quiet: bool,
-) -> Result<Solver<G>, NovaError>
+) -> Solver<G>
 {
-    let available = session.solvers();
-    if available.is_empty() {
+    let solvers: HashMap<&str, Solver<G>> = game.solvers();
+    if solvers.is_empty() {
         if !quiet {
-            println!("No solvers implemented for requested game.");
+            println!("There are no solvers associated with this game.");
         }
         process::exit(exitcode::SOFTWARE);
-    }
-    if let Some(target) = solver {
-        let mut found_names = vec![];
-        for (solver_name, solver_func) in available {
-            if target == solver_name {
-                return Ok(solver_func.to_owned())
-            }
-            found_names.push(target.clone().to_owned());
-        }
-        Err(NovaError::SolverNotFoundError(
-            target,
-            found_names,
-        ))
-    } else {
-        if let Some((_, solver_func)) = session.solvers().first() {
-            Ok(solver_func.to_owned())
-        } else {
+    } else if let Some(solver_name) = solver {
+        solvers.get(&solver_name).unwrap_or_else(|| {
             if !quiet {
-                println!("No solvers implemented for requested game.");
+                let closest = most_similar(&solver_name, vec![solvers.keys()]);
+                println!(
+                    "There is no solver named {}. Perhaps you meant: {}",
+                    solver_name, closest
+                );
             }
-            process::exit(exitcode::SOFTWARE);
-        }
+            process::exit(exitcode::USAGE);
+        })
+    } else {
+        solvers.values().next().unwrap()
     }
 }

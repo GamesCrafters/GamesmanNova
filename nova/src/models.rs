@@ -7,6 +7,10 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
+use nalgebra::DVector;
+
+use crate::interfaces::terminal::cli::IOMode;
+
 /* TYPES */
 
 /// Encodes the configuration of a game in a string, which allows game
@@ -27,26 +31,23 @@ pub type State = u64;
 /// This is a reasonable limitation, because considering games of any larger
 /// player count is computationally unfeasible in transferrable utility
 /// settings.
-pub type Turn = u8;
+pub type Player = u8;
 
-/// The signature of a function which can solve a game, taking in the game,
-/// and parameters read and write.
-pub type Solver<G> = fn(&G, bool, bool) -> Value;
+/// The signature of a function which can solve a game implementation, with side
+/// effects specified by an `IOMode` optional argument. Returns the record
+/// associated with the starting position of the game.
+pub type Solver<G> = fn(&G, Option<IOMode>) -> Record;
 
-/* ENUMERATIONS */
+/* CONSTRUCTS */
 
-/// Indicates the value of a game state according to the game's rules. Contains
-/// remoteness information (how far away a state is from its corresponding
-/// terminal state).
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
-pub enum Value
+/// The set of attributes related to a game position in an arbitrary `N` player
+/// game.
+///
+/// TODO: Explanations of the meaning of each attribute.
+pub struct Record
 {
-    /// Indicates that a player has won.
-    Win(u32),
-
-    /// Indicates that a player has lost.
-    Lose(u32),
-
-    /// Indicates that the game is a tie.
-    Tie(u32),
+    pub utility: DVector<f64>,
+    pub draw_depth: u64,
+    pub remoteness: u64,
+    pub mex: u64,
 }

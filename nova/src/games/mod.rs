@@ -16,37 +16,13 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use nalgebra::{Matrix1, SMatrix, SVector, Vector1};
-
 use crate::models::{Solver, State, Variant};
+use nalgebra::{Matrix1, SMatrix, SVector, Vector1};
+use std::collections::HashMap;
 
-/* INTEGRATION MACROS */
+/* INTEGRATION */
 
-/* Looks in this directory (games/) and expands to a collection of
- * module definitions as follows:
- *
- * ```
- * pub mod game_1;
- * pub mod game_2;
- * ...
- * pub mod game_n;
- * ```
- */
-dirmod::all!(default pub);
-
-/* Does the same thing, but instead of generating module definitions it
- * automatically creates a constant list of their names as follows:
- *
- * ```
- * pub const LIST: [&str; n] = [
- *    "game_1",
- *    "game_2",
- *    ...
- *    "game_n",
- * ];
- * ```
- */
-list_modules::here!("src/games/");
+pub mod zero_by;
 
 /* DATA CONSTRUCTS */
 
@@ -80,7 +56,7 @@ pub struct GameData
 
 /* FUNCTIONAL CONSTRUCTS */
 
-/// Defines miscellanous behavior of a deterministic economic game object. Note
+/// Defines miscellaneous behavior of a deterministic economic game object. Note
 /// that player count is not specified, so puzzles are interpreted as one-player
 /// games.
 ///
@@ -244,13 +220,13 @@ where
     /// ...indicates that Player 2 gains 3 utility units for each unit of
     /// utility Player 1 receives, because `W[2] == [3, 1, 5]`, and `W[2][1]
     /// == 3`.
-    fn weights(&self) -> SMatrix<i32, N, N>;
+    fn weights(&self) -> SMatrix<f64, N, N>;
 
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, returns `None`, as non-terminal states
     /// represent no intrinsic utility to players.
-    fn utility(&self, state: State) -> Option<SVector<i32, N>>;
+    fn utility(&self, state: State) -> Option<SVector<f64, N>>;
 
     /// Given a `state`, returns an embedding C for the player(s) whose "turn it
     /// is." This idea is fairly abstract, so to exemplify, consider the initial
@@ -281,14 +257,12 @@ where
     /// bad", this would be equivalent to wanting everyone to win "just as
     /// much". This functionally means that `kC = C`, which holds for all
     /// `k` integer values.
-    fn coalesce(&self, state: State) -> SVector<i32, N>;
+    fn coalesce(&self, state: State) -> SVector<f64, N>;
 
-    /// Returns all the solvers available to solve the game in order of
-    /// overall efficiency, including their interface names. The option
-    /// to choose a default solver in the implementation of this function
-    /// is allowed by making one of them mapped to `None`, as opposed to
-    /// `Some(String)`.
-    fn solvers(&self) -> Vec<(String, Solver<Self>)>;
+    /// Returns a mapping of names to solvers that can consume the implementer.
+    /// That is, this function returns a named set of functions that can solve
+    /// the game which returned them.
+    fn solvers(&self) -> HashMap<&str, Solver<Self>>;
 }
 
 /* PUZZLE GAME BLANKET */
@@ -303,12 +277,12 @@ impl<P> Solvable<1> for P
 where
     P: Puzzle,
 {
-    fn weights(&self) -> SMatrix<i32, 1, 1>
+    fn weights(&self) -> SMatrix<f64, 1, 1>
     {
         Matrix1::new(1)
     }
 
-    fn utility(&self, state: State) -> Option<SVector<i32, 1>>
+    fn utility(&self, state: State) -> Option<SVector<f64, 1>>
     {
         if !self.accepts(state) {
             None
@@ -317,7 +291,7 @@ where
         }
     }
 
-    fn coalesce(&self, state: State) -> SVector<i32, 1>
+    fn coalesce(&self, state: State) -> SVector<f64, 1>
     {
         Vector1::new(1)
     }

@@ -6,25 +6,17 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::NovaError;
+use crate::games::{Game, GameData};
 use crate::interfaces::terminal::cli::*;
-use crate::utils::check_game_exists;
-use crate::{
-    games,
-    games::{Game, GameData},
-};
+use crate::interfaces::{find_game, GameModule};
 use serde_json::json;
 
-/// Prints the formatted game information according to the output specified in
-/// `args`.
-pub fn printf_game_info(args: &InfoArgs, game: &String)
-    -> Result<(), NovaError>
+/// Prints the formatted game information according to a specified output
+/// format. Game information is provided by game implementations.
+pub fn print_game_info(game: &GameModule, format: Option<OutputFormat>)
 {
-    check_game_exists(game)?;
-    let target: &str = game;
-    let session = get_session::generate_match!("src/games/")(None);
-    let info: GameData = session.info();
-    if let Some(format) = args.output {
+    let info: GameData = find_game(game, None).info();
+    if let Some(format) = format {
         match format {
             OutputFormat::Extra => {
                 println!("\tGame:\n{}\n", info.name);
@@ -49,36 +41,10 @@ pub fn printf_game_info(args: &InfoArgs, game: &String)
                     })
                 );
             }
+            OutputFormat::None => {}
         }
     } else {
         println!("\t{}:\n{}\n", game, info.about);
     }
     Ok(())
-}
-
-/// Prints the formatted game list according to the output specified in `args`.
-pub fn printf_game_list(args: &InfoArgs)
-{
-    if let Some(format) = args.output {
-        match format {
-            OutputFormat::Extra => {
-                println!("Here are the game targets available:\n");
-                for (i, game) in games::LIST.iter().enumerate() {
-                    println!("{}. {}", i, game);
-                }
-            }
-            OutputFormat::Json => {
-                let mut contents: String = String::new();
-                for game in games::LIST {
-                    contents += &format!("\"{}\",\n", game);
-                }
-                let json = json!({ "games": [contents] });
-                println!("{}", json);
-            }
-        }
-    } else {
-        for game in games::LIST {
-            println!("{}", game);
-        }
-    }
 }

@@ -14,33 +14,30 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::{
-    AcyclicallySolvable, CyclicallySolvable, Game, GameData, Solvable,
-    TierSolvable, Automaton,
+    Game, GameData, Solvable, Automaton,
 };
 use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
-use crate::implement;
 use crate::{
-    models::{Solver, State, Value, Variant, Turn},
-    solvers::{acyclic::AcyclicSolver, cyclic::CyclicSolver, tier::TierSolver},
+    models::{Solver, State, Variant, Player},
 };
 use regex::Regex;
 use std::process;
 
 /* GAME DATA */
 
-const NAME: &str = "Zero-By";
-const AUTHOR: &str = "Max Fierro";
-const CATEGORY: &str = "Two-player game";
-const ABOUT: &str = 
+pub const NAME: &str = "Zero-By";
+pub const AUTHOR: &str = "Max Fierro";
+pub const CATEGORY: &str = "Two-player game";
+pub const ABOUT: &str = 
 "Two players take turns removing a number of elements from a set of arbitrary \
 size. They can make a choice of how many elements to remove (and of how many \
 elements to start out with) based on the game variant. The player who is left \
 with 0 elements in their turn loses. A player cannot remove more elements than \
 currently available in the set.";
 
-const VARIANT_DEFAULT: &str = "10-1-2";
-const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
-const VARIANT_PROTOCOL: &str =
+pub const VARIANT_DEFAULT: &str = "10-1-2";
+pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
+pub const VARIANT_PROTOCOL: &str =
 "The variant string should be a dash-separated group of two or more positive \
 integers. For example, '239-232-23-6-3-6' is valid but '598', '-23-1-5', and \
 'fifteen-2-5' are not. The first integer represents the beginning number of \
@@ -55,7 +52,7 @@ the only consequence will be a slight decrease in performance.";
 pub struct Session
 {
     variant: Option<String>,
-    players: Turn,
+    players: Player,
     from: State,
     by: Vec<u64>,
 }
@@ -92,12 +89,6 @@ impl Game for Session
             variant_default: VARIANT_DEFAULT.to_owned(),
         }
     }
-}
-
-implement! { for Session =>
-    TierSolvable,
-    AcyclicallySolvable,
-    CyclicallySolvable
 }
 
 impl Automaton<State> for Session

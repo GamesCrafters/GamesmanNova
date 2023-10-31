@@ -17,16 +17,13 @@
 use clap::Parser;
 use std::process;
 
-use crate::errors::NovaError;
 use crate::execution::*;
 use crate::interfaces::terminal::cli::*;
-use crate::models::Value;
 
 /* MODULES */
 
 mod analyzers;
 mod databases;
-mod errors;
 mod execution;
 mod games;
 mod interfaces;
@@ -39,51 +36,40 @@ mod utils;
 fn main()
 {
     let cli = Cli::parse();
-    let result: Result<(), NovaError> = match &cli.command {
+    match &cli.command {
         Commands::Tui(args) => tui(args, cli.quiet),
         Commands::Info(args) => info(args, cli.quiet),
         Commands::Solve(args) => solve(args, cli.quiet),
         Commands::Analyze(args) => analyze(args, cli.quiet),
     };
-    if let Err(e) = result {
-        if !cli.quiet {
-            println!("{}", e);
-        }
-        process::exit(exitcode::USAGE);
-    }
     process::exit(exitcode::OK);
 }
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs, quiet: bool) -> Result<(), NovaError>
+fn tui(args: &TuiArgs, quiet: bool)
 {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs, quiet: bool) -> Result<(), NovaError>
+fn analyze(args: &AnalyzeArgs, quiet: bool)
 {
+    utils::confirm_potential_overwrite(args.yes, args.mode);
     todo!()
 }
 
-fn solve(args: &SolveArgs, quiet: bool) -> Result<(), NovaError>
+fn solve(args: &SolveArgs, quiet: bool)
 {
-    solving::confirm_potential_overwrite(args);
-    let value = solving::solve_by_name(args, quiet)?;
+    utils::confirm_potential_overwrite(args.yes, args.mode);
+    let record = solving::solve_by_name(args, quiet);
     if !quiet {
-        solving::printf_solve_result(value, args);
+        println!("{}", utils::format_record(&record, args.output));
     }
-    Ok(())
 }
 
-fn info(args: &InfoArgs, quiet: bool) -> Result<(), NovaError>
+fn info(args: &InfoArgs, quiet: bool)
 {
     if !quiet {
-        if let Some(game) = &args.target {
-            listing::printf_game_info(args, game)?;
-        } else {
-            listing::printf_game_list(args);
-        }
+        listing::print_game_info(args.target, args.output)
     }
-    Ok(())
 }

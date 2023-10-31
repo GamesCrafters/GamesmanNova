@@ -9,6 +9,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use crate::interfaces::GameModule;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 /* COMMAND LINE INTERFACE */
@@ -18,8 +19,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 /// provides analyzers and databases to generate insights about games and to
 /// persist their full solutions efficiently.
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-#[command(propagate_version = true)]
+#[command(author, version, about, long_about = None, propagate_version = true)]
 pub struct Cli
 {
     /* REQUIRED COMMANDS */
@@ -60,7 +60,7 @@ pub struct TuiArgs
     /* DEFAULTS PROVIDED */
     /// Game to display (optional).
     #[arg(short, long)]
-    pub target: Option<String>,
+    pub target: Option<GameModule>,
     /// Enter TUI in debug mode.
     #[arg(short, long)]
     pub debug: bool,
@@ -85,7 +85,7 @@ pub struct SolveArgs
 {
     /* REQUIRED ARGUMENTS */
     /// Target game name.
-    pub target: String,
+    pub target: GameModule,
 
     /* DEFAULTS PROVIDED */
     /// Solve a specific variant of target.
@@ -116,7 +116,7 @@ pub struct AnalyzeArgs
 {
     /* REQUIRED ARGUMENTS */
     /// Target game name.
-    pub target: String,
+    pub target: GameModule,
 
     /* DEFAULTS PROVIDED */
     /// Analyzer module to use.
@@ -146,7 +146,7 @@ pub struct InfoArgs
     /* DEFAULTS PROVIDED */
     /// Specify game for which to provide information about.
     #[arg(short, long)]
-    pub target: Option<String>,
+    pub target: Option<GameModule>,
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<OutputFormat>,
