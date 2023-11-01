@@ -143,10 +143,12 @@ pub struct AnalyzeArgs
 #[derive(Args)]
 pub struct InfoArgs
 {
-    /* DEFAULTS PROVIDED */
+    /* REQUIRED ARGUMENTS */
     /// Specify game for which to provide information about.
     #[arg(short, long)]
-    pub target: Option<GameModule>,
+    pub target: GameModule,
+
+    /* DEFAULTS PROVIDED */
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<OutputFormat>,

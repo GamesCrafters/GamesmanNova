@@ -220,13 +220,13 @@ where
     /// ...indicates that Player 2 gains 3 utility units for each unit of
     /// utility Player 1 receives, because `W[2] == [3, 1, 5]`, and `W[2][1]
     /// == 3`.
-    fn weights(&self) -> SMatrix<f64, N, N>;
+    fn weights(&self) -> SMatrix<i64, N, N>;
 
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, returns `None`, as non-terminal states
     /// represent no intrinsic utility to players.
-    fn utility(&self, state: State) -> Option<SVector<f64, N>>;
+    fn utility(&self, state: State) -> Option<SVector<i64, N>>;
 
     /// Given a `state`, returns an embedding C for the player(s) whose "turn it
     /// is." This idea is fairly abstract, so to exemplify, consider the initial
@@ -257,32 +257,26 @@ where
     /// bad", this would be equivalent to wanting everyone to win "just as
     /// much". This functionally means that `kC = C`, which holds for all
     /// `k` integer values.
-    fn coalesce(&self, state: State) -> SVector<f64, N>;
+    fn coalesce(&self, state: State) -> SVector<i64, N>;
 
     /// Returns a mapping of names to solvers that can consume the implementer.
     /// That is, this function returns a named set of functions that can solve
     /// the game which returned them.
-    fn solvers(&self) -> HashMap<&str, Solver<Self>>;
+    fn solvers(&self) -> HashMap<&str, Solver<Self, N>>;
 }
 
 /* PUZZLE GAME BLANKET */
 
-pub trait Puzzle
-where
-    Self: Solvable<1>,
-{
-}
-
 impl<P> Solvable<1> for P
 where
-    P: Puzzle,
+    P: Game,
 {
-    fn weights(&self) -> SMatrix<f64, 1, 1>
+    fn weights(&self) -> SMatrix<i64, 1, 1>
     {
         Matrix1::new(1)
     }
 
-    fn utility(&self, state: State) -> Option<SVector<f64, 1>>
+    fn utility(&self, state: State) -> Option<SVector<i64, 1>>
     {
         if !self.accepts(state) {
             None
@@ -291,9 +285,14 @@ where
         }
     }
 
-    fn coalesce(&self, state: State) -> SVector<f64, 1>
+    fn coalesce(&self, state: State) -> SVector<i64, 1>
     {
         Vector1::new(1)
+    }
+
+    fn solvers(&self) -> HashMap<&str, Solver<Self, 1>>
+    {
+        todo!()
     }
 }
 

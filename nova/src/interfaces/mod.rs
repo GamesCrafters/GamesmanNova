@@ -27,7 +27,7 @@ pub enum GameModule
 
 /// Fetches and initializes the correct game session based on an indicated
 /// `GameModule`, with the provided `variant`.
-pub fn find_game(game: GameModule, variant: Option<Variant>) -> dyn Game
+pub fn find_game(game: GameModule, variant: Option<Variant>) -> impl Game
 {
     match game {
         GameModule::ZeroBy => zero_by::Session::initialize(variant),

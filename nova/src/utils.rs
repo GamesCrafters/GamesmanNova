@@ -46,7 +46,7 @@ pub fn confirm_potential_overwrite(yes: bool, mode: Option<IOMode>)
     } {
         println!("This may overwrite an existing solution database. Are you sure? [y/n]: ");
         let mut yn: String = "".to_owned();
-        while !["n", "N", "y", "Y"].contains(yn) {
+        while !["n", "N", "y", "Y"].contains(&&yn[..]) {
             yn = String::new();
             std::io::stdin()
                 .read_line(&mut yn)
@@ -60,8 +60,8 @@ pub fn confirm_potential_overwrite(yes: bool, mode: Option<IOMode>)
 }
 
 /// Returns a `record` represented in a specific `format`.
-pub fn format_record(
-    record: &Record,
+pub fn format_record<const N: usize>(
+    record: &Record<N>,
     format: Option<OutputFormat>,
 ) -> Option<String>
 {
@@ -72,7 +72,7 @@ pub fn format_record(
         }
         Some(OutputFormat::Json) => Some(
             serde_json::json!({
-                    "utility": record.utility,
+                    "utility": record.utility.to_string(),
                     "remoteness": record.remoteness,
                     "draw_depth": record.draw_depth,
                     "mex": record.mex,

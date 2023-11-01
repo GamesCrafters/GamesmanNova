@@ -7,9 +7,8 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use nalgebra::DVector;
-
 use crate::interfaces::terminal::cli::IOMode;
+use nalgebra::SVector;
 
 /* TYPES */
 
@@ -36,17 +35,16 @@ pub type Player = u8;
 /// The signature of a function which can solve a game implementation, with side
 /// effects specified by an `IOMode` optional argument. Returns the record
 /// associated with the starting position of the game.
-pub type Solver<G> = fn(&G, Option<IOMode>) -> Record;
+pub type Solver<G, const N: usize> = fn(&G, Option<IOMode>) -> Record<N>;
 
 /* CONSTRUCTS */
 
 /// The set of attributes related to a game position in an arbitrary `N` player
 /// game.
-///
-/// TODO: Explanations of the meaning of each attribute.
-pub struct Record
+#[derive(Eq, Hash, PartialEq, Default)]
+pub struct Record<const N: usize>
 {
-    pub utility: DVector<f64>,
+    pub utility: SVector<i64, N>,
     pub draw_depth: u64,
     pub remoteness: u64,
     pub mex: u64,

@@ -62,8 +62,10 @@ fn solve(args: &SolveArgs, quiet: bool)
 {
     utils::confirm_potential_overwrite(args.yes, args.mode);
     let record = solving::solve_by_name(args, quiet);
-    if !quiet {
-        println!("{}", utils::format_record(&record, args.output));
+    if let Some(output) = utils::format_record(&record, args.output) {
+        if !quiet {
+            println!("{}", output)
+        }
     }
 }
 
