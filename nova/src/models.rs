@@ -44,8 +44,35 @@ pub type Solver<G, const N: usize> = fn(&G, Option<IOMode>) -> Record<N>;
 #[derive(Eq, Hash, PartialEq, Default)]
 pub struct Record<const N: usize>
 {
-    pub utility: SVector<i64, N>,
-    pub draw_depth: u64,
-    pub remoteness: u64,
+    pub util: SVector<i64, N>,
+    pub draw: u64,
+    pub rem: u64,
     pub mex: u64,
+}
+
+impl<const N: usize> Record<N>
+{
+    fn with_util(mut self, util: SVector<i64, N>) -> Self
+    {
+        self.util = util;
+        self
+    }
+
+    fn with_draw(mut self, draw: u64) -> Self
+    {
+        self.draw = draw;
+        self
+    }
+
+    fn with_rem(mut self, rem: u64) -> Self
+    {
+        self.rem = rem;
+        self
+    }
+
+    fn with_mex(mut self, mex: u64) -> Self
+    {
+        self.mex = mex;
+        self
+    }
 }

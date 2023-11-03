@@ -7,6 +7,8 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use nalgebra::{SMatrix, SVector};
+
 use crate::databases::{bpdb::BPDatabase, Database};
 use crate::games::AcyclicallySolvable;
 use crate::interfaces::terminal::cli::IOMode;
@@ -20,20 +22,16 @@ const SOLVER_NAME: &str = "recursive-acyclic";
 
 /* COMFORTER IMPLEMENTATION */
 
-/// Indicates that a game could theoretically be solved acyclically.
 pub trait AcyclicSolver<const N: usize>
 {
-    /// Returns the value of an arbitrary state of the game, specifying I/O
-    /// preferences to database implementations.
     fn solve(game: &Self, mode: Option<IOMode>) -> Record<N>;
 
-    /// Returns the name of this solver type.
     fn name() -> String;
 }
 
-/// Blanket implementation of the acyclic solver for all acyclically solvable
-/// games of two players.
-impl<G: AcyclicallySolvable<2>> AcyclicSolver<2> for G
+impl<G> AcyclicSolver<2> for G
+where
+    G: AcyclicallySolvable<2>,
 {
     fn solve(game: &Self, mode: Option<IOMode>) -> Record<2>
     {
@@ -50,14 +48,17 @@ impl<G: AcyclicallySolvable<2>> AcyclicSolver<2> for G
 
 /* HELPER FUNCTIONS */
 
-/// Recursive algorithm for traversing a game with DAG-structured states and
-/// returning the value of the entry point.
-fn traverse<G>(state: State, game: &G, db: &mut BPDatabase) -> Record<2>
-where
-    G: AcyclicallySolvable<2>,
+fn traverse<G: AcyclicallySolvable<2>>(
+    state: State,
+    game: &G,
+    db: &mut BPDatabase,
+) -> Record<2>
 {
-    if let Some(out) = game.utility(state) {
-        return out
+    if game.accepts(state) {
+        return game.utility(state).expect(&format!(
+            "No utility vector defined for state {}",
+            state
+        ))
     }
     let mut available: HashSet<Record> = HashSet::new();
     for state in game.transition(state) {
@@ -69,7 +70,37 @@ where
             db.put(state, out);
         }
     }
-    let value = choose_value(available);
+    let matrix = game.weights();
+    let coalition = game.coalesce(state);
+    let value = select_record(game, state, available);
     db.put(state, value);
     value
+}
+
+/// Selects the record in `available` that maximizes the dot product between the
+/// coalition vector associated with the game state and the record's utility
+/// vector, after it is multiplied by the state's utility matrix. If multiple
+/// records are at a maximum, selects the record with the lowest remoteness.
+///
+/// All of the operations in this function should happen on the stack due to
+/// statically-sized types and in-place modification.
+fn select_record<const N: usize>(
+    matrix: SMatrix<i64, N, N>,
+    coalition: SVector<i64, N>,
+    available: HashSet<Record<N>>,
+) -> Record<N>
+{
+    let mut dot = i64::MIN;
+    let mut rem = u64::MAX;
+    let mut result = Record::default();
+    for r in available.into_iter() {
+        let curr_dot = (matrix * r.util).dot(&coalition);
+        if curr_dot > dot || (curr_dot == dot && rem > r.rem) {
+            result.util = r.util;
+            result.rem = rem;
+            dot = curr_dot;
+            rem = r.rem;
+        }
+    }
+    result
 }
