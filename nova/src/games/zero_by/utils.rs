@@ -40,6 +40,8 @@ pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player)
     (state_u, turn_u)
 }
 
+/* TESTS */
+
 #[cfg(test)]
 mod test
 {

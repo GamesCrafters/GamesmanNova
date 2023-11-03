@@ -104,6 +104,8 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), VariantError>
     Ok(())
 }
 
+/* TESTS */
+
 #[cfg(test)]
 mod test
 {

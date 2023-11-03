@@ -30,7 +30,7 @@ pub type State = u64;
 /// This is a reasonable limitation, because considering games of any larger
 /// player count is computationally unfeasible in transferrable utility
 /// settings.
-pub type Player = u8;
+pub type Player = u16;
 
 /// The signature of a function which can solve a game implementation, with side
 /// effects specified by an `IOMode` optional argument. Returns the record
@@ -52,6 +52,8 @@ pub struct Record<const N: usize>
 
 impl<const N: usize> Record<N>
 {
+    /* RECORD BUILDER LITE (TM) */
+
     fn with_util(mut self, util: SVector<i64, N>) -> Self
     {
         self.util = util;
@@ -74,5 +76,21 @@ impl<const N: usize> Record<N>
     {
         self.mex = mex;
         self
+    }
+
+    /* RECORD UTILS */
+
+    fn get_utility(&self, player: Player) -> i64
+    {
+        if let Some(utility) = self.util.get(player) {
+            utility
+        } else {
+            panic!(
+                "Out-of-bounds vector access: Attempted to fetch utility for \
+                player {} in a game of {} players.",
+                player,
+                self.util.nrows()
+            )
+        }
     }
 }

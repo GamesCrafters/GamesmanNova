@@ -14,11 +14,13 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::games::{
-    Game, GameData, Solvable, Automaton,
+    Game, GameData, Solvable, Automaton, AcyclicallySolvable,
 };
 use crate::{models::{Solver, State, Variant, Player}, errors::VariantError};
 use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
 use variants::*;
+
+use self::utils::pack_turn;
 
 /* SUBMODULES */
 
@@ -85,21 +87,24 @@ impl Automaton<State> for Session
 {
     fn start(&self) -> State
     {
-        self.from
+        pack_turn(self.from, 0, self.players)
     }
 
     fn transition(&self, state: State) -> Vec<State>
     {
+        let (state, turn) = utils::unpack_turn(state, self.players);
         self.by
             .iter()
             .cloned()
-            .filter(|&mv| state >= mv)
-            .map(|mv| state - mv)
+            .filter(|&choice| state >= choice)
+            .map(|choice| state - choice)
+            .map(|output| utils::pack_turn(output, turn, self.players))
             .collect::<Vec<State>>()
     }
 
     fn accepts(&self, state: State) -> bool
     {
+        let (state, _) = utils::unpack_turn(state, self.players);
         state == 0
     }
 }
@@ -108,56 +113,28 @@ impl Solvable<2> for Session
 {
     fn weights(&self) -> SMatrix<i32, 2, 2>
     {
-        Matrix2::new(1, 0, 0, 1)
+        Matrix2::<i32>::identity()
     }
 
-    fn utility(&self, state: State) -> Option<SVector<i32, 1>>
+    fn utility(&self, state: State) -> Option<SVector<i32, 2>>
     {
+        let (state, turn) = utils::unpack_turn(state, 2);
         if !self.accepts(state) {
             None
         } else {
-            Some(Vector2::new(state % 2, (state + 1) % 2))
+            Some(Vector2::new(turn % 2, (turn + 1) % 2))
         }
+    }
+
+    fn coalesce(&self, state: State) -> SVector<i64, 2> {
+        let (_, turn) = utils::unpack_turn(state, 2);
+        Vector2::new((turn + 1) % 2, turn % 2)
     }
 
     fn solvers(&self) -> Vec<(String, Solver<Self, 2>)>
     {
-
-    }
-}
-
-/* TESTS */
-
-#[cfg(test)]
-mod test
-{
-    use crate::games::{
-        zero_by::{Session, VARIANT_DEFAULT, VARIANT_PATTERN},
-        Game,
-    };
-    use regex::Regex;
-
-    #[test]
-    fn variant_pattern_is_valid_regex()
-    {
-        assert!(Regex::new(VARIANT_PATTERN).is_ok());
-    }
-
-    #[test]
-    fn default_variant_matches_variant_pattern()
-    {
-        let re = Regex::new(VARIANT_PATTERN).unwrap();
-        assert!(re.is_match(VARIANT_DEFAULT));
-    }
-
-    #[test]
-    fn no_variant_equals_default_variant()
-    {
-        let with_none = Session::initialize(None);
-        let with_default =
-            Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
-        assert_eq!(with_none.variant, with_default.variant);
-        assert_eq!(with_none.from, with_default.from);
-        assert_eq!(with_none.by, with_default.by);
+        vec![
+            (AcyclicallySolvable::<2>::name(), AcyclicallySolvable::<2>::solve)
+        ]
     }
 }
