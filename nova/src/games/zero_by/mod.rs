@@ -23,6 +23,7 @@ use variants::*;
 /* SUBMODULES */
 
 mod variants;
+mod utils;
 
 /* GAME DATA */
 
@@ -123,20 +124,6 @@ impl Solvable<2> for Session
     {
 
     }
-}
-
-/* HELPER FUNCTIONS */
-
-fn encode_turn(state: State, player_count: Player, turn: Player) -> State 
-{
-    let turn_bits = 
-        (0 as Player).leading_zeros() - player_count.leading_zeros();
-    let shifted_state = state << turn_bits;
-    shifted_state + turn
-}
-
-fn decode_turn(state: State, ) -> Player {
-
 }
 
 /* TESTS */

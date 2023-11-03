@@ -103,3 +103,54 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), VariantError>
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod test
+{
+    use super::*;
+
+    #[test]
+    fn variant_pattern_is_valid_regex()
+    {
+        assert!(Regex::new(VARIANT_PATTERN).is_ok());
+    }
+
+    #[test]
+    fn default_variant_matches_variant_pattern()
+    {
+        let re = Regex::new(VARIANT_PATTERN).unwrap();
+        assert!(re.is_match(VARIANT_DEFAULT));
+    }
+
+    #[test]
+    fn no_variant_equals_default_variant()
+    {
+        let with_none = Session::initialize(None);
+        let with_default =
+            Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
+        assert_eq!(with_none.variant, with_default.variant);
+        assert_eq!(with_none.from, with_default.from);
+        assert_eq!(with_none.by, with_default.by);
+    }
+
+    #[test]
+    fn invalid_variants_fail_checks()
+    {
+        assert!(parse_variant("23-34-0-23".to_owned()).is_err());
+        assert!(parse_variant("two-three-five".to_owned()).is_err());
+        assert!(parse_variant("234572342-2345".to_owned()).is_err());
+        assert!(parse_variant("34-236--8-6-3".to_owned()).is_err());
+        assert!(parse_variant("0-12-234-364".to_owned()).is_err());
+        assert!(parse_variant("-234-256".to_owned()).is_err());
+    }
+
+    #[test]
+    fn valid_variants_pass_checks()
+    {
+        assert!(parse_variant("5-1000-8-23-63-7".to_owned()).is_err());
+        assert!(parse_variant("1-1-1".to_owned()).is_err());
+        assert!(parse_variant("34-23623-8-6-3".to_owned()).is_err());
+        assert!(parse_variant("5-2-8-23".to_owned()).is_err());
+        assert!(parse_variant("1-619-496-1150".to_owned()).is_err());
+    }
+}
