@@ -24,6 +24,7 @@ use crate::interfaces::terminal::cli::*;
 
 mod analyzers;
 mod databases;
+mod errors;
 mod execution;
 mod games;
 mod interfaces;

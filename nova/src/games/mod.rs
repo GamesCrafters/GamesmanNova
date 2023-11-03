@@ -16,7 +16,10 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::models::{Solver, State, Variant};
+use crate::{
+    errors::VariantError,
+    models::{Solver, State, Variant},
+};
 use nalgebra::{Matrix1, SMatrix, SVector, Vector1};
 use std::collections::HashMap;
 
@@ -75,7 +78,11 @@ where
     /// `variant` argument should result in the `id(&self) -> String` associated
     /// method returning a different string, meaning that game IDs should
     /// uniquely identify game variants.
-    fn initialize(variant: Option<Variant>) -> Self
+    ///
+    /// Returns `Result::Ok(Self)` if the specified `variant` is properly
+    /// formed. Otherwise, returns a `Result::Err(String)` containing a text
+    /// string explaining why the variant string could not be parsed.
+    fn initialize(variant: Option<Variant>) -> Result<Self, VariantError>
     where
         Self: Sized;
 

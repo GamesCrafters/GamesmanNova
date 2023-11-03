@@ -97,7 +97,7 @@ fn select_record<const N: usize>(
         let curr_dot = (matrix * r.util).dot(&coalition);
         if curr_dot > dot || (curr_dot == dot && rem > r.rem) {
             result.util = r.util;
-            result.rem = rem;
+            result.rem = rem + 1;
             dot = curr_dot;
             rem = r.rem;
         }
