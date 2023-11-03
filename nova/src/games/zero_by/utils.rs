@@ -24,7 +24,7 @@ pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State
 {
     let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
     let shifted_state = state << turn_bits;
-    shifted_state + turn
+    shifted_state & (<Player as Into<u64>>::into(turn))
 }
 
 /// Given a state and a player count, determines the player whose turn it is by
@@ -35,7 +35,9 @@ pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player)
 {
     let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
     let state_bits = State::BITS - turn_bits;
-    let turn_u: Player = (encoding << state_bits) >> state_bits;
+    let turn_u: Player =
+        (<State as TryInto<Player>>::try_into(encoding).unwrap() << state_bits)
+            >> state_bits;
     let state_u: State = encoding >> turn_bits;
     (state_u, turn_u)
 }
@@ -86,14 +88,15 @@ mod test
         // Packing and unpacking should yield equivalent results
         assert!((state, turn) == unpack_turn(packed, player_count));
 
-        let prime = 97;
-
         // About 255 * prime^2 iterations
         for p in Player::MIN..=Player::MAX {
             let turn_bits = Player::BITS - p.leading_zeros();
-            let max_state: State = State::MAX / (2 ^ turn_bits);
-            for s in (State::MIN..max_state).step_by(max_state / prime) {
-                for t in (Player::MIN..=p).step_by(p / prime) {
+            let max_state: State = State::MAX / ((2 ^ turn_bits) as u64);
+            let state_step = (max_state / 97) as usize;
+            let turn_step = (p / 97) as usize;
+
+            for s in (State::MIN..max_state).step_by(state_step) {
+                for t in (Player::MIN..=p).step_by(turn_step) {
                     assert!((s, t) == unpack_turn(pack_turn(s, t, p), p));
                 }
             }

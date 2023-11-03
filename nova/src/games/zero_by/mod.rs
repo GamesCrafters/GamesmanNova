@@ -13,14 +13,18 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use std::collections::HashMap;
+
 use crate::games::{
-    Game, GameData, Solvable, Automaton, AcyclicallySolvable,
+    Game, GameData, Solvable, Automaton,
 };
+use crate::models::Utility;
+use crate::solvers::acyclic::AcyclicSolver;
 use crate::{models::{Solver, State, Variant, Player}, errors::VariantError};
 use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
 use variants::*;
 
-use self::utils::pack_turn;
+use super::AcyclicallySolvable;
 
 /* SUBMODULES */
 
@@ -87,7 +91,7 @@ impl Automaton<State> for Session
 {
     fn start(&self) -> State
     {
-        pack_turn(self.from, 0, self.players)
+        utils::pack_turn(self.from, 0, self.players)
     }
 
     fn transition(&self, state: State) -> Vec<State>
@@ -109,32 +113,40 @@ impl Automaton<State> for Session
     }
 }
 
+impl AcyclicallySolvable<2> for Session {}
+
 impl Solvable<2> for Session
 {
-    fn weights(&self) -> SMatrix<i32, 2, 2>
+    fn weights(&self) -> SMatrix<Utility, 2, 2>
     {
-        Matrix2::<i32>::identity()
+        Matrix2::<Utility>::identity()
     }
 
-    fn utility(&self, state: State) -> Option<SVector<i32, 2>>
+    fn utility(&self, state: State) -> Option<SVector<Utility, 2>>
     {
         let (state, turn) = utils::unpack_turn(state, 2);
         if !self.accepts(state) {
             None
+        } else if turn % 2 == 0 {
+            Some(Vector2::new(-1, 1))
         } else {
-            Some(Vector2::new(turn % 2, (turn + 1) % 2))
+            Some(Vector2::new(1, -1))
         }
     }
 
-    fn coalesce(&self, state: State) -> SVector<i64, 2> {
+    fn coalesce(&self, state: State) -> SVector<Utility, 2> {
         let (_, turn) = utils::unpack_turn(state, 2);
-        Vector2::new((turn + 1) % 2, turn % 2)
+        Vector2::new(
+            ((turn + 1) % 2).into(), 
+            (turn % 2).into()
+        )
     }
 
-    fn solvers(&self) -> Vec<(String, Solver<Self, 2>)>
+    fn solvers(&self) -> HashMap<String, Solver<Self, 2>>
     {
-        vec![
-            (AcyclicallySolvable::<2>::name(), AcyclicallySolvable::<2>::solve)
-        ]
+        let acyclic: Solver<Self, 2> = <Self as AcyclicSolver<2>>::solve;
+        HashMap::from([
+            (<Self as AcyclicSolver<2>>::name(), acyclic)
+        ])
     }
 }

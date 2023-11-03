@@ -11,7 +11,6 @@ use crate::interfaces::find_game;
 use crate::interfaces::terminal::cli::SolveArgs;
 use crate::models::{Record, Solver};
 use crate::utils::most_similar;
-use std::collections::HashMap;
 use std::process;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value
@@ -20,9 +19,18 @@ use std::process;
 pub fn solve_by_name<const N: usize>(args: &SolveArgs, quiet: bool)
     -> Record<N>
 {
-    let game = find_game(args.target, args.variant);
-    let solver = find_solver(&game, args.solver.clone(), quiet);
-    solver(&game, args.mode)
+    match find_game(args.target, args.variant) {
+        Ok(game) => {
+            let solver = find_solver(&game, args.solver.clone(), quiet);
+            solver(&game, args.mode)
+        }
+        Err(e) => {
+            if !quiet {
+                println!("{}", e);
+            }
+            process::exit(exitcode::USAGE);
+        }
+    }
 }
 
 /* HELPER FUNCTIONS */
@@ -37,7 +45,7 @@ fn find_solver<G: Solvable<N>, const N: usize>(
     quiet: bool,
 ) -> Solver<G, N>
 {
-    let solvers: HashMap<&str, Solver<G>> = game.solvers();
+    let solvers = game.solvers();
     if solvers.is_empty() {
         if !quiet {
             println!("There are no solvers associated with this game.");

@@ -29,11 +29,11 @@ pub trait AcyclicSolver<const N: usize>
     fn name() -> String;
 }
 
-impl<G> AcyclicSolver<2> for G
+impl<G, const N: usize> AcyclicSolver<N> for G
 where
-    G: AcyclicallySolvable<2>,
+    G: AcyclicallySolvable<N>,
 {
-    fn solve(game: &Self, mode: Option<IOMode>) -> Record<2>
+    fn solve(game: &G, mode: Option<IOMode>) -> Record<N>
     {
         let mut db = BPDatabase::new(game.id(), mode);
         let state = game.start();
@@ -48,19 +48,21 @@ where
 
 /* HELPER FUNCTIONS */
 
-fn traverse<G: AcyclicallySolvable<2>>(
+fn traverse<G: AcyclicallySolvable<N>, const N: usize>(
     state: State,
     game: &G,
-    db: &mut BPDatabase,
-) -> Record<2>
+    db: &mut BPDatabase<N>,
+) -> Record<N>
 {
     if game.accepts(state) {
-        return game.utility(state).expect(&format!(
-            "No utility vector defined for state {}",
-            state
-        ))
+        return Record::default().with_util(
+            game.utility(state).expect(&format!(
+                "No utility vector defined for state {}",
+                state
+            )),
+        )
     }
-    let mut available: HashSet<Record> = HashSet::new();
+    let mut available: HashSet<Record<N>> = HashSet::new();
     for state in game.transition(state) {
         if let Some(out) = db.get(state) {
             available.insert(out);
@@ -72,9 +74,9 @@ fn traverse<G: AcyclicallySolvable<2>>(
     }
     let matrix = game.weights();
     let coalition = game.coalesce(state);
-    let value = select_record(game, state, available);
-    db.put(state, value);
-    value
+    let record = select_record(matrix, coalition, available);
+    db.put(state, record);
+    record
 }
 
 /// Selects the record in `available` that maximizes the dot product between the

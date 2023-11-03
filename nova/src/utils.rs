@@ -72,9 +72,9 @@ pub fn format_record<const N: usize>(
         }
         Some(OutputFormat::Json) => Some(
             serde_json::json!({
-                    "utility": record.utility.to_string(),
-                    "remoteness": record.remoteness,
-                    "draw_depth": record.draw_depth,
+                    "utility": *record.util.to_string(),
+                    "remoteness": record.rem,
+                    "draw_depth": record.draw,
                     "mex": record.mex,
             })
             .to_string(),
@@ -82,11 +82,11 @@ pub fn format_record<const N: usize>(
         None => Some(format!(
             "{} {}\n{} {}\n{} {}\n{} {}",
             "Utility:".green().bold(),
-            record.utility,
+            record.util,
             "Remoteness:".bold(),
-            record.remoteness,
+            record.rem,
             "Draw depth:".bold(),
-            record.draw_depth,
+            record.draw,
             "Mex:".bold(),
             record.mex,
         )),
@@ -102,7 +102,7 @@ pub fn format_record<const N: usize>(
 ///
 /// Example usage:
 ///
-/// ```none
+/// ```no_run
 /// implement! { for Game =>
 ///     AcyclicGame,
 ///     AcyclicallySolvable,
@@ -113,7 +113,7 @@ pub fn format_record<const N: usize>(
 ///
 /// ...which expands to the following:
 ///
-/// ```none
+/// ```no_run
 /// impl AcyclicallySolvable for Game {}
 ///
 /// impl TreeSolvable for Game {}
@@ -125,4 +125,31 @@ macro_rules! implement {
     (for $b:ty => $($t:ty),+) => {
         $(impl $t for $b { })*
     }
+}
+
+/// Syntax sugar. Allows a "literal-like" declaration of collections like
+/// `HashSet`s, `HashMap`s, `Vec`s, etc.
+///
+/// Example usage:
+///
+/// ```no_run
+/// let s: Vec<_> = collection![1, 2, 3];
+/// let s: HashSet<_> = collection! { 1, 2, 3 };
+/// let s: HashMap<_, _> = collection! { 1 => 2, 3 => 4 };
+/// ```
+/// ...which expands to the following:
+///
+/// ```no_run
+/// let s = Vec::from([1, 2, 3]);
+/// let s = HashSet::from([1, 2, 3]);
+/// let s = HashMap::from([(1, 2), (3, 4)]);
+/// ```
+#[macro_export]
+macro_rules! collection {
+    ($($k:expr => $v:expr),* $(,)?) => {{
+        core::convert::From::from([$(($k, $v),)*])
+    }};
+    ($($v:expr),* $(,)?) => {{
+        core::convert::From::from([$($v,)*])
+    }};
 }

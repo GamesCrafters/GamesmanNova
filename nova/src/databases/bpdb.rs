@@ -10,50 +10,40 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::Database;
-use crate::models::{State, Value};
+use crate::{
+    interfaces::terminal::cli::IOMode,
+    models::{Record, State},
+};
 
 /// An implementation of a Bit-Perfect DBMS which exposes the option to force a
 /// disk read, a write, or non-persistent behavior (at least beyond program
 /// execution, as no guarantees are provided about disk usage limits during
 /// execution).
-pub struct BPDatabase
+pub struct BPDatabase<const N: usize>
 {
     /// Used to identify the database file should the contents be persisted.
     id: String,
-    read: bool,
-    write: bool,
-    mem: HashMap<State, Mutex<Value>>,
+    mode: IOMode,
+    mem: HashMap<State, Mutex<Record<N>>>,
 }
 
-impl Database for BPDatabase
+impl<const N: usize> Database<N> for BPDatabase<N>
 {
-    fn new(id: String, read: bool, write: bool) -> Self
+    fn new(id: String, mode: Option<IOMode>) -> Self
     {
-        if read && write {
-            panic!("Cannot operate in read and write modes simultaneously.")
-        }
         BPDatabase {
             id,
-            read,
-            write,
+            mode,
             mem: HashMap::new(),
         }
     }
 
-    fn put(&mut self, state: State, value: Value)
+    fn put(&mut self, state: State, record: Record<N>)
     {
-        if !self.read {
-            if self.write {
-                // Check if there is a logger thread, make one if not
-                // Send update to logger thread
-                // Once in a while, send signal to checkpoint thread
-                todo!()
-            }
-            self.mem.insert(state, Mutex::new(value));
-        }
+        self.mem.insert(state, Mutex::new(Record::<N>::default()));
     }
 
-    fn get(&self, state: State) -> Option<Value>
+    fn get(&self, state: State) -> Option<Record<N>>
     {
         if self.read {
             // Get checkpoint transmitter and send request for record with state

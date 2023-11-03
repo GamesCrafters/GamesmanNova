@@ -7,7 +7,8 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::{
-    games::{zero_by, Game},
+    errors::VariantError,
+    games::{zero_by, Game, Solvable},
     models::Variant,
 };
 use clap::ValueEnum;
@@ -27,9 +28,12 @@ pub enum GameModule
 
 /// Fetches and initializes the correct game session based on an indicated
 /// `GameModule`, with the provided `variant`.
-pub fn find_game(game: GameModule, variant: Option<Variant>) -> impl Game
+pub fn find_game<const N: usize>(
+    game: GameModule,
+    variant: Option<Variant>,
+) -> Result<impl Solvable<N>, VariantError>
 {
     match game {
-        GameModule::ZeroBy => zero_by::Session::initialize(variant),
+        GameModule::ZeroBy => Ok(zero_by::Session::initialize(variant)?),
     }
 }

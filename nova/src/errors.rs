@@ -24,7 +24,12 @@ pub enum NotFoundError
     /// An error to indicate that a user input the name of a solver which is
     /// not implemented for a game. Supports telling the user what they
     /// typed and a suggestion.
-    Solver(String, String, Vec<String>),
+    Solver
+    {
+        solver_name: String,
+        game_name: String,
+        available_solvers: Vec<String>,
+    },
 }
 
 impl Error for NotFoundError {}
@@ -34,14 +39,21 @@ impl fmt::Display for NotFoundError
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         match self {
-            Self::SolverNotFoundError(name, game, list) => {
+            Self::Solver {
+                solver_name,
+                game_name,
+                available_solvers,
+            } => {
                 write!(
                     f,
                     "The solver '{}' was not found among the offerings of {}. \
                     Perhaps you meant '{}'?",
-                    name,
-                    game,
-                    most_similar(name, list.iter().map(|s| &s[0..]).collect())
+                    solver_name,
+                    game_name,
+                    most_similar(
+                        solver_name,
+                        available_solvers.iter().map(|s| &s[0..]).collect()
+                    )
                 )
             }
         }
@@ -80,23 +92,23 @@ impl fmt::Display for VariantError
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         match self {
-            Self::Missing(game) => {
+            Self::Missing { game_name } => {
                 write!(
                     f,
                     "The game '{}' requires that you pass in a variant string \
                     with the '--variant' argument. More information on how the \
                     game expects you to format it can be found with 'nova info \
                     --target {} --output extra'.",
-                    game, game
+                    game_name, game_name
                 )
             }
-            Self::Malformed(game, message) => {
+            Self::Malformed { game_name, message } => {
                 write!(
                     f,
                     "The provided variant is malformed: {}\n\nMore information \
                     on how the game expects you to format it can be found with \
                     'nova info --target {} --output extra'.",
-                    message, game
+                    message, game_name
                 )
             }
         }

@@ -9,7 +9,7 @@
 
 use super::{Session, NAME};
 use crate::errors::VariantError;
-use crate::models::Variant;
+use crate::models::{Player, Variant};
 use regex::Regex;
 
 /* ZERO-BY VARIANT DEFINITION */
@@ -35,12 +35,12 @@ be a slight decrease in performance.";
 pub fn parse_variant(variant: Variant) -> Result<Session, VariantError>
 {
     check_variant_pattern(&variant)?;
-    let params = parse_parameters(variant)?;
+    let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
     check_params_are_positive(&params)?;
     Ok(Session {
         variant: Some(variant),
-        players: params[0],
+        players: parse_player_count(&params)?,
         from: params[1],
         by: Vec::from(&params[2..]),
     })
@@ -48,60 +48,76 @@ pub fn parse_variant(variant: Variant) -> Result<Session, VariantError>
 
 /* VARIANT STRING VERIFICATION */
 
-fn parse_parameters(variant: Variant) -> Result<Vec<u64>, VariantError>
+fn parse_parameters(variant: &str) -> Result<Vec<u64>, VariantError>
 {
-    let params = variant
+    let params: Result<Vec<u64>, _> = variant
         .split('-')
         .map(|int_string| {
-            let param = int_string.parse::<u64>();
-            match param {
-                Ok(integer) => integer,
-                Err(e) => VariantError::Malformed {
+            int_string
+                .parse::<u64>()
+                .map_err(|e| VariantError::Malformed {
                     game_name: NAME.to_owned(),
                     message: format!("{}", e.to_string()),
-                },
-            }
+                })
         })
-        .collect::<Vec<u64>>();
-    Ok(params)
+        .collect();
+    params
 }
 
 fn check_variant_pattern(variant: &Variant) -> Result<(), VariantError>
 {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(&variant) {
-        return VariantError::Malformed {
+        Err(VariantError::Malformed {
             game_name: NAME.to_owned(),
             message: format!(
                 "String does not match the pattern '{}'.",
                 VARIANT_PATTERN
             ),
-        }
+        })
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 fn check_param_count(params: &Vec<u64>) -> Result<(), VariantError>
 {
     if params.len() < 3 {
-        return VariantError::Malformed {
+        Err(VariantError::Malformed {
             game_name: NAME.to_owned(),
             message: "String needs to have at least 3 dash-separated integers."
                 .to_owned(),
-        }
+        })
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 fn check_params_are_positive(params: &Vec<u64>) -> Result<(), VariantError>
 {
     if params.iter().any(|&x| x <= 0) {
-        return VariantError::Malformed {
+        Err(VariantError::Malformed {
             game_name: NAME.to_owned(),
             message: "All integers in the string must be positive.".to_owned(),
-        }
+        })
+    } else {
+        Ok(())
     }
-    Ok(())
+}
+
+fn parse_player_count(params: &Vec<u64>) -> Result<Player, VariantError>
+{
+    if params[0] > Player::MAX.into() {
+        Err(VariantError::Malformed {
+            game_name: NAME.to_owned(),
+            message: format!(
+                "The number of players in the game must be lower than {}.",
+                Player::MAX
+            ),
+        })
+    } else {
+        Ok(Player::try_from(params[0]).unwrap())
+    }
 }
 
 /* TESTS */
@@ -110,6 +126,7 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), VariantError>
 mod test
 {
     use super::*;
+    use crate::games::Game;
 
     #[test]
     fn variant_pattern_is_valid_regex()
@@ -125,11 +142,21 @@ mod test
     }
 
     #[test]
-    fn no_variant_equals_default_variant()
+    fn initialization_success_with_no_variant()
     {
         let with_none = Session::initialize(None);
         let with_default =
             Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
+        assert!(with_none.is_ok());
+        assert!(with_default.is_ok());
+    }
+
+    #[test]
+    fn no_variant_equals_default_variant()
+    {
+        let with_none = Session::initialize(None).unwrap();
+        let with_default =
+            Session::initialize(Some(VARIANT_DEFAULT.to_owned())).unwrap();
         assert_eq!(with_none.variant, with_default.variant);
         assert_eq!(with_none.from, with_default.from);
         assert_eq!(with_none.by, with_default.by);

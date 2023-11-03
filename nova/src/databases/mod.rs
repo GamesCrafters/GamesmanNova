@@ -20,16 +20,16 @@ pub mod bpdb;
 
 /// Database management system interface for storing game state to value
 /// mappings.
-pub trait Database
+pub trait Database<const N: usize>
 {
     /// Instantiate a new database.
     fn new(id: String, mode: Option<IOMode>) -> Self
     where
         Self: Sized;
     /// Create a new record.
-    fn put(&mut self, state: State, value: Record);
+    fn put(&mut self, state: State, record: Record<N>);
     /// Read a record. Returns `None` if record does not exist.
-    fn get(&self, state: State) -> Option<Record>;
+    fn get(&self, state: State) -> Option<Record<N>>;
     /// Delete a record.
     fn delete(&mut self, state: State);
 }
