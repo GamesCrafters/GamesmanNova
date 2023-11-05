@@ -9,6 +9,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use crate::interfaces::GameModule;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 /* COMMAND LINE INTERFACE */
@@ -18,8 +19,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 /// provides analyzers and databases to generate insights about games and to
 /// persist their full solutions efficiently.
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-#[command(propagate_version = true)]
+#[command(author, version, about, long_about = None, propagate_version = true)]
 pub struct Cli
 {
     /* REQUIRED COMMANDS */
@@ -60,7 +60,7 @@ pub struct TuiArgs
     /* DEFAULTS PROVIDED */
     /// Game to display (optional).
     #[arg(short, long)]
-    pub target: Option<String>,
+    pub target: Option<GameModule>,
     /// Enter TUI in debug mode.
     #[arg(short, long)]
     pub debug: bool,
@@ -72,19 +72,20 @@ pub struct TuiArgs
 /// Specifies the way in which a solve for a game happens and returns the
 /// value and remoteness of the `target` game's initial position. Default
 /// behavior:
-/// * Does not attempt to read from a pre-generated database (see `read` flag).
-/// * Does not attempt to generate a database (see `write` flag).
+/// * Uses the target's default variant (see `variant` argument).
+/// * Attempts to read from a database file, computing and writing one if there
+///   is none (see `mode` argument).
 /// * Formats output aesthetically (see `output` argument).
 /// * Uses the game's default solver to create state graph (see `solver`
 /// argument).
 /// * Prompts the user before executing any potentially destructive operations
-/// (such as overwriting a game database).
+/// (such as overwriting a game database, see `yes` flag).
 #[derive(Args)]
 pub struct SolveArgs
 {
     /* REQUIRED ARGUMENTS */
     /// Target game name.
-    pub target: String,
+    pub target: GameModule,
 
     /* DEFAULTS PROVIDED */
     /// Solve a specific variant of target.
@@ -96,12 +97,9 @@ pub struct SolveArgs
     /// Attempt to use a specific solver to solve the game.
     #[arg(short, long)]
     pub solver: Option<String>,
-    /// Read solved game state graph from local database.
-    #[arg(short, long, group = "read-write")]
-    pub read: bool,
-    /// Write or overwrite solved game state graph to local database.
-    #[arg(short, long, group = "read-write")]
-    pub write: bool,
+    /// Specify whether the solution should be fetched or generated.
+    #[arg(short, long)]
+    pub mode: Option<IOMode>,
     /// Skips prompts for confirming destructive operations.
     #[arg(short, long)]
     pub yes: bool,
@@ -112,29 +110,30 @@ pub struct SolveArgs
 /// * Attempts to read from the game's solution database, and use it to make
 /// the analysis.
 /// * If there is no database, run the default solver for the game, and return
-/// the analysis without writing a database.
-/// * Should writing to disk be necessary to perform the solve, the database
-/// file is deleted once the `analyzer` is finished.
+/// the analysis after writing a database.
 #[derive(Args)]
 pub struct AnalyzeArgs
 {
     /* REQUIRED ARGUMENTS */
     /// Target game name.
-    pub target: String,
+    pub target: GameModule,
 
     /* DEFAULTS PROVIDED */
-    /// Analyzer to use.
+    /// Analyzer module to use.
     #[arg(short, long)]
     pub analyzer: Option<String>,
     /// Analyze a specific variant of target.
     #[arg(short, long)]
     pub variant: Option<String>,
-    /// Only perform the analysis if there is already a pre-existing database.
+    /// Specify whether the solution should be fetched or generated.
     #[arg(short, long)]
-    pub read: bool,
+    pub mode: Option<IOMode>,
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<OutputFormat>,
+    /// Skips prompts for confirming destructive operations.
+    #[arg(short, long)]
+    pub yes: bool,
 }
 
 /// Provides information about available games (or about their specifications,
@@ -144,10 +143,11 @@ pub struct AnalyzeArgs
 #[derive(Args)]
 pub struct InfoArgs
 {
-    /* DEFAULTS PROVIDED */
+    /* REQUIRED ARGUMENTS */
     /// Specify game for which to provide information about.
-    #[arg(short, long)]
-    pub target: Option<String>,
+    pub target: GameModule,
+
+    /* DEFAULTS PROVIDED */
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<OutputFormat>,
@@ -164,4 +164,19 @@ pub enum OutputFormat
     Extra,
     /// JSON format.
     Json,
+    /// Output nothing (side-effects only).
+    None,
+}
+
+/// Specifies a mode of operation for solving algorithms in regard to database
+/// usage and solution set persistence. If a mode is not provided, this will
+/// default to attempting to read a database file, computing and writing it only
+/// if it does not already exist.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum IOMode
+{
+    /// Attempt to read solution set if it exists, and fail otherwise.
+    Read,
+    /// Write solution set database file (overwrites existing one).
+    Write,
 }

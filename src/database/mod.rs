@@ -7,29 +7,28 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use crate::models::{State, Value};
+use crate::{interfaces::terminal::cli::IOMode, models::State};
+use record::Record;
 
 /* DBMS IMLPEMENTATIONS */
 
 pub mod bpdb;
+pub mod record;
 
 /* TRAITS */
 
 /// Database management system interface for storing game state to value
 /// mappings.
-pub trait Database
+pub trait Database<const N: usize>
 {
-    /// Instantiate a new database. If `read` is true, it will attempt to read
-    /// an existing database using the information in `id`. If write is true,
-    /// it will attempt to overwrite or write a new database with `id`. If
-    /// neither are true, it does no disk I/O.
-    fn new(id: String, read: bool, write: bool) -> Self
+    /// Instantiate a new database.
+    fn new(id: String, mode: Option<IOMode>) -> Self
     where
         Self: Sized;
     /// Create a new record.
-    fn put(&mut self, state: State, value: Value);
+    fn put(&mut self, state: State, record: Record<N>);
     /// Read a record. Returns `None` if record does not exist.
-    fn get(&self, state: State) -> Option<Value>;
+    fn get(&self, state: State) -> Option<Record<N>>;
     /// Delete a record.
     fn delete(&mut self, state: State);
 }
