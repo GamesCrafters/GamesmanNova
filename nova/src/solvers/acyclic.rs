@@ -9,10 +9,10 @@
 
 use nalgebra::{SMatrix, SVector};
 
-use crate::databases::{bpdb::BPDatabase, Database};
+use crate::database::{bpdb::BPDatabase, record::Record, Database};
 use crate::games::AcyclicallySolvable;
 use crate::interfaces::terminal::cli::IOMode;
-use crate::models::{Record, State};
+use crate::models::State;
 use std::collections::HashSet;
 
 /* SOLVER NAME */
@@ -24,7 +24,7 @@ const SOLVER_NAME: &str = "recursive-acyclic";
 
 pub trait AcyclicSolver<const N: usize>
 {
-    fn solve(game: &Self, mode: Option<IOMode>) -> Record<N>;
+    fn solve(game: &Self, mode: Option<IOMode>);
 
     fn name() -> String;
 }
@@ -33,11 +33,10 @@ impl<G, const N: usize> AcyclicSolver<N> for G
 where
     G: AcyclicallySolvable<N>,
 {
-    fn solve(game: &G, mode: Option<IOMode>) -> Record<N>
+    fn solve(game: &G, mode: Option<IOMode>)
     {
         let mut db = BPDatabase::new(game.id(), mode);
-        let state = game.start();
-        traverse(state, game, &mut db)
+        println!("{}", traverse(game.start(), game, &mut db));
     }
 
     fn name() -> String

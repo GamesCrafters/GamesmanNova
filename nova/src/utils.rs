@@ -6,11 +6,7 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use crate::{
-    interfaces::terminal::cli::{IOMode, OutputFormat},
-    models::Record,
-};
-use colored::Colorize;
+use crate::interfaces::terminal::cli::IOMode;
 use std::process;
 
 /* ALGORITHMS */
@@ -56,40 +52,6 @@ pub fn confirm_potential_overwrite(yes: bool, mode: Option<IOMode>)
         if yn == "n" || yn == "N" {
             process::exit(exitcode::OK)
         }
-    }
-}
-
-/// Returns a `record` represented in a specific `format`.
-pub fn format_record<const N: usize>(
-    record: &Record<N>,
-    format: Option<OutputFormat>,
-) -> Option<String>
-{
-    match format {
-        Some(OutputFormat::None) => None,
-        Some(OutputFormat::Extra) => {
-            todo!()
-        }
-        Some(OutputFormat::Json) => Some(
-            serde_json::json!({
-                    "utility": *record.util.to_string(),
-                    "remoteness": record.rem,
-                    "draw_depth": record.draw,
-                    "mex": record.mex,
-            })
-            .to_string(),
-        ),
-        None => Some(format!(
-            "{} {}\n{} {}\n{} {}\n{} {}",
-            "Utility:".green().bold(),
-            record.util,
-            "Remoteness:".bold(),
-            record.rem,
-            "Draw depth:".bold(),
-            record.draw,
-            "Mex:".bold(),
-            record.mex,
-        )),
     }
 }
 

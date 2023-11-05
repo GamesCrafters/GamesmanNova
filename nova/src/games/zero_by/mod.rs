@@ -86,6 +86,14 @@ impl Game for Session
             variant_default: VARIANT_DEFAULT.to_owned(),
         }
     }
+
+    fn solvers(&self) -> HashMap<String, Solver<Self>>
+    {
+        let acyclic: Solver<Self> = <Self as AcyclicSolver<2>>::solve;
+        collection! {
+            <Self as AcyclicSolver<2>>::name() => acyclic,
+        }
+    }
 }
 
 impl Automaton<State> for Session
@@ -145,13 +153,5 @@ impl Solvable<2> for Session
             ((turn + 1) % 2).into(), 
             (turn % 2).into()
         )
-    }
-
-    fn solvers(&self) -> HashMap<String, Solver<Self, 2>>
-    {
-        let acyclic: Solver<Self, 2> = <Self as AcyclicSolver<2>>::solve;
-        collection! {
-            <Self as AcyclicSolver<2>>::name() => acyclic,
-        }
     }
 }

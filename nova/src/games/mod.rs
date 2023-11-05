@@ -97,6 +97,11 @@ where
     /// is, who implemented it, and an explanation of how to specify different
     /// variants for initialization.
     fn info(&self) -> GameData;
+
+    /// Returns a mapping of names to solvers that can consume the implementer.
+    /// That is, this function returns a named set of functions that can solve
+    /// the game which returned them.
+    fn solvers(&self) -> HashMap<String, Solver<Self>>;
 }
 
 /// Defines the behavior of a nondeterministic finite automaton _M_. Generic
@@ -265,11 +270,6 @@ where
     /// much". This functionally means that `kC = C`, which holds for all
     /// `k` integer values.
     fn coalesce(&self, state: State) -> SVector<Utility, N>;
-
-    /// Returns a mapping of names to solvers that can consume the implementer.
-    /// That is, this function returns a named set of functions that can solve
-    /// the game which returned them.
-    fn solvers(&self) -> HashMap<String, Solver<Self, N>>;
 }
 
 /* SOLVING MARKERS */

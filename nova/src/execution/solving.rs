@@ -6,20 +6,19 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::games::Solvable;
-use crate::interfaces::find_game_2;
+use crate::games::Game;
+use crate::interfaces::find_game;
 use crate::interfaces::terminal::cli::SolveArgs;
-use crate::models::{Record, Solver};
+use crate::models::Solver;
 use crate::utils::most_similar;
 use std::process;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value
 /// or an error containing what was actually passed in versus what was
 /// probably meant to be passed in.
-pub fn solve_by_name<const N: usize>(args: &SolveArgs, quiet: bool)
-    -> Record<N>
+pub fn solve_by_name(args: &SolveArgs, quiet: bool)
 {
-    match find_game_2(args.target, args.variant) {
+    match find_game(args.target, args.variant.clone()) {
         Ok(game) => {
             let solver = find_solver(&game, args.solver.clone(), quiet);
             solver(&game, args.mode)
@@ -39,11 +38,11 @@ pub fn solve_by_name<const N: usize>(args: &SolveArgs, quiet: bool)
 /// provided. If no solver name is provided, returns any one of the solvers
 /// which the game returns.If no name match is found or if there are no solvers
 /// available, an error is provided to the user with a suggestion.
-fn find_solver<G: Solvable<N>, const N: usize>(
+fn find_solver<G: Game>(
     game: &G,
     solver: Option<String>,
     quiet: bool,
-) -> Solver<G, N>
+) -> Solver<G>
 {
     let solvers = game.solvers();
     if solvers.is_empty() {
@@ -58,7 +57,7 @@ fn find_solver<G: Solvable<N>, const N: usize>(
                     &solver_name,
                     Vec::from_iter(solvers.keys())
                         .iter()
-                        .map(|x| **x)
+                        .map(|x| &x[..])
                         .collect(),
                 );
                 println!(

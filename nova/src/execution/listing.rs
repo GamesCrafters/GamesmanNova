@@ -15,7 +15,7 @@ use serde_json::json;
 /// format. Game information is provided by game implementations.
 pub fn print_game_info(game: GameModule, format: Option<OutputFormat>)
 {
-    let info: GameData = find_game(game, None).info();
+    let info: GameData = find_game(game, None).unwrap().info();
     if let Some(format) = format {
         match format {
             OutputFormat::Extra => {

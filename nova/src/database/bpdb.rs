@@ -9,11 +9,8 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use super::Database;
-use crate::{
-    interfaces::terminal::cli::IOMode,
-    models::{Record, State},
-};
+use super::{Database, Record};
+use crate::{interfaces::terminal::cli::IOMode, models::State};
 
 /// An implementation of a Bit-Perfect DBMS which exposes the option to force a
 /// disk read, a write, or non-persistent behavior (at least beyond program

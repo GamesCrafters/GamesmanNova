@@ -7,14 +7,13 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use crate::{
-    interfaces::terminal::cli::IOMode,
-    models::{Record, State},
-};
+use crate::{interfaces::terminal::cli::IOMode, models::State};
+use record::Record;
 
 /* DBMS IMLPEMENTATIONS */
 
 pub mod bpdb;
+pub mod record;
 
 /* TRAITS */
 

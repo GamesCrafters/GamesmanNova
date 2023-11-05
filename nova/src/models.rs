@@ -8,7 +8,6 @@
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
 use crate::interfaces::terminal::cli::IOMode;
-use nalgebra::SVector;
 
 /* PRIMARY TYPES */
 
@@ -35,7 +34,7 @@ pub type Player = u16;
 /// The signature of a function which can solve a game implementation, with side
 /// effects specified by an `IOMode` optional argument. Returns the record
 /// associated with the starting position of the game.
-pub type Solver<G, const N: usize> = fn(&G, Option<IOMode>) -> Record<N>;
+pub type Solver<G> = fn(&G, Option<IOMode>);
 
 /* ATTRIBUTE TYPES */
 
@@ -57,74 +56,3 @@ pub type Remoteness = u64;
 
 /// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
 pub type MinimumExcludedValue = u64;
-
-/* CONSTRUCTS */
-
-/// The set of attributes related to a game position in an arbitrary `N` player
-/// game.
-#[derive(Eq, Hash, PartialEq)]
-pub struct Record<const N: usize>
-{
-    pub util: SVector<Utility, N>,
-    pub draw: DrawDepth,
-    pub rem: Remoteness,
-    pub mex: MinimumExcludedValue,
-}
-
-impl<const N: usize> Default for Record<N>
-{
-    fn default() -> Self
-    {
-        Record {
-            util: SVector::<Utility, N>::zeros(),
-            draw: u64::default(),
-            rem: u64::default(),
-            mex: u64::default(),
-        }
-    }
-}
-
-impl<const N: usize> Record<N>
-{
-    /* RECORD BUILDER LITE (TM) */
-
-    pub fn with_util(mut self, util: SVector<Utility, N>) -> Self
-    {
-        self.util = util;
-        self
-    }
-
-    pub fn with_draw(mut self, draw: u64) -> Self
-    {
-        self.draw = draw;
-        self
-    }
-
-    pub fn with_rem(mut self, rem: u64) -> Self
-    {
-        self.rem = rem;
-        self
-    }
-
-    pub fn with_mex(mut self, mex: u64) -> Self
-    {
-        self.mex = mex;
-        self
-    }
-
-    /* RECORD UTILS */
-
-    fn get_utility(&self, player: Player) -> Utility
-    {
-        if let Some(utility) = self.util.get(player as usize) {
-            *utility
-        } else {
-            panic!(
-                "Out-of-bounds vector access: Attempted to fetch utility for \
-                player {} in a game of {} players.",
-                player,
-                self.util.nrows()
-            )
-        }
-    }
-}

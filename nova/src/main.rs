@@ -23,7 +23,7 @@ use crate::interfaces::terminal::cli::*;
 /* MODULES */
 
 mod analyzers;
-mod databases;
+mod database;
 mod errors;
 mod execution;
 mod games;
@@ -62,12 +62,7 @@ fn analyze(args: &AnalyzeArgs, quiet: bool)
 fn solve(args: &SolveArgs, quiet: bool)
 {
     utils::confirm_potential_overwrite(args.yes, args.mode);
-    let record = solving::solve_by_name(args, quiet);
-    if let Some(output) = utils::format_record(&record, args.output) {
-        if !quiet {
-            println!("{}", output)
-        }
-    }
+    solving::solve_by_name(args, quiet);
 }
 
 fn info(args: &InfoArgs, quiet: bool)
