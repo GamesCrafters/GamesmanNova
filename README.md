@@ -19,10 +19,8 @@ $ git clone https://github.com/GamesCrafters/GamesmanNova.git location
 3. Go to your installation (`cd location`), and install the executable:
 
 ```
-$ cargo install --path nova
+$ cargo install --path .
 ```
-
-> NOTE: The `nova` argument to `--path` here refers to the inner directory within the project, which is the Nova binary crate. It is not at the top level because this project also contains [procedural macros](https://doc.rust-lang.org/beta/reference/procedural-macros.html) as other crates of their own, meaning that the overall repository is a [cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html).
 
 This will add the `nova` executable to your list of cargo binaries. If you add this list of binaries to your `$PATH`, you will be able to call `nova` just like any other command.
 
