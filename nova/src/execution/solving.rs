@@ -7,7 +7,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::games::Solvable;
-use crate::interfaces::find_game;
+use crate::interfaces::find_game_2;
 use crate::interfaces::terminal::cli::SolveArgs;
 use crate::models::{Record, Solver};
 use crate::utils::most_similar;
@@ -19,7 +19,7 @@ use std::process;
 pub fn solve_by_name<const N: usize>(args: &SolveArgs, quiet: bool)
     -> Record<N>
 {
-    match find_game(args.target, args.variant) {
+    match find_game_2(args.target, args.variant) {
         Ok(game) => {
             let solver = find_solver(&game, args.solver.clone(), quiet);
             solver(&game, args.mode)

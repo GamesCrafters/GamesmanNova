@@ -95,8 +95,8 @@ pub fn format_record<const N: usize>(
 
 /* MACROS */
 
-/// Implements multiple traits for a single concrete type. The traits
-/// implemented must be marker traits; in other words, they must have no
+/// Syntax sugar. Implements multiple traits for a single concrete type. The
+/// traits implemented must be marker traits; in other words, they must have no
 /// behavior (no functions). You will usually want to use this for implementing
 /// all the solvers for a game ergonomically through their marker traits.
 ///

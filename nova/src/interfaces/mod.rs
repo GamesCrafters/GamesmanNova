@@ -28,10 +28,10 @@ pub enum GameModule
 
 /// Fetches and initializes the correct game session based on an indicated
 /// `GameModule`, with the provided `variant`.
-pub fn find_game<const N: usize>(
+pub fn find_game_2(
     game: GameModule,
     variant: Option<Variant>,
-) -> Result<impl Solvable<N>, VariantError>
+) -> Result<impl Solvable<2>, VariantError>
 {
     match game {
         GameModule::ZeroBy => Ok(zero_by::Session::initialize(variant)?),

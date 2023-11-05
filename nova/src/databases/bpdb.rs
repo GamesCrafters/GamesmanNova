@@ -23,7 +23,7 @@ pub struct BPDatabase<const N: usize>
 {
     /// Used to identify the database file should the contents be persisted.
     id: String,
-    mode: IOMode,
+    mode: Option<IOMode>,
     mem: HashMap<State, Mutex<Record<N>>>,
 }
 
@@ -45,18 +45,11 @@ impl<const N: usize> Database<N> for BPDatabase<N>
 
     fn get(&self, state: State) -> Option<Record<N>>
     {
-        if self.read {
-            // Get checkpoint transmitter and send request for record with state
-            // Wait for message including record using checkpoint transmitter
-            // Return retrieved record
-            todo!()
+        if let Some(mutex) = self.mem.get(&state) {
+            let lock = mutex.lock().unwrap();
+            Some(*lock)
         } else {
-            if let Some(mutex) = self.mem.get(&state) {
-                let lock = mutex.lock().unwrap();
-                Some(*lock)
-            } else {
-                None
-            }
+            None
         }
     }
 

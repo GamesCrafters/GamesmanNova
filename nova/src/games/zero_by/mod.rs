@@ -15,6 +15,7 @@
 
 use std::collections::HashMap;
 
+use crate::{collection, implement};
 use crate::games::{
     Game, GameData, Solvable, Automaton,
 };
@@ -113,7 +114,11 @@ impl Automaton<State> for Session
     }
 }
 
-impl AcyclicallySolvable<2> for Session {}
+/* SOLVABLE DECLARATIONS */
+
+implement! { for Session =>
+    AcyclicallySolvable<2>
+}
 
 impl Solvable<2> for Session
 {
@@ -145,8 +150,8 @@ impl Solvable<2> for Session
     fn solvers(&self) -> HashMap<String, Solver<Self, 2>>
     {
         let acyclic: Solver<Self, 2> = <Self as AcyclicSolver<2>>::solve;
-        HashMap::from([
-            (<Self as AcyclicSolver<2>>::name(), acyclic)
-        ])
+        collection! {
+            <Self as AcyclicSolver<2>>::name() => acyclic,
+        }
     }
 }
