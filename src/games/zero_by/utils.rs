@@ -22,9 +22,12 @@ use crate::models::{Player, State};
 /// but only one to enumerate `{0, 1}`.
 pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State
 {
-    let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
-    let shifted_state = state << turn_bits;
-    shifted_state & (<Player as Into<u64>>::into(turn))
+    if player_count == 0 {
+        return state
+    } else {
+        let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
+        (state << turn_bits) | State::from(turn)
+    }
 }
 
 /// Given a state and a player count, determines the player whose turn it is by
@@ -33,13 +36,15 @@ pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State
 /// the inverse function of `pack_turn`.
 pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player)
 {
-    let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
-    let state_bits = State::BITS - turn_bits;
-    let turn_u: Player =
-        (<State as TryInto<Player>>::try_into(encoding).unwrap() << state_bits)
-            >> state_bits;
-    let state_u: State = encoding >> turn_bits;
-    (state_u, turn_u)
+    if player_count == 0 {
+        return (encoding, 0)
+    } else {
+        let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
+        let turn_mask = (1 << turn_bits) - 1;
+        let state = (encoding & !turn_mask) >> turn_bits;
+        let turn = (encoding & turn_mask).try_into().unwrap();
+        (state, turn)
+    }
 }
 
 /* TESTS */
@@ -58,8 +63,8 @@ mod test
         let turn: Player = 0b0000_0101;
         // 31 in decimal
         let state: State = 0b0001_1111;
-        // 0b00...00_1111_1101 in binary, 0x00...00FC in hexadecimal
-        assert!(0xfc == pack_turn(state, turn, player_count));
+        // 0b00...00_1111_1101 in binary = 0b[state bits][player bits]
+        assert_eq!(0b1111_1101, pack_turn(state, turn, player_count));
     }
 
     #[test]
@@ -71,7 +76,7 @@ mod test
         let encoding: State = 0b0001_0101_1010;
         // 0b00...00_0001_0101_1010 -> 0b00...00_0101 and 0b0001_1010, which
         // means that 346 should be decoded to a state of 5 and a turn of 26
-        assert!((5, 26) == unpack_turn(encoding, player_count));
+        assert_eq!((5, 26), unpack_turn(encoding, player_count));
     }
 
     #[test]
@@ -86,18 +91,18 @@ mod test
         // 0b00...011101 in binary
         let packed: State = pack_turn(state, turn, player_count);
         // Packing and unpacking should yield equivalent results
-        assert!((state, turn) == unpack_turn(packed, player_count));
+        assert_eq!((state, turn), unpack_turn(packed, player_count));
 
         // About 255 * prime^2 iterations
         for p in Player::MIN..=Player::MAX {
             let turn_bits = Player::BITS - p.leading_zeros();
-            let max_state: State = State::MAX / ((2 ^ turn_bits) as u64);
-            let state_step = (max_state / 97) as usize;
-            let turn_step = (p / 97) as usize;
+            let max_state: State = State::MAX / ((1 << turn_bits) as u64);
+            let state_step = ((max_state / 23) + 1) as usize;
+            let turn_step = ((p / 23) + 1) as usize;
 
             for s in (State::MIN..max_state).step_by(state_step) {
-                for t in (Player::MIN..=p).step_by(turn_step) {
-                    assert!((s, t) == unpack_turn(pack_turn(s, t, p), p));
+                for t in (Player::MIN..p).step_by(turn_step) {
+                    assert_eq!((s, t), unpack_turn(pack_turn(s, t, p), p));
                 }
             }
         }

@@ -176,10 +176,10 @@ mod test
     #[test]
     fn valid_variants_pass_checks()
     {
-        assert!(parse_variant("5-1000-8-23-63-7".to_owned()).is_err());
-        assert!(parse_variant("1-1-1".to_owned()).is_err());
-        assert!(parse_variant("34-23623-8-6-3".to_owned()).is_err());
-        assert!(parse_variant("5-2-8-23".to_owned()).is_err());
-        assert!(parse_variant("1-619-496-1150".to_owned()).is_err());
+        assert!(parse_variant("5-1000-8-23-63-7".to_owned()).is_ok());
+        assert!(parse_variant("1-1-1".to_owned()).is_ok());
+        assert!(parse_variant("34-23623-8-6-3".to_owned()).is_ok());
+        assert!(parse_variant("5-2-8-23".to_owned()).is_ok());
+        assert!(parse_variant("1-619-496-1150".to_owned()).is_ok());
     }
 }
