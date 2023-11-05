@@ -15,13 +15,14 @@
 
 use std::collections::HashMap;
 
-use crate::{collection, implement};
-use crate::games::{
-    Game, GameData, Solvable, Automaton,
-};
+use crate::games::{Automaton, Game, GameData, Solvable};
 use crate::models::Utility;
 use crate::solvers::acyclic::AcyclicSolver;
-use crate::{models::{Solver, State, Variant, Player}, errors::VariantError};
+use crate::{collection, implement};
+use crate::{
+    errors::VariantError,
+    models::{Player, Solver, State, Variant},
+};
 use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
 use variants::*;
 
@@ -29,15 +30,15 @@ use super::AcyclicallySolvable;
 
 /* SUBMODULES */
 
-mod variants;
 mod utils;
+mod variants;
 
 /* GAME DATA */
 
 const NAME: &str = "Zero-By";
 const AUTHOR: &str = "Max Fierro";
 const CATEGORY: &str = "Combinatorial n-player zero-sum game";
-const ABOUT: &str = 
+const ABOUT: &str =
 "Many players take turns removing a number of elements from a set of arbitrary \
 size. They can make a choice of how many elements to remove (and of how many \
 elements to start out with) based on the game variant. The player who is left \
@@ -95,14 +96,14 @@ impl Game for Session
                 collection! {
                     <Self as AcyclicSolver<2>>::name() => acyclic,
                 }
-            },
+            }
             10 => {
                 let acyclic: Solver<Self> = <Self as AcyclicSolver<10>>::solve;
                 collection! {
                     <Self as AcyclicSolver<10>>::name() => acyclic,
                 }
             }
-            _ => todo!()
+            _ => todo!(),
         }
     }
 }
@@ -125,9 +126,9 @@ impl Automaton<State> for Session
             .map(|choice| state - choice)
             .map(|output| {
                 utils::pack_turn(
-                    output, 
-                    (turn + 1) % self.players, 
-                    self.players
+                    output,
+                    (turn + 1) % self.players,
+                    self.players,
                 )
             })
             .collect::<Vec<State>>()
@@ -166,12 +167,10 @@ impl Solvable<2> for Session
         }
     }
 
-    fn coalesce(&self, state: State) -> SVector<Utility, 2> {
+    fn coalesce(&self, state: State) -> SVector<Utility, 2>
+    {
         let (_, turn) = utils::unpack_turn(state, 2);
-        Vector2::new(
-            ((turn + 1) % 2).into(), 
-            (turn % 2).into()
-        )
+        Vector2::new(((turn + 1) % 2).into(), (turn % 2).into())
     }
 }
 
@@ -188,7 +187,8 @@ impl Solvable<10> for Session
         if !self.accepts(state) {
             None
         } else {
-            let mut result: SVector<Utility, 10> = SVector::<Utility, 10>::zeros();
+            let mut result: SVector<Utility, 10> =
+                SVector::<Utility, 10>::zeros();
             for i in 0..10 {
                 if turn == i {
                     result[i as usize] = -9;
@@ -200,7 +200,8 @@ impl Solvable<10> for Session
         }
     }
 
-    fn coalesce(&self, state: State) -> SVector<Utility, 10> {
+    fn coalesce(&self, state: State) -> SVector<Utility, 10>
+    {
         let (_, turn) = utils::unpack_turn(state, 10);
         let mut result: SVector<Utility, 10> = SVector::<Utility, 10>::zeros();
         for i in 0..10 {
