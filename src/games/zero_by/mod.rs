@@ -37,12 +37,13 @@ mod variants;
 
 const NAME: &str = "Zero-By";
 const AUTHOR: &str = "Max Fierro";
-const CATEGORY: &str = "Combinatorial n-player zero-sum game";
+const CATEGORY: &str = "Multiplayer zero-sum game";
 const ABOUT: &str =
 "Many players take turns removing a number of elements from a set of arbitrary \
-size. They can make a choice of how many elements to remove (and of how many \
-elements to start out with) based on the game variant. The player who is left \
-with 0 elements in their turn loses. A player cannot remove more elements than \
+size. The game variant determines how many players are in the game, how many \
+elements are in the set to begin with, and the options players have in the \
+amount of elements to remove during their turn. The player who is left with 0 \
+elements in their turn loses. A player cannot remove more elements than \
 currently available in the set.";
 
 /* GAME IMPLEMENTATION */
@@ -103,7 +104,7 @@ impl Game for Session
                     <Self as AcyclicSolver<10>>::name() => acyclic,
                 }
             }
-            _ => todo!(),
+            _ => collection! {},
         }
     }
 }
@@ -123,10 +124,9 @@ impl Automaton<State> for Session
             .cloned()
             .map(|choice| if state <= choice { state } else { choice })
             .filter(|&choice| state >= choice)
-            .map(|choice| state - choice)
-            .map(|output| {
+            .map(|choice| {
                 utils::pack_turn(
-                    output,
+                    state - choice,
                     (turn + 1) % self.players,
                     self.players,
                 )

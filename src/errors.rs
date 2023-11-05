@@ -44,17 +44,26 @@ impl fmt::Display for NotFoundError
                 game_name,
                 available_solvers,
             } => {
-                write!(
-                    f,
-                    "The solver '{}' was not found among the offerings of {}. \
-                    Perhaps you meant '{}'?",
-                    solver_name,
-                    game_name,
-                    most_similar(
-                        solver_name,
-                        available_solvers.iter().map(|s| &s[0..]).collect()
+                if available_solvers.is_empty() {
+                    write!(
+                        f,
+                        "Sorry, the variant you specified for the game {} has \
+                        no solvers associated with it.",
+                        game_name
                     )
-                )
+                } else {
+                    write!(
+                        f,
+                        "The solver '{}' was not found among the offerings of \
+                        {}. Perhaps you meant '{}'?",
+                        solver_name,
+                        game_name,
+                        most_similar(
+                            solver_name,
+                            available_solvers.iter().map(|s| &s[0..]).collect()
+                        )
+                    )
+                }
             }
         }
     }
@@ -67,13 +76,6 @@ impl fmt::Display for NotFoundError
 #[derive(Debug)]
 pub enum VariantError
 {
-    /// An error to indicate that a game with name `game_name` expected a
-    /// variant to be passed to it, but none was found. Note that `game_name`
-    /// should be a valid argument to the `--target` parameter in any command.
-    Missing
-    {
-        game_name: String
-    },
     /// An error to indicate that the variant passed to the game with
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
@@ -92,16 +94,6 @@ impl fmt::Display for VariantError
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         match self {
-            Self::Missing { game_name } => {
-                write!(
-                    f,
-                    "The game '{}' requires that you pass in a variant string \
-                    with the '--variant' argument. More information on how the \
-                    game expects you to format it can be found with 'nova info \
-                    --target {} --output extra'.",
-                    game_name, game_name
-                )
-            }
             Self::Malformed { game_name, message } => {
                 write!(
                     f,

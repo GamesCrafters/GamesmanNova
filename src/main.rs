@@ -15,7 +15,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use clap::Parser;
-use std::process;
+use std::error::Error;
 
 use crate::execution::*;
 use crate::interfaces::terminal::cli::*;
@@ -34,40 +34,39 @@ mod utils;
 
 /* PROGRAM ENTRY */
 
-fn main()
+fn main() -> Result<(), Box<dyn Error>>
 {
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Tui(args) => tui(args, cli.quiet),
-        Commands::Info(args) => info(args, cli.quiet),
-        Commands::Solve(args) => solve(args, cli.quiet),
-        Commands::Analyze(args) => analyze(args, cli.quiet),
-    };
-    process::exit(exitcode::OK);
+        Commands::Tui(args) => tui(args),
+        Commands::Info(args) => info(args),
+        Commands::Solve(args) => solve(args),
+        Commands::Analyze(args) => analyze(args),
+    }
 }
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs, quiet: bool)
+fn tui(args: &TuiArgs) -> Result<(), Box<dyn Error>>
 {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs, quiet: bool)
+fn analyze(args: &AnalyzeArgs) -> Result<(), Box<dyn Error>>
 {
     utils::confirm_potential_overwrite(args.yes, args.mode);
     todo!()
 }
 
-fn solve(args: &SolveArgs, quiet: bool)
+fn solve(args: &SolveArgs) -> Result<(), Box<dyn Error>>
 {
     utils::confirm_potential_overwrite(args.yes, args.mode);
-    solving::solve_by_name(args, quiet);
+    solving::solve_by_name(args)?;
+    Ok(())
 }
 
-fn info(args: &InfoArgs, quiet: bool)
+fn info(args: &InfoArgs) -> Result<(), Box<dyn Error>>
 {
-    if !quiet {
-        listing::print_game_info(args.target, args.output)
-    }
+    listing::print_game_info(args.target, args.output);
+    Ok(())
 }

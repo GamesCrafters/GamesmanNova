@@ -26,11 +26,6 @@ pub struct Cli
     /// Available subcommands for the main 'nova' command.
     #[command(subcommand)]
     pub command: Commands,
-
-    /* DEFAULTS PROVIDED */
-    /// Send no output to STDOUT during successful execution.
-    #[arg(short, long, group = "out")]
-    pub quiet: bool,
 }
 
 /// Subcommand choices, specified as `nova <subcommand>`.
@@ -145,7 +140,6 @@ pub struct InfoArgs
 {
     /* REQUIRED ARGUMENTS */
     /// Specify game for which to provide information about.
-    #[arg(short, long)]
     pub target: GameModule,
 
     /* DEFAULTS PROVIDED */
