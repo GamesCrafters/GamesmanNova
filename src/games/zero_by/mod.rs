@@ -89,9 +89,20 @@ impl Game for Session
 
     fn solvers(&self) -> HashMap<String, Solver<Self>>
     {
-        let acyclic: Solver<Self> = <Self as AcyclicSolver<2>>::solve;
-        collection! {
-            <Self as AcyclicSolver<2>>::name() => acyclic,
+        match self.players {
+            2 => {
+                let acyclic: Solver<Self> = <Self as AcyclicSolver<2>>::solve;
+                collection! {
+                    <Self as AcyclicSolver<2>>::name() => acyclic,
+                }
+            },
+            10 => {
+                let acyclic: Solver<Self> = <Self as AcyclicSolver<10>>::solve;
+                collection! {
+                    <Self as AcyclicSolver<10>>::name() => acyclic,
+                }
+            }
+            _ => todo!()
         }
     }
 }
@@ -109,9 +120,16 @@ impl Automaton<State> for Session
         self.by
             .iter()
             .cloned()
+            .map(|choice| if state <= choice { state } else { choice })
             .filter(|&choice| state >= choice)
             .map(|choice| state - choice)
-            .map(|output| utils::pack_turn(output, turn, self.players))
+            .map(|output| {
+                utils::pack_turn(
+                    output, 
+                    (turn + 1) % self.players, 
+                    self.players
+                )
+            })
             .collect::<Vec<State>>()
     }
 
@@ -125,7 +143,8 @@ impl Automaton<State> for Session
 /* SOLVABLE DECLARATIONS */
 
 implement! { for Session =>
-    AcyclicallySolvable<2>
+    AcyclicallySolvable<2>,
+    AcyclicallySolvable<10>
 }
 
 impl Solvable<2> for Session
@@ -153,5 +172,44 @@ impl Solvable<2> for Session
             ((turn + 1) % 2).into(), 
             (turn % 2).into()
         )
+    }
+}
+
+impl Solvable<10> for Session
+{
+    fn weights(&self) -> SMatrix<Utility, 10, 10>
+    {
+        SMatrix::<Utility, 10, 10>::identity()
+    }
+
+    fn utility(&self, state: State) -> Option<SVector<Utility, 10>>
+    {
+        let (state, turn) = utils::unpack_turn(state, 10);
+        if !self.accepts(state) {
+            None
+        } else {
+            let mut result: SVector<Utility, 10> = SVector::<Utility, 10>::zeros();
+            for i in 0..10 {
+                if turn == i {
+                    result[i as usize] = -9;
+                } else {
+                    result[i as usize] = 1;
+                }
+            }
+            Some(result)
+        }
+    }
+
+    fn coalesce(&self, state: State) -> SVector<Utility, 10> {
+        let (_, turn) = utils::unpack_turn(state, 10);
+        let mut result: SVector<Utility, 10> = SVector::<Utility, 10>::zeros();
+        for i in 0..10 {
+            if turn == i {
+                result[i as usize] = 1;
+            } else {
+                result[i as usize] = 0;
+            }
+        }
+        result
     }
 }

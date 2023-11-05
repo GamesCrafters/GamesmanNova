@@ -62,13 +62,12 @@ fn traverse<G: AcyclicallySolvable<N>, const N: usize>(
         )
     }
     let mut available: HashSet<Record<N>> = HashSet::new();
-    for state in game.transition(state) {
-        if let Some(out) = db.get(state) {
+    for next in game.transition(state) {
+        if let Some(out) = db.get(next) {
             available.insert(out);
         } else {
-            let out = traverse(state, game, db);
+            let out = traverse(next, game, db);
             available.insert(out);
-            db.put(state, out);
         }
     }
     let matrix = game.weights();
@@ -98,7 +97,7 @@ fn select_record<const N: usize>(
         let curr_dot = (matrix * r.util).dot(&coalition);
         if curr_dot > dot || (curr_dot == dot && rem > r.rem) {
             result.util = r.util;
-            result.rem = rem + 1;
+            result.rem = r.rem + 1;
             dot = curr_dot;
             rem = r.rem;
         }

@@ -37,7 +37,7 @@ impl<const N: usize> Database<N> for BPDatabase<N>
 
     fn put(&mut self, state: State, record: Record<N>)
     {
-        self.mem.insert(state, Mutex::new(Record::<N>::default()));
+        self.mem.insert(state, Mutex::new(record));
     }
 
     fn get(&self, state: State) -> Option<Record<N>>

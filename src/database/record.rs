@@ -127,8 +127,8 @@ impl<const N: usize> Display for Record<N>
     {
         write!(
             f,
-            "{} {}\n{} {}\n{} {}\n{} {}",
-            "Utility:".green().bold(),
+            "{}\n{}{} {}\n{} {}\n{} {}",
+            "Utility vector:".green().bold(),
             self.util,
             "Remoteness:".bold(),
             self.rem,
