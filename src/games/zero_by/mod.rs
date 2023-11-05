@@ -35,7 +35,7 @@ mod variants;
 
 /* GAME DATA */
 
-const NAME: &str = "Zero-By";
+const NAME: &str = "zero-by";
 const AUTHOR: &str = "Max Fierro";
 const CATEGORY: &str = "Multiplayer zero-sum game";
 const ABOUT: &str =

@@ -63,7 +63,8 @@ impl fmt::Display for NovaError
                     write!(
                         f,
                         "The solver '{}' was not found among the offerings of \
-                        {}. Perhaps you meant '{}'?",
+                        the variant you specified for {}. Perhaps you meant \
+                        '{}'?",
                         input_solver_name,
                         input_game_name,
                         most_similar(
