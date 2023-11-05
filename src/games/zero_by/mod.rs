@@ -20,7 +20,7 @@ use crate::models::Utility;
 use crate::solvers::acyclic::AcyclicSolver;
 use crate::{collection, implement};
 use crate::{
-    errors::VariantError,
+    errors::NovaError,
     models::{Player, Solver, State, Variant},
 };
 use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
@@ -58,7 +58,7 @@ pub struct Session
 
 impl Game for Session
 {
-    fn initialize(variant: Option<Variant>) -> Result<Self, VariantError>
+    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError>
     {
         if let Some(v) = variant {
             parse_variant(v)

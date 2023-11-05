@@ -15,8 +15,9 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use clap::Parser;
-use std::error::Error;
+use std::process;
 
+use crate::errors::NovaError;
 use crate::execution::*;
 use crate::interfaces::terminal::cli::*;
 
@@ -34,38 +35,45 @@ mod utils;
 
 /* PROGRAM ENTRY */
 
-fn main() -> Result<(), Box<dyn Error>>
+fn main()
 {
     let cli = Cli::parse();
-    match &cli.command {
+    let ret = match &cli.command {
         Commands::Tui(args) => tui(args),
         Commands::Info(args) => info(args),
         Commands::Solve(args) => solve(args),
         Commands::Analyze(args) => analyze(args),
+    };
+    if let Err(e) = ret {
+        if !cli.quiet {
+            eprintln!("{}", e);
+        }
+        process::exit(exitcode::USAGE)
     }
+    process::exit(exitcode::OK)
 }
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs) -> Result<(), Box<dyn Error>>
+fn tui(args: &TuiArgs) -> Result<(), NovaError>
 {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs) -> Result<(), Box<dyn Error>>
+fn analyze(args: &AnalyzeArgs) -> Result<(), NovaError>
 {
     utils::confirm_potential_overwrite(args.yes, args.mode);
     todo!()
 }
 
-fn solve(args: &SolveArgs) -> Result<(), Box<dyn Error>>
+fn solve(args: &SolveArgs) -> Result<(), NovaError>
 {
     utils::confirm_potential_overwrite(args.yes, args.mode);
     solving::solve_by_name(args)?;
     Ok(())
 }
 
-fn info(args: &InfoArgs) -> Result<(), Box<dyn Error>>
+fn info(args: &InfoArgs) -> Result<(), NovaError>
 {
     listing::print_game_info(args.target, args.output);
     Ok(())

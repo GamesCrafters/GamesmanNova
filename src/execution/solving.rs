@@ -6,17 +6,16 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::NotFoundError;
+use crate::errors::NovaError;
 use crate::games::Game;
 use crate::interfaces::find_game;
 use crate::interfaces::terminal::cli::SolveArgs;
 use crate::models::Solver;
-use std::error::Error;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value
 /// or an error containing what was actually passed in versus what was
 /// probably meant to be passed in.
-pub fn solve_by_name(args: &SolveArgs) -> Result<(), Box<dyn Error>>
+pub fn solve_by_name(args: &SolveArgs) -> Result<(), NovaError>
 {
     let game = find_game(args.target, args.variant.clone())?;
     let solver = find_solver(&game, args.solver.clone())?;
@@ -33,16 +32,16 @@ pub fn solve_by_name(args: &SolveArgs) -> Result<(), Box<dyn Error>>
 fn find_solver<G: Game>(
     game: &G,
     solver: Option<String>,
-) -> Result<Solver<G>, NotFoundError>
+) -> Result<Solver<G>, NovaError>
 {
     let solvers = game.solvers();
-    if let Some(solver_name) = solver {
-        if let Some(solver) = solvers.get(&solver_name) {
+    if let Some(input_solver_name) = solver {
+        if let Some(solver) = solvers.get(&input_solver_name) {
             Ok(*solver)
         } else {
-            Err(NotFoundError::Solver {
-                solver_name,
-                game_name: game.info().name,
+            Err(NovaError::SolverNotFound {
+                input_solver_name,
+                input_game_name: game.info().name,
                 available_solvers: solvers
                     .keys()
                     .into_iter()

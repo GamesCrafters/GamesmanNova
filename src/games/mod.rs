@@ -17,7 +17,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::{
-    errors::VariantError,
+    errors::NovaError,
     models::{Solver, State, Utility, Variant},
 };
 use nalgebra::{SMatrix, SVector};
@@ -82,7 +82,7 @@ where
     /// Returns `Result::Ok(Self)` if the specified `variant` is properly
     /// formed. Otherwise, returns a `Result::Err(String)` containing a text
     /// string explaining why the variant string could not be parsed.
-    fn initialize(variant: Option<Variant>) -> Result<Self, VariantError>
+    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError>
     where
         Self: Sized;
 

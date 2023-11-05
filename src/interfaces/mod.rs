@@ -7,7 +7,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::{
-    errors::VariantError,
+    errors::NovaError,
     games::{zero_by, Game},
     models::Variant,
 };
@@ -31,7 +31,7 @@ pub enum GameModule
 pub fn find_game(
     game: GameModule,
     variant: Option<Variant>,
-) -> Result<impl Game, VariantError>
+) -> Result<impl Game, NovaError>
 {
     match game {
         GameModule::ZeroBy => Ok(zero_by::Session::initialize(variant)?),
