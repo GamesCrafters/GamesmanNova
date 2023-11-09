@@ -21,8 +21,7 @@ pub mod terminal;
 
 /// Specifies the game offerings available through all interfaces.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum GameModule
-{
+pub enum GameModule {
     ZeroBy,
     Crossteaser,
 }
@@ -32,8 +31,7 @@ pub enum GameModule
 pub fn find_game(
     game: GameModule,
     variant: Option<Variant>,
-) -> Result<Box<dyn Game>, NovaError>
-{
+) -> Result<Box<dyn Game>, NovaError> {
     match game {
         GameModule::ZeroBy => {
             Ok(Box::new(zero_by::Session::initialize(variant)?))

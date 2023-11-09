@@ -47,18 +47,15 @@ currently available in the set.";
 
 /* GAME IMPLEMENTATION */
 
-pub struct Session
-{
+pub struct Session {
     variant: Option<String>,
     players: Player,
     from: State,
     by: Vec<u64>,
 }
 
-impl Game for Session
-{
-    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError>
-    {
+impl Game for Session {
+    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError> {
         if let Some(v) = variant {
             parse_variant(v)
         } else {
@@ -66,8 +63,7 @@ impl Game for Session
         }
     }
 
-    fn id(&self) -> String
-    {
+    fn id(&self) -> String {
         if let Some(variant) = self.variant.clone() {
             format!("{}.{}", NAME, variant)
         } else {
@@ -75,8 +71,7 @@ impl Game for Session
         }
     }
 
-    fn info(&self) -> GameData
-    {
+    fn info(&self) -> GameData {
         GameData {
             name: NAME.to_owned(),
             author: AUTHOR.to_owned(),
@@ -88,8 +83,7 @@ impl Game for Session
         }
     }
 
-    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError>
-    {
+    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError> {
         match self.players {
             2 => <Self as AcyclicSolver<2>>::solve(self, mode),
             10 => <Self as AcyclicSolver<10>>::solve(self, mode),
@@ -103,15 +97,12 @@ impl Game for Session
     }
 }
 
-impl Automaton<State> for Session
-{
-    fn start(&self) -> State
-    {
+impl Automaton<State> for Session {
+    fn start(&self) -> State {
         utils::pack_turn(self.from, 0, self.players)
     }
 
-    fn transition(&self, state: State) -> Vec<State>
-    {
+    fn transition(&self, state: State) -> Vec<State> {
         let (state, turn) = utils::unpack_turn(state, self.players);
         self.by
             .iter()
@@ -128,8 +119,7 @@ impl Automaton<State> for Session
             .collect::<Vec<State>>()
     }
 
-    fn accepts(&self, state: State) -> bool
-    {
+    fn accepts(&self, state: State) -> bool {
         let (state, _) = utils::unpack_turn(state, self.players);
         state == 0
     }
@@ -142,15 +132,12 @@ implement! { for Session =>
     AcyclicallySolvable<10>
 }
 
-impl Solvable<2> for Session
-{
-    fn weights(&self) -> SMatrix<Utility, 2, 2>
-    {
+impl Solvable<2> for Session {
+    fn weights(&self) -> SMatrix<Utility, 2, 2> {
         Matrix2::<Utility>::identity()
     }
 
-    fn utility(&self, state: State) -> Option<SVector<Utility, 2>>
-    {
+    fn utility(&self, state: State) -> Option<SVector<Utility, 2>> {
         let (state, turn) = utils::unpack_turn(state, 2);
         if !self.accepts(state) {
             None
@@ -161,22 +148,18 @@ impl Solvable<2> for Session
         }
     }
 
-    fn coalesce(&self, state: State) -> SVector<Utility, 2>
-    {
+    fn coalesce(&self, state: State) -> SVector<Utility, 2> {
         let (_, turn) = utils::unpack_turn(state, 2);
         Vector2::new(((turn + 1) % 2).into(), (turn % 2).into())
     }
 }
 
-impl Solvable<10> for Session
-{
-    fn weights(&self) -> SMatrix<Utility, 10, 10>
-    {
+impl Solvable<10> for Session {
+    fn weights(&self) -> SMatrix<Utility, 10, 10> {
         SMatrix::<Utility, 10, 10>::identity()
     }
 
-    fn utility(&self, state: State) -> Option<SVector<Utility, 10>>
-    {
+    fn utility(&self, state: State) -> Option<SVector<Utility, 10>> {
         let (state, turn) = utils::unpack_turn(state, 10);
         if !self.accepts(state) {
             None
@@ -194,8 +177,7 @@ impl Solvable<10> for Session
         }
     }
 
-    fn coalesce(&self, state: State) -> SVector<Utility, 10>
-    {
+    fn coalesce(&self, state: State) -> SVector<Utility, 10> {
         let (_, turn) = utils::unpack_turn(state, 10);
         let mut result: SVector<Utility, 10> = SVector::<Utility, 10>::zeros();
         for i in 0..10 {

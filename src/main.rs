@@ -35,8 +35,7 @@ mod utils;
 
 /* PROGRAM ENTRY */
 
-fn main()
-{
+fn main() {
     let cli = Cli::parse();
     let ret = match &cli.command {
         Commands::Tui(args) => tui(args),
@@ -55,26 +54,22 @@ fn main()
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs) -> Result<(), NovaError>
-{
+fn tui(args: &TuiArgs) -> Result<(), NovaError> {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs) -> Result<(), NovaError>
-{
+fn analyze(args: &AnalyzeArgs) -> Result<(), NovaError> {
     utils::confirm_potential_overwrite(args.yes, args.mode);
     todo!()
 }
 
-fn solve(args: &SolveArgs) -> Result<(), NovaError>
-{
+fn solve(args: &SolveArgs) -> Result<(), NovaError> {
     utils::confirm_potential_overwrite(args.yes, args.mode);
     solving::solve_by_name(args)?;
     Ok(())
 }
 
-fn info(args: &InfoArgs) -> Result<(), NovaError>
-{
+fn info(args: &InfoArgs) -> Result<(), NovaError> {
     informing::print_game_info(args.target, args.output);
     Ok(())
 }

@@ -41,49 +41,39 @@ const ABOUT: &str = "PLACEHOLDER";
 
 /* GAME IMPLEMENTATION */
 
-pub struct Session
-{
+pub struct Session {
     variant: Option<String>,
 }
 
-impl Game for Session
-{
-    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError>
-    {
+impl Game for Session {
+    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError> {
         todo!()
     }
 
-    fn id(&self) -> String
-    {
+    fn id(&self) -> String {
         todo!()
     }
 
-    fn info(&self) -> GameData
-    {
+    fn info(&self) -> GameData {
         todo!()
     }
 
-    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError>
-    {
+    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError> {
         <Self as AcyclicSolver<1>>::solve(self, mode);
         Ok(())
     }
 }
 
-impl Automaton<State> for Session
-{
-    fn start(&self) -> State
-    {
+impl Automaton<State> for Session {
+    fn start(&self) -> State {
         todo!()
     }
 
-    fn transition(&self, state: State) -> Vec<State>
-    {
+    fn transition(&self, state: State) -> Vec<State> {
         todo!()
     }
 
-    fn accepts(&self, state: State) -> bool
-    {
+    fn accepts(&self, state: State) -> bool {
         todo!()
     }
 }
@@ -94,20 +84,16 @@ implement! { for Session =>
     AcyclicallySolvable<1>
 }
 
-impl Solvable<1> for Session
-{
-    fn weights(&self) -> SMatrix<Utility, 1, 1>
-    {
+impl Solvable<1> for Session {
+    fn weights(&self) -> SMatrix<Utility, 1, 1> {
         todo!()
     }
 
-    fn utility(&self, state: State) -> Option<SVector<Utility, 1>>
-    {
+    fn utility(&self, state: State) -> Option<SVector<Utility, 1>> {
         todo!()
     }
 
-    fn coalesce(&self, state: State) -> SVector<Utility, 1>
-    {
+    fn coalesce(&self, state: State) -> SVector<Utility, 1> {
         todo!()
     }
 }

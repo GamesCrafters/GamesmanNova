@@ -21,7 +21,6 @@ pub const VARIANT_PROTOCOL: &str = "PLACEHOLDER";
 /// Returns a crossteaser session set up using the parameters specified by
 /// `variant`. Returns a `NovaError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol specified.
-pub fn parse_variant(variant: Variant) -> Result<Session, NovaError>
-{
+pub fn parse_variant(variant: Variant) -> Result<Session, NovaError> {
     todo!()
 }

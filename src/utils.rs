@@ -14,8 +14,7 @@ use std::process;
 /// Returns the most similar string to `model` in the vector `all`. Used for
 /// checking user input against offerings to provide useful suggestions for
 /// malformed command arguments.
-pub fn most_similar(model: &str, all: Vec<&str>) -> String
-{
+pub fn most_similar(model: &str, all: Vec<&str>) -> String {
     let mut best = usize::MAX;
     let mut closest = "";
     let mut current;
@@ -34,8 +33,7 @@ pub fn most_similar(model: &str, all: Vec<&str>) -> String
 /// Prompts the user to confirm their operation as appropriate according to
 /// the arguments of the solve command. Only asks for confirmation for
 /// potentially destructive operations.
-pub fn confirm_potential_overwrite(yes: bool, mode: Option<IOMode>)
-{
+pub fn confirm_potential_overwrite(yes: bool, mode: Option<IOMode>) {
     if match mode {
         Some(IOMode::Write) => !yes,
         _ => false,

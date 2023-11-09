@@ -33,8 +33,7 @@ pub mod zero_by;
 /// Contains useful data about a game, intended to provide users of the program
 /// information they can use to understand the output of analysis and solving,
 /// in addition to specifying game variants.
-pub struct GameData
-{
+pub struct GameData {
     /// Known name for the game.
     pub name: String,
 
@@ -155,8 +154,7 @@ where
 /// Note that _|L(M)|_ = 1 implies that there is only one way to solve this
 /// puzzle. If _|L(M)|_ were equal to 0, that would imply the puzzle cannot be
 /// solved.
-pub trait Automaton<S>
-{
+pub trait Automaton<S> {
     /// Returns an encoding of the start state for any automatic run in this
     /// automaton. All sequences in the formal language accepted by this
     /// automaton must satisfy that this function returns their first

@@ -19,8 +19,7 @@ pub mod record;
 
 /// Database management system interface for storing game state to value
 /// mappings.
-pub trait Database<const N: usize>
-{
+pub trait Database<const N: usize> {
     /// Instantiate a new database.
     fn new(id: String, mode: Option<IOMode>) -> Self
     where

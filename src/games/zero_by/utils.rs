@@ -20,10 +20,9 @@ use crate::models::{Player, State};
 /// return `0b00...00111`, whereas if `player_count` was 2 we would return
 /// `0b00...0011`. This is because you need two bits to enumerate `{0, 1, 2}`,
 /// but only one to enumerate `{0, 1}`.
-pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State
-{
+pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State {
     if player_count == 0 {
-        return state
+        return state;
     } else {
         let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
         (state << turn_bits) | State::from(turn)
@@ -34,10 +33,9 @@ pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State
 /// taking note of the integer in the rightmost bits of `state`. The number of
 /// bits considered turn information are determined by `player_count`. This is
 /// the inverse function of `pack_turn`.
-pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player)
-{
+pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player) {
     if player_count == 0 {
-        return (encoding, 0)
+        return (encoding, 0);
     } else {
         let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
         let turn_mask = (1 << turn_bits) - 1;
@@ -50,13 +48,11 @@ pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player)
 /* TESTS */
 
 #[cfg(test)]
-mod test
-{
+mod test {
     use super::*;
 
     #[test]
-    fn pack_turn_correctness()
-    {
+    fn pack_turn_correctness() {
         // Require three turn bits (8 players = {0b000, 0b001, ..., 0b111})
         let player_count: Player = 8;
         // 5 in decimal
@@ -68,8 +64,7 @@ mod test
     }
 
     #[test]
-    fn unpack_turn_correctness()
-    {
+    fn unpack_turn_correctness() {
         // Require six turn bits (players = {0b0, 0b1, ..., 0b100101})
         let player_count: Player = 38;
         // 346 in decimal
@@ -80,8 +75,7 @@ mod test
     }
 
     #[test]
-    fn unpack_is_inverse_of_pack()
-    {
+    fn unpack_is_inverse_of_pack() {
         // Require two turn bits (players = {0b00, 0b01, 0b10})
         let player_count: Player = 3;
         // 0b00...01 in binary

@@ -20,8 +20,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 /// persist their full solutions efficiently.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None, propagate_version = true)]
-pub struct Cli
-{
+pub struct Cli {
     /* REQUIRED COMMANDS */
     /// Available subcommands for the main 'nova' command.
     #[command(subcommand)]
@@ -35,8 +34,7 @@ pub struct Cli
 
 /// Subcommand choices, specified as `nova <subcommand>`.
 #[derive(Subcommand)]
-pub enum Commands
-{
+pub enum Commands {
     /// Start the terminal user interface.
     Tui(TuiArgs),
     /// Solve a game from the start position.
@@ -55,8 +53,7 @@ pub enum Commands
 /// and prompt the user for confirmation before executing any potentially
 /// destructive operations.
 #[derive(Args)]
-pub struct TuiArgs
-{
+pub struct TuiArgs {
     /* DEFAULTS PROVIDED */
     /// Game to display (optional).
     #[arg(short, long)]
@@ -81,8 +78,7 @@ pub struct TuiArgs
 /// * Prompts the user before executing any potentially destructive operations
 /// (such as overwriting a game database, see `yes` flag).
 #[derive(Args)]
-pub struct SolveArgs
-{
+pub struct SolveArgs {
     /* REQUIRED ARGUMENTS */
     /// Target game name.
     pub target: GameModule,
@@ -112,8 +108,7 @@ pub struct SolveArgs
 /// * If there is no database, run the default solver for the game, and return
 /// the analysis after writing a database.
 #[derive(Args)]
-pub struct AnalyzeArgs
-{
+pub struct AnalyzeArgs {
     /* REQUIRED ARGUMENTS */
     /// Target game name.
     pub target: GameModule,
@@ -141,8 +136,7 @@ pub struct AnalyzeArgs
 /// * Provides a list of implemented games (which are valid `--target`s).
 /// * Provides output unformatted.
 #[derive(Args)]
-pub struct InfoArgs
-{
+pub struct InfoArgs {
     /* REQUIRED ARGUMENTS */
     /// Specify game for which to provide information about.
     pub target: GameModule,
@@ -158,8 +152,7 @@ pub struct InfoArgs
 /// Allows calls to return output in different formats for different purposes,
 /// such as web API calls, scripting, or simple human-readable output.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum OutputFormat
-{
+pub enum OutputFormat {
     /// Extra content or formatting where appropriate.
     Extra,
     /// JSON format.
@@ -173,8 +166,7 @@ pub enum OutputFormat
 /// default to attempting to read a database file, computing and writing it only
 /// if it does not already exist.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum IOMode
-{
+pub enum IOMode {
     /// Attempt to read solution set if it exists, and fail otherwise.
     Read,
     /// Write solution set database file (overwrites existing one).

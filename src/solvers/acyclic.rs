@@ -22,8 +22,7 @@ const SOLVER_NAME: &str = "recursive-acyclic";
 
 /* COMFORTER IMPLEMENTATION */
 
-pub trait AcyclicSolver<const N: usize>
-{
+pub trait AcyclicSolver<const N: usize> {
     fn solve(game: &Self, mode: Option<IOMode>);
 
     fn name() -> String;
@@ -33,14 +32,12 @@ impl<G, const N: usize> AcyclicSolver<N> for G
 where
     G: AcyclicallySolvable<N>,
 {
-    fn solve(game: &G, mode: Option<IOMode>)
-    {
+    fn solve(game: &G, mode: Option<IOMode>) {
         let mut db = BPDatabase::new(game.id(), mode);
         println!("{}", traverse(game.start(), game, &mut db));
     }
 
-    fn name() -> String
-    {
+    fn name() -> String {
         SOLVER_NAME.to_owned()
     }
 }
@@ -51,15 +48,14 @@ fn traverse<G: AcyclicallySolvable<N>, const N: usize>(
     state: State,
     game: &G,
     db: &mut BPDatabase<N>,
-) -> Record<N>
-{
+) -> Record<N> {
     if game.accepts(state) {
         return Record::default().with_util(
             game.utility(state).expect(&format!(
                 "No utility vector defined for state {}",
                 state
             )),
-        )
+        );
     }
     let mut available: HashSet<Record<N>> = HashSet::new();
     for next in game.transition(state) {
@@ -88,8 +84,7 @@ fn select_record<const N: usize>(
     matrix: SMatrix<i64, N, N>,
     coalition: SVector<i64, N>,
     available: HashSet<Record<N>>,
-) -> Record<N>
-{
+) -> Record<N> {
     let mut dot = i64::MIN;
     let mut rem = u64::MAX;
     let mut result = Record::default();

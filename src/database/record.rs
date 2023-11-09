@@ -21,8 +21,7 @@ use std::fmt::Display;
 /* DEFINITION */
 
 #[derive(Eq, Hash, PartialEq, Debug, Clone, Copy)]
-pub struct Record<const N: usize>
-{
+pub struct Record<const N: usize> {
     pub util: SVector<Utility, N>,
     pub draw: DrawDepth,
     pub rem: Remoteness,
@@ -31,38 +30,32 @@ pub struct Record<const N: usize>
 
 /* IMPLEMENTATION */
 
-impl<const N: usize> Record<N>
-{
+impl<const N: usize> Record<N> {
     /* RECORD BUILDER LITE (TM) */
 
-    pub fn with_util(mut self, util: SVector<Utility, N>) -> Self
-    {
+    pub fn with_util(mut self, util: SVector<Utility, N>) -> Self {
         self.util = util;
         self
     }
 
-    pub fn with_draw(mut self, draw: DrawDepth) -> Self
-    {
+    pub fn with_draw(mut self, draw: DrawDepth) -> Self {
         self.draw = draw;
         self
     }
 
-    pub fn with_rem(mut self, rem: Remoteness) -> Self
-    {
+    pub fn with_rem(mut self, rem: Remoteness) -> Self {
         self.rem = rem;
         self
     }
 
-    pub fn with_mex(mut self, mex: MinimumExcludedValue) -> Self
-    {
+    pub fn with_mex(mut self, mex: MinimumExcludedValue) -> Self {
         self.mex = mex;
         self
     }
 
     /* RECORD UTILS */
 
-    pub fn get_utility(&self, player: Player) -> Utility
-    {
+    pub fn get_utility(&self, player: Player) -> Utility {
         if let Some(utility) = self.util.get(player as usize) {
             *utility
         } else {
@@ -75,8 +68,7 @@ impl<const N: usize> Record<N>
         }
     }
 
-    pub fn format(&self, format: Option<OutputFormat>) -> Option<String>
-    {
+    pub fn format(&self, format: Option<OutputFormat>) -> Option<String> {
         match format {
             Some(OutputFormat::None) => None,
             Some(OutputFormat::Extra) => {
@@ -108,10 +100,8 @@ impl<const N: usize> Record<N>
 
 /* STANDARD IMPLEMENTATIONS */
 
-impl<const N: usize> Default for Record<N>
-{
-    fn default() -> Self
-    {
+impl<const N: usize> Default for Record<N> {
+    fn default() -> Self {
         Record {
             util: SVector::<Utility, N>::zeros(),
             draw: u64::default(),
@@ -121,10 +111,8 @@ impl<const N: usize> Default for Record<N>
     }
 }
 
-impl<const N: usize> Display for Record<N>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
-    {
+impl<const N: usize> Display for Record<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}\n{}{} {}\n{} {}\n{} {}",

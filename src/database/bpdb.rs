@@ -16,18 +16,15 @@ use crate::{interfaces::terminal::cli::IOMode, models::State};
 /// disk read, a write, or non-persistent behavior (at least beyond program
 /// execution, as no guarantees are provided about disk usage limits during
 /// execution).
-pub struct BPDatabase<const N: usize>
-{
+pub struct BPDatabase<const N: usize> {
     /// Used to identify the database file should the contents be persisted.
     id: String,
     mode: Option<IOMode>,
     mem: HashMap<State, Mutex<Record<N>>>,
 }
 
-impl<const N: usize> Database<N> for BPDatabase<N>
-{
-    fn new(id: String, mode: Option<IOMode>) -> Self
-    {
+impl<const N: usize> Database<N> for BPDatabase<N> {
+    fn new(id: String, mode: Option<IOMode>) -> Self {
         BPDatabase {
             id,
             mode,
@@ -35,13 +32,11 @@ impl<const N: usize> Database<N> for BPDatabase<N>
         }
     }
 
-    fn put(&mut self, state: State, record: Record<N>)
-    {
+    fn put(&mut self, state: State, record: Record<N>) {
         self.mem.insert(state, Mutex::new(record));
     }
 
-    fn get(&self, state: State) -> Option<Record<N>>
-    {
+    fn get(&self, state: State) -> Option<Record<N>> {
         if let Some(mutex) = self.mem.get(&state) {
             let lock = mutex.lock().unwrap();
             Some(*lock)
@@ -50,8 +45,7 @@ impl<const N: usize> Database<N> for BPDatabase<N>
         }
     }
 
-    fn delete(&mut self, state: State)
-    {
+    fn delete(&mut self, state: State) {
         todo!()
     }
 }

@@ -17,31 +17,22 @@ use std::{error::Error, fmt};
 
 /// Wrapper for all errors that could happen during runtime.
 #[derive(Debug)]
-pub enum NovaError
-{
+pub enum NovaError {
     /// An error to indicate that a user attempted to solve a game variant
     /// which is valid, but has no solver available to solve it.
-    SolverNotFound
-    {
-        input_game_name: String
-    },
+    SolverNotFound { input_game_name: String },
     /// An error to indicate that the variant passed to the game with
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
     /// that `game_name` should be a valid argument to the `--target`
     /// parameter in any command.
-    VariantMalformed
-    {
-        game_name: String, hint: String
-    },
+    VariantMalformed { game_name: String, hint: String },
 }
 
 impl Error for NovaError {}
 
-impl fmt::Display for NovaError
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
-    {
+impl fmt::Display for NovaError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::SolverNotFound { input_game_name } => {
                 write!(

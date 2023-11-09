@@ -32,8 +32,7 @@ be a slight decrease in performance.";
 /// Returns a zero-by game session set up using the parameters specified by
 /// `variant`. Returns a `NovaError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: Variant) -> Result<Session, NovaError>
-{
+pub fn parse_variant(variant: Variant) -> Result<Session, NovaError> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -48,8 +47,7 @@ pub fn parse_variant(variant: Variant) -> Result<Session, NovaError>
 
 /* VARIANT STRING VERIFICATION */
 
-fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError>
-{
+fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError> {
     let params: Result<Vec<u64>, _> = variant
         .split('-')
         .map(|int_string| {
@@ -64,8 +62,7 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError>
     params
 }
 
-fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError>
-{
+fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(&variant) {
         Err(NovaError::VariantMalformed {
@@ -80,8 +77,7 @@ fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError>
     }
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError>
-{
+fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
     if params.len() < 3 {
         Err(NovaError::VariantMalformed {
             game_name: NAME.to_owned(),
@@ -93,8 +89,7 @@ fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError>
     }
 }
 
-fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError>
-{
+fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
     if params.iter().any(|&x| x <= 0) {
         Err(NovaError::VariantMalformed {
             game_name: NAME.to_owned(),
@@ -105,8 +100,7 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError>
     }
 }
 
-fn parse_player_count(params: &Vec<u64>) -> Result<Player, NovaError>
-{
+fn parse_player_count(params: &Vec<u64>) -> Result<Player, NovaError> {
     if params[0] > Player::MAX.into() {
         Err(NovaError::VariantMalformed {
             game_name: NAME.to_owned(),
@@ -123,27 +117,23 @@ fn parse_player_count(params: &Vec<u64>) -> Result<Player, NovaError>
 /* TESTS */
 
 #[cfg(test)]
-mod test
-{
+mod test {
     use super::*;
     use crate::games::Game;
 
     #[test]
-    fn variant_pattern_is_valid_regex()
-    {
+    fn variant_pattern_is_valid_regex() {
         assert!(Regex::new(VARIANT_PATTERN).is_ok());
     }
 
     #[test]
-    fn default_variant_matches_variant_pattern()
-    {
+    fn default_variant_matches_variant_pattern() {
         let re = Regex::new(VARIANT_PATTERN).unwrap();
         assert!(re.is_match(VARIANT_DEFAULT));
     }
 
     #[test]
-    fn initialization_success_with_no_variant()
-    {
+    fn initialization_success_with_no_variant() {
         let with_none = Session::initialize(None);
         let with_default =
             Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
@@ -152,8 +142,7 @@ mod test
     }
 
     #[test]
-    fn no_variant_equals_default_variant()
-    {
+    fn no_variant_equals_default_variant() {
         let with_none = Session::initialize(None).unwrap();
         let with_default =
             Session::initialize(Some(VARIANT_DEFAULT.to_owned())).unwrap();
@@ -163,8 +152,7 @@ mod test
     }
 
     #[test]
-    fn invalid_variants_fail_checks()
-    {
+    fn invalid_variants_fail_checks() {
         assert!(parse_variant("23-34-0-23".to_owned()).is_err());
         assert!(parse_variant("two-three-five".to_owned()).is_err());
         assert!(parse_variant("234572342-2345".to_owned()).is_err());
@@ -174,8 +162,7 @@ mod test
     }
 
     #[test]
-    fn valid_variants_pass_checks()
-    {
+    fn valid_variants_pass_checks() {
         assert!(parse_variant("5-1000-8-23-63-7".to_owned()).is_ok());
         assert!(parse_variant("1-1-1".to_owned()).is_ok());
         assert!(parse_variant("34-23623-8-6-3".to_owned()).is_ok());
