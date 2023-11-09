@@ -1,3 +1,1 @@
-[toolchain]
-profile = "minimal"
-components = [ "rustfmt", "rustc", "cargo" ]
+stable
