@@ -4,13 +4,13 @@ This is a re-focused spinoff of Dr. Dan Garcia's [GamesmanClassic](https://githu
 
 ## Installation
 
-Before doing anything, you will want to install [the Rust compiler and toolchain](https://www.rust-lang.org/tools/install). To get the `nova` executable, you can then run:
+Before doing anything, you will want to install [the Rust compiler and toolchain](https://www.rust-lang.org/tools/install). GamesmanNova is on [crates.io](https://crates.io/crates/gamesman-nova), so to get the `nova` executable, you can then run:
 
 ```
-$ cargo install nova
+$ cargo install gamesman-nova
 ```
 
-If you would like to build Nova from source, you can also:
+Otherwise, if you would like to build Nova from source, you can also:
 
 1. Clone this repository to your preferred `location`.
 
@@ -24,7 +24,7 @@ $ git clone https://github.com/GamesCrafters/GamesmanNova.git location
 $ cargo install --path .
 ```
 
-This will add the `nova` executable to your list of cargo binaries. If you add this list of binaries to your `$PATH`, you will be able to call `nova` just like any other command.
+This will add the `nova` executable to your list of cargo binaries.
 
 ## Development
 
