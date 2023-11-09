@@ -144,27 +144,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dirmod"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d44a4b001572800efb4089ec9072e7bef4eae45b50f8fa9b42839204fab6e57"
-dependencies = [
- "dirmod-codegen",
-]
-
-[[package]]
-name = "dirmod-codegen"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6189e78ee8dceff4cf04d5c0dd5aa9dba4fcbe3edbd675e063d1be6b7c92fe9"
-dependencies = [
- "proc-macro2",
- "quote",
- "smallvec",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "errno"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -238,12 +217,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "maybe-uninit"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
-
-[[package]]
 name = "memchr"
 version = "2.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -282,9 +255,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "colored",
- "dirmod",
  "exitcode",
- "lazy_static",
  "nalgebra",
  "regex",
  "serde_json",
@@ -459,15 +430,6 @@ dependencies = [
  "num-traits",
  "paste",
  "wide",
-]
-
-[[package]]
-name = "smallvec"
-version = "0.6.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97fcaeba89edba30f044a10c6a3cc39df9c3f17d7cd829dd1446cab35f890e0"
-dependencies = [
- "maybe-uninit",
 ]
 
 [[package]]
