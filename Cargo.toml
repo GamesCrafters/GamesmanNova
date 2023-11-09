@@ -1,11 +1,20 @@
 [package]
-name = "nova"
+name = "gamesman-nova"
 version = "0.1.0"
 edition = "2021"
+authors = ["Max Fierro <maxfierro@berkeley.edu>"]
 description = "System for solving finite, deterministic, complete-information, abstract-strategy games."
-license = "	GPL-3.0-or-later"
+license = "	GPL-3.0"
 repository = "https://github.com/GamesCrafters/GamesmanNova"
-keywords = ["game", "solver"]
+keywords = ["game", "solver", "strong-solver"]
+readme = "README.md"
+exclude = ["/.github"]
+
+[[bin]]
+name = "nova"
+path = "src/main.rs"
+test = true
+bench = true
 
 [dependencies]
 clap = { version = "^4", features = ["derive"] }
