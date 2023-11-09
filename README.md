@@ -4,19 +4,21 @@ This is a re-focused spinoff of Dr. Dan Garcia's [GamesmanClassic](https://githu
 
 ## Installation
 
-Eventually Nova will be published as a binary crate to [crates.io](crates.io), which will reduce the following to `cargo install nova` (or something like that). 
+Before doing anything, you will want to install [the Rust compiler and toolchain](https://www.rust-lang.org/tools/install). To get the `nova` executable, you can then run:
 
-For now though, do the following to set things up:
+```
+$ cargo install nova
+```
 
-1. [Install the Rust compiler and toolchain](https://www.rust-lang.org/tools/install).
-  
-3. Clone this repository to your preferred `location`.
+If you would like to build Nova from source, you can also:
+
+1. Clone this repository to your preferred `location`.
 
 ```
 $ git clone https://github.com/GamesCrafters/GamesmanNova.git location
 ```
 
-3. Go to your installation (`cd location`), and install the executable:
+2. Go to your installation (`cd location`), and install the executable:
 
 ```
 $ cargo install --path .
@@ -30,13 +32,11 @@ This will add the `nova` executable to your list of cargo binaries. If you add t
 
 The current big objectives for this project are:
 
-* Supporting _N_-player non-transferrable utility games (e.g., tractable multiplayer variants of Chinese Checkers).
 * Supporting transferrable utility coalitional games (i.e., games where you can re-distribute winnings at the end among those who helped you win).
 * Creating a memory-efficient and thread-safe implementation of GamesmanClassic's database engine.
 * Designing a database file serialization protocol to make GamesmanClassic's databases compatible with Nova.
 * Building a wonderful terminal user interface and expanding the current command-line interface.
 * Implementing and wrapping a distributed MPI controller for solves on the Savio cluster.
-* Setting up some light CI to allow for contributions, both internal and external.
 
 ### Subprojects
 

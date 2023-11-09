@@ -134,7 +134,7 @@ where
 /// by them is the set of all combinations of transformations that can be
 /// applied to the puzzle which bring it from the start state to a member of
 /// _F_. Again, this is with the understanding that the amount of
-/// transformations that can be applied to any satate of the puzzle is finite.
+/// transformations that can be applied to any state of the puzzle is finite.
 ///
 /// ## Example
 ///
