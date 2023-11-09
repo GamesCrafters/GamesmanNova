@@ -41,7 +41,7 @@ impl fmt::Display for NovaError {
                     solvers associated with it.",
                     input_game_name
                 )
-            }
+            },
             Self::VariantMalformed { game_name, hint } => {
                 write!(
                     f,
@@ -50,7 +50,7 @@ impl fmt::Display for NovaError {
                     'nova info --target {} --output extra'.",
                     hint, game_name
                 )
-            }
+            },
         }
     }
 }

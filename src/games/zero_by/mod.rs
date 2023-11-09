@@ -91,7 +91,7 @@ impl Game for Session {
                 return Err(NovaError::SolverNotFound {
                     input_game_name: NAME.to_owned(),
                 })
-            }
+            },
         }
         Ok(())
     }
@@ -150,7 +150,10 @@ impl Solvable<2> for Session {
 
     fn coalesce(&self, state: State) -> SVector<Utility, 2> {
         let (_, turn) = utils::unpack_turn(state, 2);
-        Vector2::new(((turn + 1) % 2).into(), (turn % 2).into())
+        Vector2::new(
+            ((turn + 1) % 2).into(),
+            (turn % 2).into(),
+        )
     }
 }
 

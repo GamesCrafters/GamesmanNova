@@ -33,12 +33,15 @@ impl<const N: usize> Database<N> for BPDatabase<N> {
     }
 
     fn put(&mut self, state: State, record: Record<N>) {
-        self.mem.insert(state, Mutex::new(record));
+        self.mem
+            .insert(state, Mutex::new(record));
     }
 
     fn get(&self, state: State) -> Option<Record<N>> {
         if let Some(mutex) = self.mem.get(&state) {
-            let lock = mutex.lock().unwrap();
+            let lock = mutex
+                .lock()
+                .unwrap();
             Some(*lock)
         } else {
             None

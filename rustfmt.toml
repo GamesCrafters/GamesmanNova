@@ -2,8 +2,25 @@
 # See https://rust-lang.github.io/rustfmt/
 
 # Stable features
+edition = "2021"
 max_width = 80
-fn_call_width = 70
+fn_call_width = 40
+array_width = 40
+chain_width = 20
+fn_params_layout = "Tall"
+force_explicit_abi = true
+merge_derives = true
+match_block_trailing_comma = true
+newline_style = "Unix"
+remove_nested_parens = true
+reorder_imports = true
+reorder_modules = false
+single_line_if_else_max_width = 70
+single_line_let_else_max_width = 70
+use_try_shorthand = true
+use_field_init_shorthand = true
+tab_spaces = 4
+
 
 # Unstable features (nightly only, tracking issues linked)
 binop_separator = "Front"           # https://github.com/rust-lang/rustfmt/issues/3368

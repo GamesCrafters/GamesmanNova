@@ -33,11 +33,11 @@ pub fn find_game(
     variant: Option<Variant>,
 ) -> Result<Box<dyn Game>, NovaError> {
     match game {
-        GameModule::ZeroBy => {
-            Ok(Box::new(zero_by::Session::initialize(variant)?))
-        }
-        GameModule::Crossteaser => {
-            Ok(Box::new(crossteaser::Session::initialize(variant)?))
-        }
+        GameModule::ZeroBy => Ok(Box::new(zero_by::Session::initialize(
+            variant,
+        )?)),
+        GameModule::Crossteaser => Ok(Box::new(
+            crossteaser::Session::initialize(variant)?,
+        )),
     }
 }

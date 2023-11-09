@@ -56,7 +56,10 @@ impl<const N: usize> Record<N> {
     /* RECORD UTILS */
 
     pub fn get_utility(&self, player: Player) -> Utility {
-        if let Some(utility) = self.util.get(player as usize) {
+        if let Some(utility) = self
+            .util
+            .get(player as usize)
+        {
             *utility
         } else {
             panic!(
@@ -73,7 +76,7 @@ impl<const N: usize> Record<N> {
             Some(OutputFormat::None) => None,
             Some(OutputFormat::Extra) => {
                 todo!()
-            }
+            },
             Some(OutputFormat::Json) => Some(
                 serde_json::json!({
                         "utility": *self.util.to_string(),
@@ -85,7 +88,9 @@ impl<const N: usize> Record<N> {
             ),
             None => Some(format!(
                 "{} {}\n{} {}\n{} {}\n{} {}",
-                "Utility:".green().bold(),
+                "Utility:"
+                    .green()
+                    .bold(),
                 self.util,
                 "Remoteness:".bold(),
                 self.rem,
@@ -116,7 +121,9 @@ impl<const N: usize> Display for Record<N> {
         write!(
             f,
             "{}\n{}{} {}\n{} {}\n{} {}",
-            "Utility vector:".green().bold(),
+            "Utility vector:"
+                .green()
+                .bold(),
             self.util,
             "Remoteness:".bold(),
             self.rem,

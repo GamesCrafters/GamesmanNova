@@ -90,7 +90,10 @@ fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
 }
 
 fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
-    if params.iter().any(|&x| x <= 0) {
+    if params
+        .iter()
+        .any(|&x| x <= 0)
+    {
         Err(NovaError::VariantMalformed {
             game_name: NAME.to_owned(),
             hint: "All integers in the string must be positive.".to_owned(),

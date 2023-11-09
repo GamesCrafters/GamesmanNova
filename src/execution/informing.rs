@@ -14,7 +14,9 @@ use serde_json::json;
 /// Prints the formatted game information according to a specified output
 /// format. Game information is provided by game implementations.
 pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
-    let info: GameData = find_game(game, None).unwrap().info();
+    let info: GameData = find_game(game, None)
+        .unwrap()
+        .info();
     if let Some(format) = format {
         match format {
             OutputFormat::Extra => {
@@ -22,10 +24,19 @@ pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
                 println!("\tAuthor:\n{}\n", info.author);
                 println!("\tDescription:\n{}\n", info.about);
                 println!("\tCategory:\n{}\n", info.category);
-                println!("\tVariant Protocol:\n{}\n", info.variant_protocol);
-                println!("\tVariant Default:\n{}\n", info.variant_default);
-                println!("\tVariant Pattern:\n{}\n", info.variant_pattern);
-            }
+                println!(
+                    "\tVariant Protocol:\n{}\n",
+                    info.variant_protocol
+                );
+                println!(
+                    "\tVariant Default:\n{}\n",
+                    info.variant_default
+                );
+                println!(
+                    "\tVariant Pattern:\n{}\n",
+                    info.variant_pattern
+                );
+            },
             OutputFormat::Json => {
                 println!(
                     "{}",
@@ -39,8 +50,8 @@ pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
                         "variant-pattern": info.variant_pattern,
                     })
                 );
-            }
-            OutputFormat::None => {}
+            },
+            OutputFormat::None => {},
         }
     } else {
         println!("\t{}:\n{}\n", info.name, info.about);

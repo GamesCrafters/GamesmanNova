@@ -45,7 +45,9 @@ pub fn confirm_potential_overwrite(yes: bool, mode: Option<IOMode>) {
             std::io::stdin()
                 .read_line(&mut yn)
                 .expect("Failed to read user confirmation.");
-            yn = yn.trim().to_string();
+            yn = yn
+                .trim()
+                .to_string();
         }
         if yn == "n" || yn == "N" {
             process::exit(exitcode::OK)
