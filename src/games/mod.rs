@@ -25,6 +25,7 @@ use nalgebra::{SMatrix, SVector};
 
 /* INTEGRATION */
 
+pub mod utils;
 pub mod crossteaser;
 pub mod zero_by;
 
@@ -34,11 +35,15 @@ pub mod zero_by;
 /// information they can use to understand the output of analysis and solving,
 /// in addition to specifying game variants.
 pub struct GameData {
-    /// Known name for the game.
+    /// Known name for the game. This should return a string that can be used as
+    /// a command-line argument to the CLI endpoints which require a game name
+    /// as a target (e.g. `nova solve <TARGET>`).
     pub name: String,
 
-    /// The people who implemented the game.
-    pub author: String,
+    /// The names of the people who implemented the game listed out, optionally \
+    /// including their contact. For example: "John Doe <john@rust-lang.org>,
+    /// Ricardo L. <ricardo@go-lang.com>, Quin Bligh".
+    pub authors: String,
 
     /// The category of economic game (puzzle, two-player, etc.).
     pub category: String,

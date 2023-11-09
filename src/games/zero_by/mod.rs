@@ -13,6 +13,8 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use super::utils;
+use super::AcyclicallySolvable;
 use crate::games::{Automaton, Game, GameData, Solvable};
 use crate::implement;
 use crate::interfaces::terminal::cli::IOMode;
@@ -25,17 +27,14 @@ use crate::{
 use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
 use variants::*;
 
-use super::AcyclicallySolvable;
-
 /* SUBMODULES */
 
-mod utils;
 mod variants;
 
 /* GAME DATA */
 
 const NAME: &str = "zero-by";
-const AUTHOR: &str = "Max Fierro";
+const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
 const CATEGORY: &str = "Multiplayer zero-sum game";
 const ABOUT: &str =
 "Many players take turns removing a number of elements from a set of arbitrary \
@@ -74,7 +73,7 @@ impl Game for Session {
     fn info(&self) -> GameData {
         GameData {
             name: NAME.to_owned(),
-            author: AUTHOR.to_owned(),
+            authors: AUTHORS.to_owned(),
             about: ABOUT.to_owned(),
             category: CATEGORY.to_owned(),
             variant_protocol: VARIANT_PROTOCOL.to_owned(),

@@ -5,10 +5,12 @@
 //!
 //! #### Authorship
 //!
-//! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
+//! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
+//! - YOUR NAME HERE
 
 use super::Session;
 use crate::{errors::NovaError, models::Variant};
+use regex::Regex;
 
 /* CROSSTEASER VARIANT DEFINITION */
 
@@ -20,7 +22,57 @@ pub const VARIANT_PROTOCOL: &str = "PLACEHOLDER";
 
 /// Returns a crossteaser session set up using the parameters specified by
 /// `variant`. Returns a `NovaError::VariantMalformed` if the variant string
-/// does not conform to the variant protocol specified.
+/// does not conform to the variant protocol specified, which should contain
+/// useful information about why it was not parsed/accepted.
 pub fn parse_variant(variant: Variant) -> Result<Session, NovaError> {
     todo!()
+}
+
+/* TESTS */
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::games::Game;
+
+    #[test]
+    fn variant_pattern_is_valid_regex() {
+        assert!(Regex::new(VARIANT_PATTERN).is_ok());
+    }
+
+    #[test]
+    fn default_variant_matches_variant_pattern() {
+        let re = Regex::new(VARIANT_PATTERN).unwrap();
+        assert!(re.is_match(VARIANT_DEFAULT));
+    }
+
+    #[test]
+    fn initialization_success_with_no_variant() {
+        let with_none = Session::initialize(None);
+        let with_default =
+            Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
+        assert!(with_none.is_ok());
+        assert!(with_default.is_ok());
+    }
+
+    #[test]
+    fn no_variant_equals_default_variant() {
+        let with_none = Session::initialize(None).unwrap();
+        let with_default =
+            Session::initialize(Some(VARIANT_DEFAULT.to_owned())).unwrap();
+
+        // Check these two things generated identical `Session`s.
+        todo!()
+    }
+
+    #[test]
+    fn invalid_variants_fail_checks() {
+        todo!()
+    }
+
+    #[test]
+    fn valid_variants_pass_checks() {
+        todo!()
+    }
 }

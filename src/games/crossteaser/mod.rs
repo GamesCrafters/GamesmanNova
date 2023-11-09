@@ -17,6 +17,7 @@
 //! #### Authorship
 //!
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
+//! - YOUR NAME HERE
 
 use super::{AcyclicallySolvable, Automaton, Game, GameData, Solvable};
 use crate::{
@@ -35,14 +36,27 @@ mod variants;
 /* GAME DATA */
 
 const NAME: &str = "crossteaser";
-const AUTHOR: &str = "PLACEHOLDER";
+const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>, YOUR NAME";
 const CATEGORY: &str = "Single-player puzzle";
 const ABOUT: &str = "PLACEHOLDER";
 
 /* GAME IMPLEMENTATION */
 
+enum Face {
+    Up,
+    Down,
+    Left,
+    Right,
+    Front,
+    Back,
+    None,
+}
+
 pub struct Session {
     variant: Option<String>,
+    length: u32,
+    width: u32,
+    free: u64,
 }
 
 impl Game for Session {

@@ -21,7 +21,7 @@ pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
         match format {
             OutputFormat::Extra => {
                 println!("\tGame:\n{}\n", info.name);
-                println!("\tAuthor:\n{}\n", info.author);
+                println!("\tAuthor:\n{}\n", info.authors);
                 println!("\tDescription:\n{}\n", info.about);
                 println!("\tCategory:\n{}\n", info.category);
                 println!(
@@ -42,7 +42,7 @@ pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
                     "{}",
                     json!({
                         "game": info.name,
-                        "author": info.author,
+                        "author": info.authors,
                         "about": info.about,
                         "category": info.category,
                         "variant-protocol": info.variant_protocol,

@@ -1,7 +1,7 @@
-//! # Zero-By Utility Module
+//! # Game Utilities Module
 //!
-//! This module provides some common utilities used in the implementation of the
-//! game Zero-By, such as bit encoding and decoding.
+//! This module provides some common utilities used in the implementation of
+//! more than a single game.
 //!
 //! #### Authorship
 //!
@@ -47,11 +47,11 @@ pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player) {
     }
 }
 
-/* TESTS */
-
 #[cfg(test)]
 mod test {
     use super::*;
+
+    /* TURN ENCODING TESTS */
 
     #[test]
     fn pack_turn_correctness() {
@@ -98,7 +98,7 @@ mod test {
             unpack_turn(packed, player_count)
         );
 
-        // About 255 * prime^2 iterations
+        // About 255 * 23^2 iterations
         for p in Player::MIN..=Player::MAX {
             let turn_bits = Player::BITS - p.leading_zeros();
             let max_state: State = State::MAX / ((1 << turn_bits) as u64);
