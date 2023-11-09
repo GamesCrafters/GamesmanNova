@@ -1,6 +1,6 @@
 [package]
 name = "gamesman-nova"
-version = "0.1.1"
+version = "0.1.2"
 description = "System for computing the solution set of finite, deterministic, complete-information, abstract-strategy games."
 authors = ["Max Fierro <maxfierro@berkeley.edu>"]
 license = "GPL-3.0"
@@ -17,30 +17,8 @@ test = true
 bench = true
 
 [profile.release]
-# Defaults:
-opt-level = 3
-debug = false
-debug-assertions = false
-overflow-checks = false
-panic = 'unwind'
-incremental = false
-rpath = false
-
-# Modified:
 lto = "fat"
 codegen-units = 1
-
-[profile.dev]
-# Defaults:
-opt-level = 0
-debug = true
-debug-assertions = true
-overflow-checks = true
-lto = false
-panic = 'unwind'
-incremental = true
-codegen-units = 256
-rpath = false
 
 [dependencies]
 clap = { version = "^4", features = ["derive"] }
