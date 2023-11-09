@@ -50,12 +50,9 @@ fn traverse<G: AcyclicallySolvable<N>, const N: usize>(
     db: &mut BPDatabase<N>,
 ) -> Record<N> {
     if game.accepts(state) {
-        return Record::default().with_util(
-            game.utility(state).expect(&format!(
-                "No utility vector defined for state {}",
-                state
-            )),
-        );
+        return Record::default().with_util(game.utility(state).expect(
+            &format!("No utility vector defined for state {}", state),
+        ));
     }
     let mut available: HashSet<Record<N>> = HashSet::new();
     for next in game.transition(state) {
