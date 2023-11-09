@@ -1,5 +1,5 @@
-#![warn(missing_docs)]
 #![allow(unused_variables)]
+#![warn(missing_docs)]
 //! # Execution Module
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
@@ -75,6 +75,6 @@ fn solve(args: &SolveArgs) -> Result<(), NovaError>
 
 fn info(args: &InfoArgs) -> Result<(), NovaError>
 {
-    listing::print_game_info(args.target, args.output);
+    informing::print_game_info(args.target, args.output);
     Ok(())
 }

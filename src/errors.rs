@@ -11,7 +11,6 @@
 //!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
-use crate::utils::most_similar;
 use std::{error::Error, fmt};
 
 /* UNIVERSAL WRAPPER */
@@ -20,14 +19,11 @@ use std::{error::Error, fmt};
 #[derive(Debug)]
 pub enum NovaError
 {
-    /// An error to indicate that a user input the name of a solver which is
-    /// not implemented for a game. Supports telling the user what they typed
-    /// and a suggestion.
+    /// An error to indicate that a user attempted to solve a game variant
+    /// which is valid, but has no solver available to solve it.
     SolverNotFound
     {
-        input_solver_name: String,
-        input_game_name: String,
-        available_solvers: Vec<String>,
+        input_game_name: String
     },
     /// An error to indicate that the variant passed to the game with
     /// `game_name` was not in a format the game could parse. Includes a
@@ -47,32 +43,13 @@ impl fmt::Display for NovaError
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
     {
         match self {
-            Self::SolverNotFound {
-                input_solver_name,
-                input_game_name,
-                available_solvers,
-            } => {
-                if available_solvers.is_empty() {
-                    write!(
-                        f,
-                        "Sorry, the variant you specified for the game {} has \
-                        no solvers associated with it.",
-                        input_game_name
-                    )
-                } else {
-                    write!(
-                        f,
-                        "The solver '{}' was not found among the offerings of \
-                        the variant you specified for {}. Perhaps you meant \
-                        '{}'?",
-                        input_solver_name,
-                        input_game_name,
-                        most_similar(
-                            input_solver_name,
-                            available_solvers.iter().map(|s| &s[0..]).collect()
-                        )
-                    )
-                }
+            Self::SolverNotFound { input_game_name } => {
+                write!(
+                    f,
+                    "Sorry, the variant you specified for the game {} has no \
+                    solvers associated with it.",
+                    input_game_name
+                )
             }
             Self::VariantMalformed { game_name, hint } => {
                 write!(

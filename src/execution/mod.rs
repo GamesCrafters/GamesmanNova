@@ -9,6 +9,6 @@
 /* MODULES */
 
 pub mod analyzing;
+pub mod informing;
 pub mod interfacing;
-pub mod listing;
 pub mod solving;

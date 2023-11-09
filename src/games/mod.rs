@@ -18,13 +18,14 @@
 
 use crate::{
     errors::NovaError,
-    models::{Solver, State, Utility, Variant},
+    interfaces::terminal::cli::IOMode,
+    models::{State, Utility, Variant},
 };
 use nalgebra::{SMatrix, SVector};
-use std::collections::HashMap;
 
 /* INTEGRATION */
 
+pub mod crossteaser;
 pub mod zero_by;
 
 /* DATA CONSTRUCTS */
@@ -98,10 +99,12 @@ where
     /// variants for initialization.
     fn info(&self) -> GameData;
 
-    /// Returns a mapping of names to solvers that can consume the implementer.
-    /// That is, this function returns a named set of functions that can solve
-    /// the game which returned them.
-    fn solvers(&self) -> HashMap<String, Solver<Self>>;
+    /// Runs a solving algorithm which consumes the callee, generating side
+    /// effects specified by the `mode` parameter. This should return an error
+    /// if solving the specific game variant is not supported (among other
+    /// possibilities for an error), and a unit type if everything goes per
+    /// specification.
+    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError>;
 }
 
 /// Defines the behavior of a nondeterministic finite automaton _M_. Generic

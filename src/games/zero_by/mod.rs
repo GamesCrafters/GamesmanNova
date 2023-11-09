@@ -13,15 +13,14 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use std::collections::HashMap;
-
 use crate::games::{Automaton, Game, GameData, Solvable};
+use crate::implement;
+use crate::interfaces::terminal::cli::IOMode;
 use crate::models::Utility;
 use crate::solvers::acyclic::AcyclicSolver;
-use crate::{collection, implement};
 use crate::{
     errors::NovaError,
-    models::{Player, Solver, State, Variant},
+    models::{Player, State, Variant},
 };
 use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
 use variants::*;
@@ -89,23 +88,18 @@ impl Game for Session
         }
     }
 
-    fn solvers(&self) -> HashMap<String, Solver<Self>>
+    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError>
     {
         match self.players {
-            2 => {
-                let acyclic: Solver<Self> = <Self as AcyclicSolver<2>>::solve;
-                collection! {
-                    <Self as AcyclicSolver<2>>::name() => acyclic,
-                }
+            2 => <Self as AcyclicSolver<2>>::solve(self, mode),
+            10 => <Self as AcyclicSolver<10>>::solve(self, mode),
+            _ => {
+                return Err(NovaError::SolverNotFound {
+                    input_game_name: NAME.to_owned(),
+                })
             }
-            10 => {
-                let acyclic: Solver<Self> = <Self as AcyclicSolver<10>>::solve;
-                collection! {
-                    <Self as AcyclicSolver<10>>::name() => acyclic,
-                }
-            }
-            _ => collection! {},
         }
+        Ok(())
     }
 }
 

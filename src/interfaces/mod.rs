@@ -8,7 +8,7 @@
 
 use crate::{
     errors::NovaError,
-    games::{zero_by, Game},
+    games::{crossteaser, zero_by, Game},
     models::Variant,
 };
 use clap::ValueEnum;
@@ -24,6 +24,7 @@ pub mod terminal;
 pub enum GameModule
 {
     ZeroBy,
+    Crossteaser,
 }
 
 /// Fetches and initializes the correct game session based on an indicated
@@ -31,9 +32,14 @@ pub enum GameModule
 pub fn find_game(
     game: GameModule,
     variant: Option<Variant>,
-) -> Result<impl Game, NovaError>
+) -> Result<Box<dyn Game>, NovaError>
 {
     match game {
-        GameModule::ZeroBy => Ok(zero_by::Session::initialize(variant)?),
+        GameModule::ZeroBy => {
+            Ok(Box::new(zero_by::Session::initialize(variant)?))
+        }
+        GameModule::Crossteaser => {
+            Ok(Box::new(crossteaser::Session::initialize(variant)?))
+        }
     }
 }
