@@ -42,14 +42,27 @@ const ABOUT: &str = "PLACEHOLDER";
 
 /* GAME IMPLEMENTATION */
 
+/// Encodes the state of a piece in the game board. For reference, a cube has
+/// six faces (up, down, etc.), and a cube with face A on top can be oriented
+/// in one of four ways (north, south, etc.).
 enum Face {
-    Up,
-    Down,
-    Left,
-    Right,
-    Front,
-    Back,
+    Up(Orientation),
+    Down(Orientation),
+    Left(Orientation),
+    Right(Orientation),
+    Front(Orientation),
+    Back(Orientation),
     None,
+}
+
+/// Encodes the orientation information about each piece in the game. Since each
+/// piece is cube-like, it is not enough to just have a face, since a cube with
+/// its "Front" face up could still be oriented in one of four ways.
+enum Orientation {
+    North,
+    East,
+    South,
+    West,
 }
 
 pub struct Session {
