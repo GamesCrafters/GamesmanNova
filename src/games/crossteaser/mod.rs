@@ -113,14 +113,18 @@ implement! { for Session =>
 
 impl Solvable<1> for Session {
     fn weights(&self) -> SMatrix<Utility, 1, 1> {
-        todo!()
+        SMatrix::<Utility, 1, 1>::identity()
     }
 
     fn utility(&self, state: State) -> Option<SVector<Utility, 1>> {
-        todo!()
+        if !self.accepts(state) {
+            None
+        } else {
+            Some(SVector::<Utility, 1>::from_element(1))
+        }
     }
 
     fn coalesce(&self, state: State) -> SVector<Utility, 1> {
-        todo!()
+        SVector::<Utility, 1>::from_element(1)
     }
 }
