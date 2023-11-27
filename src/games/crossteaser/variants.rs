@@ -14,9 +14,9 @@ use regex::Regex;
 
 /* CROSSTEASER VARIANT DEFINITION */
 
-pub const VARIANT_DEFAULT: &str = "PLACEHOLDER";
-pub const VARIANT_PATTERN: &str = r"PLACEHOLDER";
-pub const VARIANT_PROTOCOL: &str = "PLACEHOLDER";
+pub const VARIANT_DEFAULT: &str = "3x3-1";
+pub const VARIANT_PATTERN: &str = r"^\d+x\d+\-\d+$";
+pub const VARIANT_PROTOCOL: &str = "The variant string allows users to define any size of the puzzle and the number of free slots. The string should follow the format LxW-F, with L representing the length and W representing the width of the puzzle, and F representing the number of free slots, all positive integers ";
 
 /* API */
 
