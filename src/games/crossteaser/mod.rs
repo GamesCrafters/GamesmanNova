@@ -28,6 +28,7 @@ use crate::{
     solvers::acyclic::AcyclicSolver,
 };
 use nalgebra::{SMatrix, SVector};
+use variants::*;
 
 /* SUBMODULES */
 
@@ -65,6 +66,8 @@ enum Orientation {
     West,
 }
 
+/// Represents an instance of a Crossteaser game session, which is specific to
+/// a valid variant of the game.
 pub struct Session {
     variant: Option<String>,
     length: u32,
@@ -74,29 +77,31 @@ pub struct Session {
 
 impl Game for Session {
     fn initialize(variant: Option<Variant>) -> Result<Self, NovaError> {
-        if let Some(v) = variant{
-parse_variant(v)
-} else {
-parse_variant(VARIANT_DEFAULT.to_owned())
-}
+        if let Some(v) = variant {
+            parse_variant(v)
+        } else {
+            parse_variant(VARIANT_DEFAULT.to_owned())
+        }
     }
 
     fn id(&self) -> String {
-       if let Some(variant) = self.variant.clone() {
-format!("{}.{}, NAME, variant)} else {
-NAME.to_owned()}
+        if let Some(variant) = self.variant.clone() {
+            format!("{}.{}", NAME, variant)
+        } else {
+            NAME.to_owned()
+        }
     }
 
     fn info(&self) -> GameData {
         GameData {
-name: NAME.to_owned(),
-authors: AUTHORS.to_owned(),
-about: ABOUT.to_owned(),
-category: CATEGORY.to_owned(),
-variant_protocol: VARIANT_PROTOCOL.to_owned(),
-variant_pattern: VARIANT_PATTERN.to_owned(),
-variant_default: VARIANT_DEFAULT.to_owned(),
-}
+            name: NAME.to_owned(),
+            authors: AUTHORS.to_owned(),
+            about: ABOUT.to_owned(),
+            category: CATEGORY.to_owned(),
+            variant_protocol: VARIANT_PROTOCOL.to_owned(),
+            variant_pattern: VARIANT_PATTERN.to_owned(),
+            variant_default: VARIANT_DEFAULT.to_owned(),
+        }
     }
 
     fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError> {
