@@ -19,7 +19,7 @@
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - YOUR NAME HERE
 
-use super::{AcyclicallySolvable, Automaton, Game, GameData, Solvable};
+use super::{AcyclicallySolvable, DynamicAutomaton, Game, GameData, Solvable};
 use crate::{
     errors::NovaError,
     implement,
@@ -78,7 +78,7 @@ impl Game for Session {
     }
 }
 
-impl Automaton<State> for Session {
+impl DynamicAutomaton<State> for Session {
     fn start(&self) -> State {
         todo!()
     }

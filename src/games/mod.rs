@@ -19,9 +19,9 @@
 use crate::{
     errors::NovaError,
     interfaces::terminal::cli::IOMode,
-    models::{State, Utility, Variant},
+    models::{Partition, State, StateCount, Utility, Variant},
 };
-use nalgebra::{SMatrix, SVector};
+use nalgebra::SVector;
 
 /* INTEGRATION */
 
@@ -62,7 +62,7 @@ pub struct GameData {
     pub variant_default: String,
 }
 
-/* FUNCTIONAL CONSTRUCTS */
+/* ACCESS INTERFACE */
 
 /// Defines miscellaneous behavior of a deterministic economic game object. Note
 /// that player count is not specified, so puzzles are interpreted as one-player
@@ -74,10 +74,7 @@ pub struct GameData {
 /// interface do not actually show the behavior of a game, only useful
 /// information and procedures related to one for performing tasks which are
 /// independent of the structure of the underlying game.
-pub trait Game
-where
-    Self: Automaton<State>,
-{
+pub trait Game {
     /// Allows for the specification of a game variant and the initialization of
     /// a game's internal representation. Calling this with a different
     /// `variant` argument should result in the `id(&self) -> String` associated
@@ -111,8 +108,14 @@ where
     fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError>;
 }
 
+/* TRAVERSAL INTERFACES */
+
 /// Defines the behavior of a nondeterministic finite automaton _M_. Generic
-/// over **S**, the type encoding a member of the set of states of _M_.
+/// over **S**, the type encoding a member of the set of states of _M_. An
+/// implementation of this trait allows for an arbitrary number of transition
+/// states for any given state by using a heap-allocated variable-sized vector
+/// in the `transition` function. See `StaticAutomaton` for a static equivalent
+/// of this interface.
 ///
 /// ## Explanation
 ///
@@ -159,7 +162,10 @@ where
 /// Note that _|L(M)|_ = 1 implies that there is only one way to solve this
 /// puzzle. If _|L(M)|_ were equal to 0, that would imply the puzzle cannot be
 /// solved.
-pub trait Automaton<S> {
+pub trait DynamicAutomaton<S>
+where
+    Self: Game,
+{
     /// Returns an encoding of the start state for any automatic run in this
     /// automaton. All sequences in the formal language accepted by this
     /// automaton must satisfy that this function returns their first
@@ -167,146 +173,143 @@ pub trait Automaton<S> {
     fn start(&self) -> S;
 
     /// Returns a vector of states reachable from `state` in this automaton.
-    /// Formally, this is a mapping _T : S -> P(S)_ such that an element _x_ of
-    /// _S_ is mapped to the set of other elements of _S_ reachable from _x_
-    /// by accepting an arbitrary element of the input alphabet, where _S_ is
+    /// This is a mapping _T : S -> P(S)_ such that an element _x_ of _S_ is
+    /// mapped to the set of other elements of _S_ reachable from _x_ by
+    /// accepting an arbitrary element of the input alphabet, where _S_ is
     /// the set of all possible states that this automaton can be in, and
-    /// _P(S)_ is the power set of _S_.
+    /// _P(S)_ is the power set of _S_. If the return value of this function is
+    /// empty, we assume that the automata accepts `state`.
     fn transition(&self, state: S) -> Vec<S>;
-
-    /// Returns true if `state` is an encoding of an element of the accepting
-    /// (or "final") set of states of this automaton. All sequences in the
-    /// formal language accepted by this automaton must satisfy that this
-    /// function returns their last element.
-    fn accepts(&self, state: S) -> bool;
 }
 
-/// Indicates that an economic game object can be consumed by at least one
-/// solving algorithm, and offers an associated method to retrieve the solvers
-/// that can solve the underlying game. Generic over **N** representing the
-/// number of players that the game can be solved for.
+/// Defines the behavior of a nondeterministic finite automaton _M_. Generic
+/// over **S** (the type encoding a member of the set of states of _M_) and
+/// **F** (the maximum fan-out of the transition function). A limitation on
+/// the number of transition states for all states is imposed to gain the
+/// performance benefit of the usage of static arrays in `transition`. See
+/// `DynamicAutomaton` for an interface that allows returning an arbitrary
+/// number of states in `transition`.
 ///
-/// Note that all solvable games must be traversable, which is why all
-/// implementers of this trait must also conform to the `Automaton<State>`
-/// interface with a state encoding of `State = u64`.
+/// ## Explanation
 ///
-/// The method descriptions make ample mention of "utility." This notion is
-/// purely abstract, and it stands for the "goodness" that a player associates
-/// with a given state (much like the notion of "cost" is associated with
-/// "badness"). By being able to determine the utility value each player gains
-/// from all terminal positions in a game, we can fix which choice(s) they would
-/// make when they have the power to transform the state of the game. In turn,
-/// this allows us to explore the game tree and find strategies for the players
-/// which maximize their net utility at the end of the game.
+/// The motivation behind introducing this is the fundamental overlap between
+/// the behavior of puzzles and games. The notion of an NFA allows for a formal
+/// grappling with these similarities, as automata theory is quite well
+/// established. If you do not know what this is, please see
+/// [the NFA wikipedia page](https://tinyurl.com/4vxdkvzh) for more information.
 ///
-/// The general working framework assumes the following algorithm of which
-/// state a player chooses to transition the game to on their turn, given that
-/// the state is non-terminal:
+/// ### Game Automata
 ///
-/// ```none
-/// Tuple result = (None, -inf)
-/// Matrix W = game.weights(current_state)
-/// Vector c = game.coalesce(current_state)
-/// for each state s in game.transition(current_state):
-///     Vector u = W.map(game.utility(s))
-///     Scalar r = u.dot(c)
-///     if r > result.1:
-///         result = (s, r)
-/// return result.0
-/// ```
+/// For deterministic finite games, the final (or "accepting") state set _F_ of
+/// an automaton _M_ modeling its behavior would be all of the end states (e.g.,
+/// a board of tic-tac-toe with no more empty slots). Then, the formal language
+/// _L(M)_ recognized by this automaton would contain all valid sequences of
+/// moves leading from the start state of the game to a final state in _F_, with
+/// the understanding that a finite alphabet is formed by all possible moves in
+/// the game.
 ///
-/// This roughly translates to "the player whose turn it is makes the move which
-/// maximizes the utility of the players that they like, and minimizes the
-/// utility for the players that they don't like, taking into consideration any
-/// alliances they might have made."
+/// ### Puzzle Automata
+///
+/// In the case of puzzle automata, the final state set _F_ is similarly the set
+/// of states where the puzzle is considered solved, and the language recognized
+/// by them is the set of all combinations of transformations that can be
+/// applied to the puzzle which bring it from the start state to a member of
+/// _F_. Again, this is with the understanding that the amount of
+/// transformations that can be applied to any state of the puzzle is finite.
+///
+/// ## Example
+///
+/// Consider a puzzle P which consists of removing elements from a set E one at
+/// a time until there are no more elements. Then, we can define _M_ an NFA to
+/// model P in the following manner:
+///
+/// - **S** `:= Unsigned Integer`, as sets can only have sizes in [0, _inf_).
+/// - The set of states of _M_ is `{|E|, |E| - 1, ..., 0}`, which are all
+///   intermediary sizes of E during the existence of the puzzle.
+/// - The set of final (or accepting) states of _M_ is `{0}`, which contains the
+///   size of the empty set.
+/// - _M_'s recognized language _L(M)_ is the set containing only the sequence
+///   `{1, 1, 1, ..., 1}` of length _|E|_, as you can only remove one element at
+///   any given state, and there are _|E|_ states.
+///
+/// Note that _|L(M)|_ = 1 implies that there is only one way to solve this
+/// puzzle. If _|L(M)|_ were equal to 0, that would imply the puzzle cannot be
+/// solved.
+pub trait StaticAutomaton<S, const F: usize>
+where
+    Self: Game,
+{
+    /// Returns an encoding of the start state for any automatic run in this
+    /// automaton. All sequences in the formal language accepted by this
+    /// automaton must satisfy that this function returns their first
+    /// element.
+    fn start(&self) -> S;
+
+    /// Returns a vector of states reachable from `state` in this automaton.
+    /// This is a mapping _T : S -> P(S)_ such that an element _x_ of _S_ is
+    /// mapped to the set of other elements of _S_ reachable from _x_ by
+    /// accepting an arbitrary element of the input alphabet, where _S_ is
+    /// the set of all possible states that this automaton can be in, and
+    /// _P(S)_ is the power set of _S_. If the return value of this function
+    /// contains only `Option::None` variants, we assume that the automata
+    /// accepts `state`.
+    fn transition(&self, state: S) -> [Option<S>; F];
+}
+
+/* SOLVING INTERFACES */
+
+/// Indicates that an economic game object can have utility associated with
+/// players at some of its states. Naturally, this means we can make statements
+/// about their utility at other states in the game based on its structure. The
+/// kind of statements we can make is not decided by the implementation of this
+/// interface; it is decided by the nature of the underlying game (e.g., a
+/// deterministic game might be able to be strongly solved if it is of complete
+/// information, but we can always assign some utility to different players at
+/// different game states regardless of this fact).
+///
+/// The semantics of the word "solvable" here just refer to being able to have
+/// information about the utility of a game state from the utility of another,
+/// due to the above reasons. The nature of the underlying game then decides the
+/// specific kinds of "solving" that we can do.
 pub trait Solvable<const N: usize>
 where
     Self: Game,
 {
-    /// Returns a square matrix _W_ of dimension `N x N` (where `N` is the
-    /// number of players in the game) such that the entry `W[i][j]` indicates
-    /// the utility player `i` obtains for the utility of player `j`.
-    ///
-    /// For example, a _W_ with `N = 3`,
-    ///
-    /// ```none
-    ///                     [[ 0,  7,  5],
-    ///                 W =  [ 3, -1, -5],
-    ///                      [-2,  1,  3]]
-    /// ```
-    ///
-    /// ...indicates that Player 2 gains 3 utility units for each unit of
-    /// utility Player 1 receives, because `W[2] == [3, 1, 5]`, and `W[2][1]
-    /// == 3`.
-    fn weights(&self) -> SMatrix<Utility, N, N>;
-
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
-    /// the state is not terminal, returns `None`, as non-terminal states
-    /// represent no intrinsic utility to players.
-    fn utility(&self, state: State) -> Option<SVector<Utility, N>>;
-
-    /// Given a `state`, returns an embedding C for the player(s) whose "turn it
-    /// is." This idea is fairly abstract, so to exemplify, consider the initial
-    /// state of a game of Tic-Tac-Toe. Since Player 0 always moves first and
-    /// there are two players in total, this function would return the
-    /// following vector:
-    ///
-    /// ```none
-    ///                     C = [1, 0]
-    /// ```
-    ///
-    /// Since this was returned on Player 0's "turn to move," this tells us that
-    /// Player 0 wants to optimize for their own utility, without any regard
-    /// for Player 1's utility. Now imagine a 6-player game of Chinese
-    /// Checkers, where Player 0 and Player 1 are in a coalition. That is,
-    /// they are acting non-selfishly. If it is Player 0's turn, this
-    /// function could return the following vector:
-    ///
-    /// ```none
-    ///                     C = [4, 1, 0, 0, 0, 0]
-    /// ```
-    ///
-    /// This tells us that Player 0 provides some value to Player 1's utility,
-    /// even if it has no actual utility for Player 0 (the actual utility Player
-    /// 0 attributes to Player 1's utility is accounted for in `weights`).
-    ///
-    /// Additionally, note that if a player wants _everyone_ to lose "just as
-    /// bad", this would be equivalent to wanting everyone to win "just as
-    /// much". This functionally means that `kC = C`, which holds for all
-    /// `k` integer values.
-    fn coalesce(&self, state: State) -> SVector<Utility, N>;
+    /// the state is not terminal, it is recommended that this function panics
+    /// with a message indicating that an attempt was made to calculate the
+    /// utility of a non-primitive state.
+    fn utility(&self, state: State) -> SVector<Utility, N>;
 }
 
-/* SOLVING MARKERS */
-
-/// Indicates that a game's state graph can be partitioned into independent
-/// connected components and solved taking advantage of this.
-pub trait TierSolvable<const N: usize>
+/// Indicates that the directed graph _G_ induced by the structure of the
+/// underlying game can be partitioned into partitions which themselves induce a
+/// directed acyclic graph. Note that this does not necessarily mean that all
+/// partitions will be strongly connected components of _G_.
+///
+/// This is useful because it allows the identification of which partitions of
+/// states can be analyzed concurrently if the analysis of some states depends
+/// on first analyzing all other "downstream" states, which is the case for all
+/// forms of backwards induction.
+///
+/// The semantics of the word "composite" here come from the fact that you can
+/// essentially "forget" about all traversed states once you transition into a
+/// new partition, meaning that it is basically a new game at that point. Hence,
+/// the original game can be interpreted as being composed of different games.
+pub trait Composite<const N: usize>
 where
     Self: Solvable<N>,
 {
-}
+    /// Returns a unique identifier for the partition that `state` is an element
+    /// of within the game variant specified by `self`. The notion of ordering
+    /// across identifiers is left to the implementer, as it is dependent on how
+    /// this function is used.
+    fn partition(&self, state: State) -> Partition;
 
-/// Indicates that a game is solvable in a generally inefficient manner.
-pub trait CyclicallySolvable<const N: usize>
-where
-    Self: Solvable<N>,
-{
-}
-
-/// Indicates that a game is solvable using methods only available to games
-/// whose state graphs are acyclic (which includes tree games).
-pub trait AcyclicallySolvable<const N: usize>
-where
-    Self: Solvable<N>,
-{
-}
-
-/// Indicates that a game is solvable using methods only available to games
-/// with unique move paths to all states.
-pub trait TreeSolvable<const N: usize>
-where
-    Self: Solvable<N>,
-{
+    /// Provides an arbitrarily precise notion of the number of states that are
+    /// elements of `partition`. This can be used to distribute the work of
+    /// analyzing different partitions concurrently across different consumers
+    /// in a way that is equitable (improving efficiency).
+    fn size(&self, partition: Partition) -> StateCount;
 }

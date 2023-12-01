@@ -7,8 +7,6 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use crate::interfaces::terminal::cli::IOMode;
-
 /* PRIMARY TYPES */
 
 /// Encodes the configuration of a game in a string, which allows game
@@ -31,11 +29,6 @@ pub type State = u64;
 /// settings.
 pub type Player = u16;
 
-/// The signature of a function which can solve a game implementation, with side
-/// effects specified by an `IOMode` optional argument. Returns the record
-/// associated with the starting position of the game.
-pub type Solver<G> = fn(&G, Option<IOMode>);
-
 /* ATTRIBUTE TYPES */
 
 /// A measure of how "good" an outcome is for a given player in a game. Positive
@@ -56,3 +49,15 @@ pub type Remoteness = u64;
 
 /// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
 pub type MinimumExcludedValue = u64;
+
+/* SECONDARY TYPES */
+
+/// Used to count the number of states in a set. Although this has an identical
+/// underlying type as `State`, it is semantically different, which is why it is
+/// declared under a different type.
+pub type StateCount = State;
+
+/// Encodes an identifier for a given partition within the space of states of a
+/// game. This is a secondary type because the maximum number of partitions is
+/// the number of states itself.
+pub type Partition = State;

@@ -15,7 +15,7 @@
 
 use super::utils;
 use super::AcyclicallySolvable;
-use crate::games::{Automaton, Game, GameData, Solvable};
+use crate::games::{DynamicAutomaton, Game, GameData, Solvable};
 use crate::implement;
 use crate::interfaces::terminal::cli::IOMode;
 use crate::models::Utility;
@@ -96,7 +96,7 @@ impl Game for Session {
     }
 }
 
-impl Automaton<State> for Session {
+impl DynamicAutomaton<State> for Session {
     fn start(&self) -> State {
         utils::pack_turn(self.from, 0, self.players)
     }
