@@ -14,7 +14,7 @@ use serde_json::json;
 /// Prints the formatted game information according to a specified output
 /// format. Game information is provided by game implementations.
 pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
-    let info: GameData = find_game(game, None)
+    let info: GameData = find_game(game, None, None)
         .unwrap()
         .info();
     if let Some(format) = format {
@@ -23,7 +23,6 @@ pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
                 println!("\tGame:\n{}\n", info.name);
                 println!("\tAuthor:\n{}\n", info.authors);
                 println!("\tDescription:\n{}\n", info.about);
-                println!("\tCategory:\n{}\n", info.category);
                 println!(
                     "\tVariant Protocol:\n{}\n",
                     info.variant_protocol
@@ -44,7 +43,6 @@ pub fn print_game_info(game: GameModule, format: Option<OutputFormat>) {
                         "game": info.name,
                         "author": info.authors,
                         "about": info.about,
-                        "category": info.category,
                         "variant-protocol": info.variant_protocol,
                         "variant-default": info.variant_default,
                         "variant-pattern": info.variant_pattern,

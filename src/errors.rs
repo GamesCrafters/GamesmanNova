@@ -27,6 +27,12 @@ pub enum NovaError {
     /// that `game_name` should be a valid argument to the `--target`
     /// parameter in any command.
     VariantMalformed { game_name: String, hint: String },
+    /// An error to indicate that the state string passed to the game with
+    /// `game_name` was not in a format the game could parse. Includes a
+    /// message from the game implementation on exactly what went wrong. Note
+    /// that `game_name` should be a valid argument to the `--target`
+    /// parameter in any command.
+    StateMalformed { game_name: String, hint: String },
 }
 
 impl Error for NovaError {}
@@ -46,6 +52,15 @@ impl fmt::Display for NovaError {
                 write!(
                     f,
                     "The provided variant is malformed: {}\n\nMore information \
+                    on how the game expects you to format it can be found with \
+                    'nova info --target {} --output extra'.",
+                    hint, game_name
+                )
+            },
+            Self::StateMalformed { game_name, hint } => {
+                write!(
+                    f,
+                    "The provided state is malformed: {}\n\nMore information \
                     on how the game expects you to format it can be found with \
                     'nova info --target {} --output extra'.",
                     hint, game_name

@@ -7,7 +7,10 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use crate::{interfaces::terminal::cli::IOMode, models::State};
+use crate::{
+    interfaces::terminal::cli::IOMode,
+    models::{PlayerCount, State},
+};
 use record::Record;
 
 /* DBMS IMLPEMENTATIONS */
@@ -19,9 +22,9 @@ pub mod record;
 
 /// Database management system interface for storing game state to value
 /// mappings.
-pub trait Database<const N: usize> {
+pub trait Database<const N: PlayerCount> {
     /// Instantiate a new database.
-    fn new(id: String, mode: Option<IOMode>) -> Self
+    fn new(id: String, mode: IOMode) -> Self
     where
         Self: Sized;
     /// Create a new record.

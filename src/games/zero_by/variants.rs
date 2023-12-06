@@ -1,6 +1,6 @@
 //! # Zero-By Variant Handling Module
 //!
-//! This module helps parse the `Variant` string provided to the Zero-By game
+//! This module helps parse the variant string provided to the Zero-By game
 //! into parameters that can help build a game session.
 //!
 //! #### Authorship
@@ -9,10 +9,11 @@
 
 use super::{Session, NAME};
 use crate::errors::NovaError;
-use crate::models::{Player, Variant};
+use crate::games::utils::pack_turn;
+use crate::models::Turn;
 use regex::Regex;
 
-/* ZERO-BY VARIANT DEFINITION */
+/* ZERO-BY VARIANT ENCODING */
 
 pub const VARIANT_DEFAULT: &str = "2-10-1-2";
 pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
@@ -32,15 +33,16 @@ be a slight decrease in performance.";
 /// Returns a zero-by game session set up using the parameters specified by
 /// `variant`. Returns a `NovaError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: Variant) -> Result<Session, NovaError> {
+pub fn parse_variant(variant: String) -> Result<Session, NovaError> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
     check_params_are_positive(&params)?;
+    let players = parse_player_count(&params)?;
     Ok(Session {
         variant: Some(variant),
-        players: parse_player_count(&params)?,
-        from: params[1],
+        players,
+        start: pack_turn(params[1], 0, players),
         by: Vec::from(&params[2..]),
     })
 }
@@ -62,7 +64,7 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError> {
     params
 }
 
-fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError> {
+fn check_variant_pattern(variant: &String) -> Result<(), NovaError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(&variant) {
         Err(NovaError::VariantMalformed {
@@ -90,10 +92,7 @@ fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
 }
 
 fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
-    if params
-        .iter()
-        .any(|&x| x <= 0)
-    {
+    if params.iter().any(|&x| x <= 0) {
         Err(NovaError::VariantMalformed {
             game_name: NAME.to_owned(),
             hint: "All integers in the string must be positive.".to_owned(),
@@ -103,17 +102,17 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
     }
 }
 
-fn parse_player_count(params: &Vec<u64>) -> Result<Player, NovaError> {
-    if params[0] > Player::MAX.into() {
+fn parse_player_count(params: &Vec<u64>) -> Result<Turn, NovaError> {
+    if params[0] > (Turn::MAX as u64) {
         Err(NovaError::VariantMalformed {
             game_name: NAME.to_owned(),
             hint: format!(
                 "The number of players in the game must be lower than {}.",
-                Player::MAX
+                Turn::MAX
             ),
         })
     } else {
-        Ok(Player::try_from(params[0]).unwrap())
+        Ok(Turn::try_from(params[0]).unwrap())
     }
 }
 
@@ -138,20 +137,21 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() {
-        let with_none = Session::initialize(None);
+        let with_none = Session::initialize(None, None);
         let with_default =
-            Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
+            Session::initialize(Some(VARIANT_DEFAULT.to_owned()), None);
         assert!(with_none.is_ok());
         assert!(with_default.is_ok());
     }
 
     #[test]
     fn no_variant_equals_default_variant() {
-        let with_none = Session::initialize(None).unwrap();
+        let with_none = Session::initialize(None, None).unwrap();
         let with_default =
-            Session::initialize(Some(VARIANT_DEFAULT.to_owned())).unwrap();
+            Session::initialize(Some(VARIANT_DEFAULT.to_owned()), None)
+                .unwrap();
         assert_eq!(with_none.variant, with_default.variant);
-        assert_eq!(with_none.from, with_default.from);
+        assert_eq!(with_none.start, with_default.start);
         assert_eq!(with_none.by, with_default.by);
     }
 

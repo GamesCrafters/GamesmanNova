@@ -12,42 +12,48 @@
 
 use crate::{
     interfaces::terminal::cli::OutputFormat,
-    models::{DrawDepth, MinimumExcludedValue, Player, Remoteness, Utility},
+    models::{
+        DrawDepth, MinimumExcludedValue, PlayerCount, Remoteness, Turn, Utility,
+    },
 };
 use colored::Colorize;
 use nalgebra::SVector;
-use std::fmt::Display;
+use std::{cmp::Ordering, fmt::Display};
 
 /* DEFINITION */
 
 #[derive(Eq, Hash, PartialEq, Debug, Clone, Copy)]
-pub struct Record<const N: usize> {
-    pub util: SVector<Utility, N>,
+pub struct Record<const N: PlayerCount> {
+    pub utility: SVector<Utility, N>,
+    pub remoteness: Remoteness,
     pub draw: DrawDepth,
-    pub rem: Remoteness,
     pub mex: MinimumExcludedValue,
 }
 
 /* IMPLEMENTATION */
 
-impl<const N: usize> Record<N> {
+impl<const N: PlayerCount> Record<N> {
     /* RECORD BUILDER LITE (TM) */
 
-    pub fn with_util(mut self, util: SVector<Utility, N>) -> Self {
-        self.util = util;
+    /// Mutates `self` to have `utility` and returns it.
+    pub fn with_utility(mut self, utility: SVector<Utility, N>) -> Self {
+        self.utility = utility;
         self
     }
 
+    /// Mutates `self` to have `draw` and returns it.
     pub fn with_draw(mut self, draw: DrawDepth) -> Self {
         self.draw = draw;
         self
     }
 
-    pub fn with_rem(mut self, rem: Remoteness) -> Self {
-        self.rem = rem;
+    /// Mutates `self` to have `remoteness` and returns it.
+    pub fn with_remoteness(mut self, remoteness: Remoteness) -> Self {
+        self.remoteness = remoteness;
         self
     }
 
+    /// Mutates `self` to have `mex` and returns it.
     pub fn with_mex(mut self, mex: MinimumExcludedValue) -> Self {
         self.mex = mex;
         self
@@ -55,22 +61,44 @@ impl<const N: usize> Record<N> {
 
     /* RECORD UTILS */
 
-    pub fn get_utility(&self, player: Player) -> Utility {
-        if let Some(utility) = self
-            .util
-            .get(player as usize)
-        {
+    /// Returns whether the utility associated with `player` in this record is
+    /// greater, less than, or equal to the utility associated with the same
+    /// player in `other`. When utility is equal, potential ties are broken with
+    /// remoteness if possible.
+    ///
+    /// **WARNING:** Assumes that `player` is valid for the player count of this
+    /// record (which is specified by its generic parameter `N`) for the small
+    /// performance benefit of an unchecked array access.
+    pub fn cmp(&self, other: &Record<N>, player: Turn) -> Ordering {
+        let u1 = self.utility[player];
+        let u2 = other.utility[player];
+        if u1 != u2 {
+            u1.cmp(&u2)
+        } else {
+            self.remoteness
+                .cmp(&other.remoteness)
+        }
+    }
+
+    /// Returns the utility associated with `player` in this record, providing
+    /// a useful panic message if the player identifier is larger than expected
+    /// for a game of size `N`, where `N` is this record's generic parameter.
+    pub fn get_utility(&self, player: Turn) -> Utility {
+        if let Some(utility) = self.utility.get(player) {
             *utility
         } else {
             panic!(
                 "Out-of-bounds vector access: Attempted to fetch utility for \
                 player {} in a game of {} players.",
                 player,
-                self.util.nrows()
+                self.utility.nrows()
             )
         }
     }
 
+    /// Returns information about this record as a string according to the
+    /// specified `format`. Note that there is not necessarily a way to know
+    /// which values are left unused in the record.
     pub fn format(&self, format: Option<OutputFormat>) -> Option<String> {
         match format {
             Some(OutputFormat::None) => None,
@@ -79,8 +107,8 @@ impl<const N: usize> Record<N> {
             },
             Some(OutputFormat::Json) => Some(
                 serde_json::json!({
-                        "utility": *self.util.to_string(),
-                        "remoteness": self.rem,
+                        "utility": *self.utility.to_string(),
+                        "remoteness": self.remoteness,
                         "draw_depth": self.draw,
                         "mex": self.mex,
                 })
@@ -88,12 +116,10 @@ impl<const N: usize> Record<N> {
             ),
             None => Some(format!(
                 "{} {}\n{} {}\n{} {}\n{} {}",
-                "Utility:"
-                    .green()
-                    .bold(),
-                self.util,
+                "Utility:".green().bold(),
+                self.utility,
                 "Remoteness:".bold(),
-                self.rem,
+                self.remoteness,
                 "Draw depth:".bold(),
                 self.draw,
                 "Mex:".bold(),
@@ -105,28 +131,26 @@ impl<const N: usize> Record<N> {
 
 /* STANDARD IMPLEMENTATIONS */
 
-impl<const N: usize> Default for Record<N> {
+impl<const N: PlayerCount> Default for Record<N> {
     fn default() -> Self {
         Record {
-            util: SVector::<Utility, N>::zeros(),
+            utility: SVector::<Utility, N>::zeros(),
             draw: u64::default(),
-            rem: u64::default(),
+            remoteness: u64::default(),
             mex: u64::default(),
         }
     }
 }
 
-impl<const N: usize> Display for Record<N> {
+impl<const N: PlayerCount> Display for Record<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}\n{}{} {}\n{} {}\n{} {}",
-            "Utility vector:"
-                .green()
-                .bold(),
-            self.util,
+            "Utility vector:".green().bold(),
+            self.utility,
             "Remoteness:".bold(),
-            self.rem,
+            self.remoteness,
             "Draw depth:".bold(),
             self.draw,
             "Mex:".bold(),

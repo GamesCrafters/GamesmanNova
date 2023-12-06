@@ -167,6 +167,7 @@ dependencies = [
  "colored",
  "exitcode",
  "nalgebra",
+ "num-traits",
  "regex",
  "serde_json",
  "strsim",

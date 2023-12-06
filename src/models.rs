@@ -1,6 +1,6 @@
 //! # Data Models Module
 //!
-//! This module contains centralized definitions for custom datatypes used
+//! This module contains centralized definitions for custom data types used
 //! throughout the project.
 //!
 //! #### Authorship
@@ -9,25 +9,15 @@
 
 /* PRIMARY TYPES */
 
-/// Encodes the configuration of a game in a string, which allows game
-/// implementations to set themselves up differently depending on its contents.
-/// The protocol used to map a variant string to a specific game setup is
-/// decided by the implementation of a game, so reading game-specific
-/// documentation will be necessary to properly form a variant string.
-pub type Variant = String;
-
 /// Encodes the state of a game in a 64-bit unsigned integer. This also
 /// sets a limiting upper bound on the amount of possible non-equivalent states
 /// that can be achieved in a game.
 pub type State = u64;
 
 /// Expresses whose turn it is in a game, where every player is assigned to a
-/// different integer. The fact that this only reaches `u16::MAX == 255` does
-/// mean that we should only be prepared to consider games of up to 255 players.
-/// This is a reasonable limitation, because considering games of any larger
-/// player count is computationally unfeasible in transferrable utility
-/// settings.
-pub type Player = u16;
+/// different integer. Note that the type imposes a natural (but unknown)
+/// limitation to player count that is dependent on the target architecture.
+pub type Turn = usize;
 
 /* ATTRIBUTE TYPES */
 
@@ -56,6 +46,11 @@ pub type MinimumExcludedValue = u64;
 /// underlying type as `State`, it is semantically different, which is why it is
 /// declared under a different type.
 pub type StateCount = State;
+
+/// Used to count the number of players in a game. Although this has a type that
+/// is identical to `Turn`, it is semantically different, which is why it has
+/// its own type declaration.
+pub type PlayerCount = Turn;
 
 /// Encodes an identifier for a given partition within the space of states of a
 /// game. This is a secondary type because the maximum number of partitions is

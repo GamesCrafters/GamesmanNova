@@ -11,6 +11,7 @@
 
 use crate::interfaces::GameModule;
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use std::fmt;
 
 /* COMMAND LINE INTERFACE */
 
@@ -28,7 +29,7 @@ pub struct Cli {
 
     /* DEFAULTS PROVIDED */
     /// Send no output to STDOUT during successful execution.
-    #[arg(short, long, group = "out")]
+    #[arg(short, long, group = "output")]
     pub quiet: bool,
 }
 
@@ -37,10 +38,13 @@ pub struct Cli {
 pub enum Commands {
     /// Start the terminal user interface.
     Tui(TuiArgs),
+
     /// Solve a game from the start position.
     Solve(SolveArgs),
+
     /// Analyze a game's state graph.
     Analyze(AnalyzeArgs),
+
     /// Provide information about offerings.
     Info(InfoArgs),
 }
@@ -66,17 +70,16 @@ pub struct TuiArgs {
     pub yes: bool,
 }
 
-/// Specifies the way in which a solve for a game happens and returns the
-/// value and remoteness of the `target` game's initial position. Default
-/// behavior:
-/// * Uses the target's default variant (see `variant` argument).
-/// * Attempts to read from a database file, computing and writing one if there
-///   is none (see `mode` argument).
-/// * Formats output aesthetically (see `output` argument).
-/// * Uses the game's default solver to create state graph (see `solver`
+/// Ensures a specific game variant's solution set exists. Default behavior:
+///
+/// - Uses the target's default variant (see `variant` argument).
+/// - Attempts to read from a database file, computing and writing one only if
+/// needed (see `cli::IOMode` for specifics).
+/// - Formats output aesthetically (see `output` argument).
+/// - Uses the game's default solver to create state graph (see `solver`
 /// argument).
-/// * Prompts the user before executing any potentially destructive operations
-/// (such as overwriting a game database, see `yes` flag).
+/// - Prompts the user before executing any potentially destructive operations
+/// such as overwriting a database file (see `yes` flag).
 #[derive(Args)]
 pub struct SolveArgs {
     /* REQUIRED ARGUMENTS */
@@ -90,23 +93,21 @@ pub struct SolveArgs {
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<OutputFormat>,
-    /// Attempt to use a specific solver to solve the game.
+    /// Compute a weak solution from an encoded state.
     #[arg(short, long)]
-    pub solver: Option<String>,
+    pub from: Option<String>,
     /// Specify whether the solution should be fetched or generated.
-    #[arg(short, long)]
-    pub mode: Option<IOMode>,
+    #[arg(short, long, default_value_t = IOMode::Find)]
+    pub mode: IOMode,
     /// Skips prompts for confirming destructive operations.
     #[arg(short, long)]
     pub yes: bool,
 }
 
 /// Specifies the way in which a game's analysis happens. Uses the provided
-/// `analyzer` to analyze the `target` game. Default behavior:
-/// * Attempts to read from the game's solution database, and use it to make
-/// the analysis.
-/// * If there is no database, run the default solver for the game, and return
-/// the analysis after writing a database.
+/// `analyzer` to analyze the `target` game. This uses the same logic on finding
+/// or generating missing data as the solving routine; see `cli::IOMode` for
+/// specifics.
 #[derive(Args)]
 pub struct AnalyzeArgs {
     /* REQUIRED ARGUMENTS */
@@ -121,8 +122,8 @@ pub struct AnalyzeArgs {
     #[arg(short, long)]
     pub variant: Option<String>,
     /// Specify whether the solution should be fetched or generated.
-    #[arg(short, long)]
-    pub mode: Option<IOMode>,
+    #[arg(short, long, default_value_t = IOMode::Find)]
+    pub mode: IOMode,
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<OutputFormat>,
@@ -133,8 +134,9 @@ pub struct AnalyzeArgs {
 
 /// Provides information about available games (or about their specifications,
 /// if provided a `--target` argument). Default behavior:
-/// * Provides a list of implemented games (which are valid `--target`s).
-/// * Provides output unformatted.
+///
+/// - Provides a list of implemented games (which are valid `--target`s).
+/// - Provides output unformatted.
 #[derive(Args)]
 pub struct InfoArgs {
     /* REQUIRED ARGUMENTS */
@@ -155,20 +157,57 @@ pub struct InfoArgs {
 pub enum OutputFormat {
     /// Extra content or formatting where appropriate.
     Extra,
+
     /// JSON format.
     Json,
+
     /// Output nothing (side-effects only).
     None,
 }
 
 /// Specifies a mode of operation for solving algorithms in regard to database
-/// usage and solution set persistence. If a mode is not provided, this will
-/// default to attempting to read a database file, computing and writing it only
-/// if it does not already exist.
+/// usage and solution set persistence. There are a few cases to consider about
+/// database files every time a command is received:
+///
+/// - It exists and is complete (it is a strong solution).
+/// - It exists but is incomplete (it is a weak solution).
+/// - It exists but is corrupted.
+/// - It does not exist.
+///
+/// For each of these cases, we can have a user try to compute a strong, weak,
+/// or stochastic solution (under different equilibrium concepts) depending on
+/// characteristics about the game. Some of these solution concepts will be
+/// compatible with each other (e.g., a strong solution is a superset of a weak
+/// one, and some stochastic equilibria are _stronger_ than others). We can use
+/// this compatibility to eschew unnecessary work by considering the following
+/// scenarios:
+///
+/// 1. If an existing database file exists, is not corrupted, and sufficient, it
+/// will be used to serve a request. For example, if there is an existing strong
+/// solution on a game and a command is issued to compute a weak solution for
+/// it, then nothing should be done.
+/// 2. If an insufficient database file exists and is not corrupted, the
+/// existing information about the solution to the underlying game should be
+/// used to produce the remainder of the request.
+/// 3. Finally, if a database file does not exist or is corrupted (beyond any
+/// possibility of repair by a database recovery mechanism), then it will be
+/// computed again up to the number of states associated with the request.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum IOMode {
-    /// Attempt to read solution set if it exists, and fail otherwise.
-    Read,
-    /// Write solution set database file (overwrites existing one).
+    /// Attempt to find an existing solution set to use or expand upon.
+    Find,
+
+    /// Overwrite any existing solution set that could contain the request.
     Write,
+}
+
+/* UTILITY IMPLEMENTATIONS */
+
+impl fmt::Display for IOMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IOMode::Find => write!(f, "find"),
+            IOMode::Write => write!(f, "write"),
+        }
+    }
 }
