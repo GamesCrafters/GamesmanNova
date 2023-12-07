@@ -90,12 +90,12 @@ pub struct SolveArgs {
     /// Solve a specific variant of target.
     #[arg(short, long)]
     pub variant: Option<String>,
-    /// Set output in a specific format.
-    #[arg(short, long)]
-    pub output: Option<OutputFormat>,
-    /// Compute a weak solution from an encoded state.
+    /// Compute solution starting after a file-provided state history.
     #[arg(short, long)]
     pub from: Option<String>,
+    /// Specify what type of solution to compute.
+    #[arg(short, long, default_value_t = Solution::Strong)]
+    pub method: Solution,
     /// Specify whether the solution should be fetched or generated.
     #[arg(short, long, default_value_t = IOMode::Find)]
     pub mode: IOMode,
@@ -121,9 +121,6 @@ pub struct AnalyzeArgs {
     /// Analyze a specific variant of target.
     #[arg(short, long)]
     pub variant: Option<String>,
-    /// Specify whether the solution should be fetched or generated.
-    #[arg(short, long, default_value_t = IOMode::Find)]
-    pub mode: IOMode,
     /// Set output in a specific format.
     #[arg(short, long)]
     pub output: Option<OutputFormat>,
@@ -152,17 +149,34 @@ pub struct InfoArgs {
 /* DEFINITIONS */
 
 /// Allows calls to return output in different formats for different purposes,
-/// such as web API calls, scripting, or simple human-readable output.
+/// such as web API calls, scripting, or human-readable output.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum OutputFormat {
     /// Extra content or formatting where appropriate.
     Extra,
 
-    /// JSON format.
+    /// Multi-platform compatible JSON format.
     Json,
 
     /// Output nothing (side-effects only).
     None,
+}
+
+/// Specifies how exhaustive a solving algorithm should be when computing a
+/// solution set. Different algorithms will be used for computing a strong
+/// solution (e.g., minimax) versus a weak solution (e.g., alpha-beta pruning).
+///
+/// Note that specifying a weak solution on a specific game variant does not
+/// guarantee that the solving algorithm will traverse less states than the
+/// strong alternative. The relative convenience of a weak solution relies on
+/// the structure of the underlying game.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum Solution {
+    /// Minimally prove an optimal strategy beginning from a starting state.
+    Weak,
+
+    /// Provide a strategy for all game states reachable from starting state.
+    Strong,
 }
 
 /// Specifies a mode of operation for solving algorithms in regard to database
@@ -208,6 +222,15 @@ impl fmt::Display for IOMode {
         match self {
             IOMode::Find => write!(f, "find"),
             IOMode::Write => write!(f, "write"),
+        }
+    }
+}
+
+impl fmt::Display for Solution {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Solution::Weak => write!(f, "weak"),
+            Solution::Strong => write!(f, "strong"),
         }
     }
 }

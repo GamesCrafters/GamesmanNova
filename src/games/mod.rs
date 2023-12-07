@@ -21,7 +21,7 @@
 
 use crate::{
     errors::NovaError,
-    interfaces::terminal::cli::IOMode,
+    interfaces::terminal::cli::{IOMode, Solution},
     models::{Partition, PlayerCount, State, StateCount, Turn, Utility},
 };
 use nalgebra::{SMatrix, SVector};
@@ -162,7 +162,7 @@ pub trait Game {
     /// - `Solvable<N>`.
     /// - Traversal interfaces (e.g., `StaticAutomaton<S, F>`).
     /// - Game structure markers (e.g., `Acyclic<N>`).
-    fn solve(&self, mode: IOMode) -> Result<(), NovaError>;
+    fn solve(&self, mode: IOMode, method: Solution) -> Result<(), NovaError>;
 }
 
 /* MANUAL TRAVERSAL INTERFACES */

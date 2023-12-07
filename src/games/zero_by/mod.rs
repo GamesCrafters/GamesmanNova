@@ -15,9 +15,11 @@
 
 use super::utils;
 use super::Acyclic;
+use super::Legible;
 use crate::games::{DynamicAutomaton, Game, GameData, Solvable};
 use crate::implement;
 use crate::interfaces::terminal::cli::IOMode;
+use crate::interfaces::terminal::cli::Solution;
 use crate::models::PlayerCount;
 use crate::models::Utility;
 use crate::solvers::strong::acyclic;
@@ -72,6 +74,10 @@ impl Game for Session {
         }
     }
 
+    fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError> {
+        todo!()
+    }
+
     fn info(&self) -> GameData {
         GameData {
             name: NAME.to_owned(),
@@ -88,10 +94,12 @@ impl Game for Session {
         }
     }
 
-    fn solve(&self, mode: IOMode) -> Result<(), NovaError> {
-        match self.players {
-            2 => <Self as acyclic::DynamicSolver<2, State>>::solve(&self, mode),
-            10 => {
+    fn solve(&self, mode: IOMode, method: Solution) -> Result<(), NovaError> {
+        match (self.players, method) {
+            (2, Solution::Strong) => {
+                <Self as acyclic::DynamicSolver<2, State>>::solve(&self, mode)
+            },
+            (10, Solution::Strong) => {
                 <Self as acyclic::DynamicSolver<10, State>>::solve(&self, mode)
             },
             _ => {
@@ -103,6 +111,8 @@ impl Game for Session {
         Ok(())
     }
 }
+
+/* TRAVERSAL DECLARATIONS */
 
 impl DynamicAutomaton<State> for Session {
     fn start(&self) -> State {
@@ -127,7 +137,19 @@ impl DynamicAutomaton<State> for Session {
     }
 }
 
-/* SOLVABLE DECLARATIONS */
+/* SUPPLEMENTAL DECLARATIONS */
+
+impl Legible<State> for Session {
+    fn decode(string: String) -> Result<State, NovaError> {
+        todo!()
+    }
+
+    fn encode(state: State) -> String {
+        todo!()
+    }
+}
+
+/* SOLVING DECLARATIONS */
 
 implement! { for Session =>
     Acyclic<2>,

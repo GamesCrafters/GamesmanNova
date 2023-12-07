@@ -7,7 +7,7 @@
 //!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
-use crate::models::{State, Turn};
+use crate::models::{PlayerCount, State, Turn};
 
 /* TURN ENCODING */
 
@@ -20,7 +20,7 @@ use crate::models::{State, Turn};
 /// return `0b00...00111`, whereas if `player_count` was 2 we would return
 /// `0b00...0011`. This is because you need two bits to enumerate `{0, 1, 2}`,
 /// but only one to enumerate `{0, 1}`.
-pub fn pack_turn(state: State, turn: Turn, player_count: Turn) -> State {
+pub fn pack_turn(state: State, turn: Turn, player_count: PlayerCount) -> State {
     if player_count == 0 {
         return state;
     } else {
@@ -33,7 +33,10 @@ pub fn pack_turn(state: State, turn: Turn, player_count: Turn) -> State {
 /// taking note of the integer in the rightmost bits of `state`. The number of
 /// bits considered turn information are determined by `player_count`. This is
 /// the inverse function of `pack_turn`.
-pub fn unpack_turn(encoding: State, player_count: Turn) -> (State, Turn) {
+pub fn unpack_turn(
+    encoding: State,
+    player_count: PlayerCount,
+) -> (State, Turn) {
     if player_count == 0 {
         return (encoding, 0);
     } else {
