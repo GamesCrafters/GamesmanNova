@@ -1,4 +1,4 @@
-name: Commit to Main
+name: Main CI
 
 on:
   pull_request:
