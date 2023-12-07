@@ -1,6 +1,6 @@
 //! # Zero-By Variant Handling Module
 //!
-//! This module helps parse the `Variant` string provided to the Zero-By game
+//! This module helps parse the variant string provided to the Zero-By game
 //! into parameters that can help build a game session.
 //!
 //! #### Authorship
@@ -9,10 +9,11 @@
 
 use super::{Session, NAME};
 use crate::errors::NovaError;
-use crate::models::{Player, Variant};
+use crate::games::utils::pack_turn;
+use crate::models::Turn;
 use regex::Regex;
 
-/* ZERO-BY VARIANT DEFINITION */
+/* ZERO-BY VARIANT ENCODING */
 
 pub const VARIANT_DEFAULT: &str = "2-10-1-2";
 pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
@@ -32,15 +33,16 @@ be a slight decrease in performance.";
 /// Returns a zero-by game session set up using the parameters specified by
 /// `variant`. Returns a `NovaError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: Variant) -> Result<Session, NovaError> {
+pub fn parse_variant(variant: String) -> Result<Session, NovaError> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
     check_params_are_positive(&params)?;
+    let players = parse_player_count(&params)?;
     Ok(Session {
-        variant: Some(variant),
-        players: parse_player_count(&params)?,
-        from: params[1],
+        variant,
+        players,
+        start: pack_turn(params[1], 0, players),
         by: Vec::from(&params[2..]),
     })
 }
@@ -54,7 +56,7 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError> {
             int_string
                 .parse::<u64>()
                 .map_err(|e| NovaError::VariantMalformed {
-                    game_name: NAME.to_owned(),
+                    game_name: NAME,
                     hint: format!("{}", e.to_string()),
                 })
         })
@@ -62,11 +64,11 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError> {
     params
 }
 
-fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError> {
+fn check_variant_pattern(variant: &String) -> Result<(), NovaError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(&variant) {
         Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
+            game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{}'.",
                 VARIANT_PATTERN
@@ -80,9 +82,10 @@ fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError> {
 fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
     if params.len() < 3 {
         Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
-            hint: "String needs to have at least 3 dash-separated integers."
-                .to_owned(),
+            game_name: NAME,
+            hint: format!(
+                "String needs to have at least 3 dash-separated integers."
+            ),
         })
     } else {
         Ok(())
@@ -90,30 +93,27 @@ fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
 }
 
 fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
-    if params
-        .iter()
-        .any(|&x| x <= 0)
-    {
+    if params.iter().any(|&x| x <= 0) {
         Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
-            hint: "All integers in the string must be positive.".to_owned(),
+            game_name: NAME,
+            hint: format!("All integers in the string must be positive."),
         })
     } else {
         Ok(())
     }
 }
 
-fn parse_player_count(params: &Vec<u64>) -> Result<Player, NovaError> {
-    if params[0] > Player::MAX.into() {
+fn parse_player_count(params: &Vec<u64>) -> Result<Turn, NovaError> {
+    if params[0] > (Turn::MAX as u64) {
         Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
+            game_name: NAME,
             hint: format!(
                 "The number of players in the game must be lower than {}.",
-                Player::MAX
+                Turn::MAX
             ),
         })
     } else {
-        Ok(Player::try_from(params[0]).unwrap())
+        Ok(Turn::try_from(params[0]).unwrap())
     }
 }
 
@@ -151,26 +151,47 @@ mod test {
         let with_default =
             Session::initialize(Some(VARIANT_DEFAULT.to_owned())).unwrap();
         assert_eq!(with_none.variant, with_default.variant);
-        assert_eq!(with_none.from, with_default.from);
+        assert_eq!(with_none.start, with_default.start);
         assert_eq!(with_none.by, with_default.by);
     }
 
     #[test]
     fn invalid_variants_fail_checks() {
-        assert!(parse_variant("23-34-0-23".to_owned()).is_err());
-        assert!(parse_variant("two-three-five".to_owned()).is_err());
-        assert!(parse_variant("234572342-2345".to_owned()).is_err());
-        assert!(parse_variant("34-236--8-6-3".to_owned()).is_err());
-        assert!(parse_variant("0-12-234-364".to_owned()).is_err());
-        assert!(parse_variant("-234-256".to_owned()).is_err());
+        let v1 = "23-34-0-23";
+        let v2 = "two-three-five";
+        let v3 = "234572342-2345";
+        let v4 = "34-236--8-6-3";
+        let v5 = "0-12-234-364";
+        let v6 = "-234-256";
+
+        fn wrapper(v: &'static str) -> Result<Session, NovaError> {
+            parse_variant(v.to_owned())
+        }
+
+        assert!(wrapper(v1).is_err());
+        assert!(wrapper(v2).is_err());
+        assert!(wrapper(v3).is_err());
+        assert!(wrapper(v4).is_err());
+        assert!(wrapper(v5).is_err());
+        assert!(wrapper(v6).is_err());
     }
 
     #[test]
     fn valid_variants_pass_checks() {
-        assert!(parse_variant("5-1000-8-23-63-7".to_owned()).is_ok());
-        assert!(parse_variant("1-1-1".to_owned()).is_ok());
-        assert!(parse_variant("34-23623-8-6-3".to_owned()).is_ok());
-        assert!(parse_variant("5-2-8-23".to_owned()).is_ok());
-        assert!(parse_variant("1-619-496-1150".to_owned()).is_ok());
+        let v1 = "5-1000-8-23-63-7";
+        let v2 = "1-1-1";
+        let v3 = "34-23623-8-6-3";
+        let v4 = "5-2-8-23";
+        let v5 = "1-619-496-1150";
+
+        fn wrapper(v: &'static str) -> Result<Session, NovaError> {
+            parse_variant(v.to_owned())
+        }
+
+        assert!(wrapper(v1).is_ok());
+        assert!(wrapper(v2).is_ok());
+        assert!(wrapper(v3).is_ok());
+        assert!(wrapper(v4).is_ok());
+        assert!(wrapper(v5).is_ok());
     }
 }

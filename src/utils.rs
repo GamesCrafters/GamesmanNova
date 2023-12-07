@@ -9,45 +9,27 @@
 use crate::interfaces::terminal::cli::IOMode;
 use std::process;
 
-/* ALGORITHMS */
-
-/// Returns the most similar string to `model` in the vector `all`. Used for
-/// checking user input against offerings to provide useful suggestions for
-/// malformed command arguments.
-pub fn most_similar(model: &str, all: Vec<&str>) -> String {
-    let mut best = usize::MAX;
-    let mut closest = "";
-    let mut current;
-    for s in all {
-        current = strsim::damerau_levenshtein(model, s);
-        if current <= best {
-            closest = s;
-            best = current;
-        }
-    }
-    closest.to_owned()
-}
-
 /* PRINTING AND OTHER I/O */
 
 /// Prompts the user to confirm their operation as appropriate according to
 /// the arguments of the solve command. Only asks for confirmation for
 /// potentially destructive operations.
-pub fn confirm_potential_overwrite(yes: bool, mode: Option<IOMode>) {
+pub fn confirm_potential_overwrite(yes: bool, mode: IOMode) {
     if match mode {
-        Some(IOMode::Write) => !yes,
-        _ => false,
+        IOMode::Write => !yes,
+        IOMode::Find => false,
     } {
-        println!("This may overwrite an existing solution database. Are you sure? [y/n]: ");
+        println!(
+            "This may overwrite an existing solution database. Are you sure? \
+            [y/n]: "
+        );
         let mut yn: String = "".to_owned();
         while !["n", "N", "y", "Y"].contains(&&yn[..]) {
             yn = String::new();
             std::io::stdin()
                 .read_line(&mut yn)
                 .expect("Failed to read user confirmation.");
-            yn = yn
-                .trim()
-                .to_string();
+            yn = yn.trim().to_string();
         }
         if yn == "n" || yn == "N" {
             process::exit(exitcode::OK)

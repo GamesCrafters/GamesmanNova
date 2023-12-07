@@ -1,4 +1,3 @@
-#![allow(unused_variables)]
 #![warn(missing_docs)]
 //! # Execution Module
 //!
@@ -59,7 +58,6 @@ fn tui(args: &TuiArgs) -> Result<(), NovaError> {
 }
 
 fn analyze(args: &AnalyzeArgs) -> Result<(), NovaError> {
-    utils::confirm_potential_overwrite(args.yes, args.mode);
     todo!()
 }
 
@@ -70,6 +68,6 @@ fn solve(args: &SolveArgs) -> Result<(), NovaError> {
 }
 
 fn info(args: &InfoArgs) -> Result<(), NovaError> {
-    informing::print_game_info(args.target, args.output);
+    informing::print_game_info(args.target, args.output)?;
     Ok(())
 }

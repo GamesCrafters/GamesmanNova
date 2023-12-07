@@ -10,21 +10,24 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use super::{Database, Record};
-use crate::{interfaces::terminal::cli::IOMode, models::State};
+use crate::{
+    interfaces::terminal::cli::IOMode,
+    models::{PlayerCount, State},
+};
 
 /// An implementation of a Bit-Perfect DBMS which exposes the option to force a
 /// disk read, a write, or non-persistent behavior (at least beyond program
 /// execution, as no guarantees are provided about disk usage limits during
 /// execution).
-pub struct BPDatabase<const N: usize> {
+pub struct BPDatabase<const N: PlayerCount> {
     /// Used to identify the database file should the contents be persisted.
     id: String,
-    mode: Option<IOMode>,
+    mode: IOMode,
     mem: HashMap<State, Mutex<Record<N>>>,
 }
 
-impl<const N: usize> Database<N> for BPDatabase<N> {
-    fn new(id: String, mode: Option<IOMode>) -> Self {
+impl<const N: PlayerCount> Database<N> for BPDatabase<N> {
+    fn new(id: String, mode: IOMode) -> Self {
         BPDatabase {
             id,
             mode,
@@ -39,9 +42,7 @@ impl<const N: usize> Database<N> for BPDatabase<N> {
 
     fn get(&self, state: State) -> Option<Record<N>> {
         if let Some(mutex) = self.mem.get(&state) {
-            let lock = mutex
-                .lock()
-                .unwrap();
+            let lock = mutex.lock().unwrap();
             Some(*lock)
         } else {
             None

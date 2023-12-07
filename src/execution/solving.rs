@@ -14,7 +14,11 @@ use crate::interfaces::terminal::cli::SolveArgs;
 /// or an error containing what was actually passed in versus what was
 /// probably meant to be passed in.
 pub fn solve_by_name(args: &SolveArgs) -> Result<(), NovaError> {
-    let game = find_game(args.target, args.variant.clone())?;
-    game.solve(args.mode)?;
+    let game = find_game(
+        args.target,
+        args.variant.to_owned(),
+        args.from.to_owned(),
+    )?;
+    game.solve(args.mode, args.method)?;
     Ok(())
 }

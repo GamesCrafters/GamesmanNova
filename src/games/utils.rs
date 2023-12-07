@@ -7,7 +7,13 @@
 //!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
-use crate::models::{Player, State};
+use crate::{
+    errors::NovaError,
+    models::{PlayerCount, State, Turn},
+    solvers::MAX_TRANSITIONS,
+};
+
+use super::{DynamicAutomaton, Legible, StaticAutomaton};
 
 /* TURN ENCODING */
 
@@ -20,12 +26,12 @@ use crate::models::{Player, State};
 /// return `0b00...00111`, whereas if `player_count` was 2 we would return
 /// `0b00...0011`. This is because you need two bits to enumerate `{0, 1, 2}`,
 /// but only one to enumerate `{0, 1}`.
-pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State {
+pub fn pack_turn(state: State, turn: Turn, player_count: PlayerCount) -> State {
     if player_count == 0 {
         return state;
     } else {
-        let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
-        (state << turn_bits) | State::from(turn)
+        let turn_bits = Turn::BITS - (player_count - 1).leading_zeros();
+        (state << turn_bits) | (turn as State)
     }
 }
 
@@ -33,22 +39,144 @@ pub fn pack_turn(state: State, turn: Player, player_count: Player) -> State {
 /// taking note of the integer in the rightmost bits of `state`. The number of
 /// bits considered turn information are determined by `player_count`. This is
 /// the inverse function of `pack_turn`.
-pub fn unpack_turn(encoding: State, player_count: Player) -> (State, Player) {
+pub fn unpack_turn(
+    encoding: State,
+    player_count: PlayerCount,
+) -> (State, Turn) {
     if player_count == 0 {
         return (encoding, 0);
     } else {
-        let turn_bits = Player::BITS - (player_count - 1).leading_zeros();
+        let turn_bits = Turn::BITS - (player_count - 1).leading_zeros();
         let turn_mask = (1 << turn_bits) - 1;
         let state = (encoding & !turn_mask) >> turn_bits;
-        let turn = (encoding & turn_mask)
-            .try_into()
-            .unwrap();
+        let turn = (encoding & turn_mask) as usize;
         (state, turn)
     }
 }
 
+/* STATE HISTORY VERIFICATION */
+
+/// Returns the latest state in a sequential `history` of state string encodings
+/// by verifying that the first state in the history is the same as the `game`'s
+/// start and that each state can be reached from its predecessor through the
+/// `game`'s transition function. If these conditions are not met, it returns an
+/// error message signaling the pair of states that are not connected by the
+/// transition function, with a reminder of the current game variant.
+///
+/// This is implementation specifically consumes a `DynamicAutomaton<State>` as
+/// a means of obtaining a `transition` function. A similar implementation is
+/// available for `StaticAutomaton<State, MAX_TRANSITIONS>` under the symbol
+/// `verify_history_static`.
+pub fn verify_history_dynamic<G>(
+    game: &G,
+    history: Vec<String>,
+) -> Result<State, NovaError>
+where
+    G: Legible<State> + DynamicAutomaton<State>,
+{
+    if let Some(s) = history.first() {
+        let mut prev = game.decode(s.clone())?;
+        if prev == game.start() {
+            for i in 1..history.len() {
+                let next = game.decode(history[i].clone())?;
+                let transitions = game.transition(prev);
+                if !transitions.contains(&next) {
+                    return transition_history_error(game, prev, next);
+                }
+                prev = next;
+            }
+            Ok(prev)
+        } else {
+            start_history_error(game, game.start())
+        }
+    } else {
+        empty_history_error(game)
+    }
+}
+
+/// Returns the latest state in a sequential `history` of state string encodings
+/// by verifying that the first state in the history is the same as the `game`'s
+/// start and that each state can be reached from its predecessor through the
+/// `game`'s transition function. If these conditions are not met, it returns an
+/// error message signaling the pair of states that are not connected by the
+/// transition function, with a reminder of the current game variant.
+///
+/// This is implementation consumes a `StaticAutomaton<State, MAX_TRANSITIONS>
+/// as a means of obtaining a `transition` function. A similar implementation is
+/// available for `DynamicAutomaton<State>` as `verify_history_dynamic`.
+pub fn verify_history_static<G>(
+    game: &G,
+    history: Vec<String>,
+) -> Result<State, NovaError>
+where
+    G: Legible<State> + StaticAutomaton<State, MAX_TRANSITIONS>,
+{
+    if let Some(s) = history.first() {
+        let mut prev = game.decode(s.clone())?;
+        if prev == game.start() {
+            for i in 1..history.len() {
+                let next = game.decode(history[i].clone())?;
+                let transitions = game.transition(prev);
+                if !transitions.contains(&Some(next)) {
+                    return transition_history_error(game, prev, next);
+                }
+                prev = next;
+            }
+            Ok(prev)
+        } else {
+            start_history_error(game, game.start())
+        }
+    } else {
+        empty_history_error(game)
+    }
+}
+
+fn empty_history_error<G: Legible<State>>(
+    game: &G,
+) -> Result<State, NovaError> {
+    Err(NovaError::InvalidHistory {
+        game_name: game.info().name,
+        hint: format!("State history must contain at least one state."),
+    })
+}
+
+fn start_history_error<G: Legible<State>>(
+    game: &G,
+    start: State,
+) -> Result<State, NovaError> {
+    Err(NovaError::InvalidHistory {
+        game_name: game.info().name,
+        hint: format!(
+            "The state history must begin with the starting state for this \
+            variant ({}), which is {}.",
+            game.info().variant,
+            game.encode(start)
+        ),
+    })
+}
+
+fn transition_history_error<G: Legible<State>>(
+    game: &G,
+    prev: State,
+    next: State,
+) -> Result<State, NovaError> {
+    Err(NovaError::InvalidHistory {
+        game_name: game.info().name,
+        hint: format!(
+            "Transitioning from the state '{}' to the sate '{}' is \
+            illegal in the current game variant ({}).",
+            game.encode(prev),
+            game.encode(next),
+            game.info().variant
+        ),
+    })
+}
+
+/* TESTS */
+
 #[cfg(test)]
 mod test {
+
     use super::*;
 
     /* TURN ENCODING TESTS */
@@ -56,9 +184,9 @@ mod test {
     #[test]
     fn pack_turn_correctness() {
         // Require three turn bits (8 players = {0b000, 0b001, ..., 0b111})
-        let player_count: Player = 8;
+        let player_count: Turn = 8;
         // 5 in decimal
-        let turn: Player = 0b0000_0101;
+        let turn: Turn = 0b0000_0101;
         // 31 in decimal
         let state: State = 0b0001_1111;
         // 0b00...00_1111_1101 in binary = 0b[state bits][player bits]
@@ -71,7 +199,7 @@ mod test {
     #[test]
     fn unpack_turn_correctness() {
         // Require six turn bits (players = {0b0, 0b1, ..., 0b100101})
-        let player_count: Player = 38;
+        let player_count: Turn = 38;
         // 346 in decimal
         let encoding: State = 0b0001_0101_1010;
         // 0b00...00_0001_0101_1010 -> 0b00...00_0101 and 0b0001_1010, which
@@ -85,9 +213,9 @@ mod test {
     #[test]
     fn unpack_is_inverse_of_pack() {
         // Require two turn bits (players = {0b00, 0b01, 0b10})
-        let player_count: Player = 3;
+        let player_count: Turn = 3;
         // 0b00...01 in binary
-        let turn: Player = 2;
+        let turn: Turn = 2;
         // 0b00...0111 in binary
         let state: State = 7;
         // 0b00...011101 in binary
@@ -99,14 +227,14 @@ mod test {
         );
 
         // About 255 * 23^2 iterations
-        for p in Player::MIN..=Player::MAX {
-            let turn_bits = Player::BITS - p.leading_zeros();
+        for p in Turn::MIN..=255 {
+            let turn_bits = Turn::BITS - p.leading_zeros();
             let max_state: State = State::MAX / ((1 << turn_bits) as u64);
             let state_step = ((max_state / 23) + 1) as usize;
             let turn_step = ((p / 23) + 1) as usize;
 
             for s in (State::MIN..max_state).step_by(state_step) {
-                for t in (Player::MIN..p).step_by(turn_step) {
+                for t in (Turn::MIN..p).step_by(turn_step) {
                     assert_eq!(
                         (s, t),
                         unpack_turn(pack_turn(s, t, p), p)

@@ -14,28 +14,32 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::utils;
-use super::AcyclicallySolvable;
-use crate::games::{Automaton, Game, GameData, Solvable};
+use super::Acyclic;
+use super::Legible;
+use crate::games::{DynamicAutomaton, Game, GameData, Solvable};
 use crate::implement;
 use crate::interfaces::terminal::cli::IOMode;
+use crate::interfaces::terminal::cli::Solution;
+use crate::models::PlayerCount;
 use crate::models::Utility;
-use crate::solvers::acyclic::AcyclicSolver;
+use crate::solvers::strong::acyclic;
 use crate::{
     errors::NovaError,
-    models::{Player, State, Variant},
+    models::{State, Turn},
 };
-use nalgebra::{Matrix2, SMatrix, SVector, Vector2};
+use nalgebra::SVector;
+use states::*;
 use variants::*;
 
 /* SUBMODULES */
 
+mod states;
 mod variants;
 
 /* GAME DATA */
 
 const NAME: &str = "zero-by";
 const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
-const CATEGORY: &str = "Multiplayer zero-sum game";
 const ABOUT: &str =
 "Many players take turns removing a number of elements from a set of arbitrary \
 size. The game variant determines how many players are in the game, how many \
@@ -47,14 +51,14 @@ currently available in the set.";
 /* GAME IMPLEMENTATION */
 
 pub struct Session {
-    variant: Option<String>,
-    players: Player,
-    from: State,
+    variant: String,
+    players: PlayerCount,
+    start: State,
     by: Vec<u64>,
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError> {
+    fn initialize(variant: Option<String>) -> Result<Self, NovaError> {
         if let Some(v) = variant {
             parse_variant(v)
         } else {
@@ -63,32 +67,43 @@ impl Game for Session {
     }
 
     fn id(&self) -> String {
-        if let Some(variant) = self.variant.clone() {
-            format!("{}.{}", NAME, variant)
-        } else {
-            NAME.to_owned()
-        }
+        format!("{}.{}", NAME, self.variant)
+    }
+
+    fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError> {
+        self.start = utils::verify_history_dynamic(self, history)?;
+        Ok(())
     }
 
     fn info(&self) -> GameData {
         GameData {
-            name: NAME.to_owned(),
-            authors: AUTHORS.to_owned(),
-            about: ABOUT.to_owned(),
-            category: CATEGORY.to_owned(),
-            variant_protocol: VARIANT_PROTOCOL.to_owned(),
-            variant_pattern: VARIANT_PATTERN.to_owned(),
-            variant_default: VARIANT_DEFAULT.to_owned(),
+            variant: &self.variant,
+
+            name: NAME,
+            authors: AUTHORS,
+            about: ABOUT,
+
+            variant_protocol: VARIANT_PROTOCOL,
+            variant_pattern: VARIANT_PATTERN,
+            variant_default: VARIANT_DEFAULT,
+
+            state_default: STATE_DEFAULT,
+            state_pattern: STATE_PATTERN,
+            state_protocol: STATE_PROTOCOL,
         }
     }
 
-    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError> {
-        match self.players {
-            2 => <Self as AcyclicSolver<2>>::solve(self, mode),
-            10 => <Self as AcyclicSolver<10>>::solve(self, mode),
+    fn solve(&self, mode: IOMode, method: Solution) -> Result<(), NovaError> {
+        match (self.players, method) {
+            (2, Solution::Strong) => {
+                <Self as acyclic::DynamicSolver<2, State>>::solve(&self, mode)
+            },
+            (10, Solution::Strong) => {
+                <Self as acyclic::DynamicSolver<10, State>>::solve(&self, mode)
+            },
             _ => {
                 return Err(NovaError::SolverNotFound {
-                    input_game_name: NAME.to_owned(),
+                    input_game_name: NAME,
                 })
             },
         }
@@ -96,18 +111,22 @@ impl Game for Session {
     }
 }
 
-impl Automaton<State> for Session {
+/* TRAVERSAL DECLARATIONS */
+
+impl DynamicAutomaton<State> for Session {
     fn start(&self) -> State {
-        utils::pack_turn(self.from, 0, self.players)
+        self.start
     }
 
     fn transition(&self, state: State) -> Vec<State> {
         let (state, turn) = utils::unpack_turn(state, self.players);
-        self.by
+        if state == 0 {
+            return Vec::new();
+        }
+        let mut next = self
+            .by
             .iter()
-            .cloned()
-            .map(|choice| if state <= choice { state } else { choice })
-            .filter(|&choice| state >= choice)
+            .map(|&choice| if state <= choice { state } else { choice })
             .map(|choice| {
                 utils::pack_turn(
                     state - choice,
@@ -115,80 +134,57 @@ impl Automaton<State> for Session {
                     self.players,
                 )
             })
-            .collect::<Vec<State>>()
-    }
-
-    fn accepts(&self, state: State) -> bool {
-        let (state, _) = utils::unpack_turn(state, self.players);
-        state == 0
+            .collect::<Vec<State>>();
+        next.sort();
+        next.dedup();
+        next
     }
 }
 
-/* SOLVABLE DECLARATIONS */
+/* SUPPLEMENTAL DECLARATIONS */
+
+impl Legible<State> for Session {
+    fn decode(&self, string: String) -> Result<State, NovaError> {
+        Ok(parse_state(&self, string)?)
+    }
+
+    fn encode(&self, state: State) -> String {
+        let (elements, turn) = utils::unpack_turn(state, self.players);
+        format!("{}-{}", elements, turn)
+    }
+}
+
+/* SOLVING DECLARATIONS */
 
 implement! { for Session =>
-    AcyclicallySolvable<2>,
-    AcyclicallySolvable<10>
+    Acyclic<2>,
+    Acyclic<10>
 }
 
 impl Solvable<2> for Session {
-    fn weights(&self) -> SMatrix<Utility, 2, 2> {
-        Matrix2::<Utility>::identity()
-    }
-
-    fn utility(&self, state: State) -> Option<SVector<Utility, 2>> {
-        let (state, turn) = utils::unpack_turn(state, 2);
-        if !self.accepts(state) {
-            None
-        } else if turn % 2 == 0 {
-            Some(Vector2::new(-1, 1))
-        } else {
-            Some(Vector2::new(1, -1))
-        }
-    }
-
-    fn coalesce(&self, state: State) -> SVector<Utility, 2> {
+    fn utility(&self, state: State) -> SVector<Utility, 2> {
         let (_, turn) = utils::unpack_turn(state, 2);
-        Vector2::new(
-            ((turn + 1) % 2).into(),
-            (turn % 2).into(),
-        )
+        let mut result = SVector::<Utility, 2>::zeros();
+        result.fill(-1);
+        result[turn] = 1;
+        result
+    }
+
+    fn turn(&self, state: State) -> Turn {
+        utils::unpack_turn(state, 2).1
     }
 }
 
 impl Solvable<10> for Session {
-    fn weights(&self) -> SMatrix<Utility, 10, 10> {
-        SMatrix::<Utility, 10, 10>::identity()
-    }
-
-    fn utility(&self, state: State) -> Option<SVector<Utility, 10>> {
-        let (state, turn) = utils::unpack_turn(state, 10);
-        if !self.accepts(state) {
-            None
-        } else {
-            let mut result: SVector<Utility, 10> =
-                SVector::<Utility, 10>::zeros();
-            for i in 0..10 {
-                if turn == i {
-                    result[i as usize] = -9;
-                } else {
-                    result[i as usize] = 1;
-                }
-            }
-            Some(result)
-        }
-    }
-
-    fn coalesce(&self, state: State) -> SVector<Utility, 10> {
+    fn utility(&self, state: State) -> SVector<Utility, 10> {
         let (_, turn) = utils::unpack_turn(state, 10);
-        let mut result: SVector<Utility, 10> = SVector::<Utility, 10>::zeros();
-        for i in 0..10 {
-            if turn == i {
-                result[i as usize] = 1;
-            } else {
-                result[i as usize] = 0;
-            }
-        }
+        let mut result = SVector::<Utility, 10>::zeros();
+        result.fill(-1);
+        result[turn] = 9;
         result
+    }
+
+    fn turn(&self, state: State) -> Turn {
+        utils::unpack_turn(state, 10).1
     }
 }
