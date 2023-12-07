@@ -21,18 +21,26 @@ pub enum NovaError {
     /// An error to indicate that a user attempted to solve a game variant
     /// which is valid, but has no solver available to solve it.
     SolverNotFound { input_game_name: String },
+
     /// An error to indicate that the variant passed to the game with
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
     /// that `game_name` should be a valid argument to the `--target`
     /// parameter in any command.
     VariantMalformed { game_name: String, hint: String },
+
     /// An error to indicate that the state string passed to the game with
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
     /// that `game_name` should be a valid argument to the `--target`
     /// parameter in any command.
     StateMalformed { game_name: String, hint: String },
+
+    /// An error to indicate that a sequence of states in string form would
+    /// be impossible to reproduce in real play. Includes a message from the
+    /// game implementation on exactly what went wrong. Note that `game_name`
+    /// should be a valid argument to the `--target` parameter in any command.
+    InvalidHistory { game_name: String, hint: String },
 }
 
 impl Error for NovaError {}
@@ -63,6 +71,15 @@ impl fmt::Display for NovaError {
                     "The provided state is malformed: {}\n\nMore information \
                     on how the game expects you to format it can be found with \
                     'nova info --target {} --output extra'.",
+                    hint, game_name
+                )
+            },
+            Self::InvalidHistory { game_name, hint } => {
+                write!(
+                    f,
+                    "The provided history is incorrect: {}\n\nMore information \
+                    on the game's rules can be found with 'nova info --target \
+                    {} --output extra'.",
                     hint, game_name
                 )
             },

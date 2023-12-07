@@ -105,6 +105,13 @@ pub trait Game {
     where
         Self: Sized;
 
+    /* UTILITIES */
+
+    /// Returns the verified variant string which was passed to the `initialize`
+    /// function to obtain this game instance. Useful for providing rich errors
+    /// with descriptive messages from generic code.
+    fn variant(&self) -> String;
+
     /* SECONDARY PLUGINS
      *
      * The functions below facilitate secondary functionality used in features
@@ -193,14 +200,14 @@ where
     /// specified in the `GameData` object returned by `Game::info`. If it does
     /// not, an error containing a message with a brief explanation on what is
     /// wrong with `string` should be returned.
-    fn decode(string: String) -> Result<S, NovaError>;
+    fn decode(&self, string: String) -> Result<S, NovaError>;
 
     /// Transforms a game state type **S** into a string representation. The
     /// string returned should conform to the `state_protocol` specified in the
     /// `GameData` object returned by `Game::info`. If the `state` is malformed,
     /// this function should panic with a useful debug message. No two `state`s
     /// should return the same string representation (ideally).
-    fn encode(state: S) -> String;
+    fn encode(&self, state: S) -> String;
 }
 
 /* DETERMINISTIC TRAVERSAL INTERFACES */

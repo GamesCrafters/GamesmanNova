@@ -1,9 +1,8 @@
 //! # Zero-By State Handling Module
 //!
-//! This module helps parse the state string provided to the Zero-By game
-//! into parameters that can help build a game session, in addition to providing
-//! a way to translate any string encoding of a Zero-By state into the game's
-//! internal representation.
+//! This module helps parse the a string encoding of a zero-by game state into
+//! a more efficient binary representation, performing a series of checks which
+//! partially ensure compatibility with a game variant.
 //!
 //! #### Authorship
 //!
@@ -42,7 +41,7 @@ pub fn parse_state(
     check_state_pattern(&from)?;
     let params = parse_parameters(&from)?;
     let (from, turn) = check_param_count(&params)?;
-    check_coherence(from, turn, &session)?;
+    check_variant_coherence(from, turn, &session)?;
     let state = pack_turn(from, turn, session.players);
     Ok(state)
 }
@@ -91,7 +90,7 @@ fn check_param_count(params: &Vec<u64>) -> Result<(State, Turn), NovaError> {
     }
 }
 
-fn check_coherence(
+fn check_variant_coherence(
     from: State,
     turn: Turn,
     session: &Session,

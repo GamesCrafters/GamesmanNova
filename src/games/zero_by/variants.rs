@@ -40,7 +40,7 @@ pub fn parse_variant(variant: String) -> Result<Session, NovaError> {
     check_params_are_positive(&params)?;
     let players = parse_player_count(&params)?;
     Ok(Session {
-        variant: Some(variant),
+        variant,
         players,
         start: pack_turn(params[1], 0, players),
         by: Vec::from(&params[2..]),

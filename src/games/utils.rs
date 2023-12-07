@@ -7,7 +7,12 @@
 //!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
-use crate::models::{PlayerCount, State, Turn};
+use crate::{
+    errors::NovaError,
+    models::{PlayerCount, State, Turn},
+};
+
+use super::{DynamicAutomaton, Legible};
 
 /* TURN ENCODING */
 
@@ -46,6 +51,53 @@ pub fn unpack_turn(
         let turn = (encoding & turn_mask) as usize;
         (state, turn)
     }
+}
+
+/* STATE HISTORY VERIFICATION */
+
+/// Returns the latest state in a sequential `history` of state string encodings
+/// by verifying that the first state in the history is the same as `start`, and
+/// that each state can be reached from its predecessor with `transition`. If
+/// these conditions are not met, it returns an error message signaling the pair
+/// of states that are not connected by `transition`, along with a reminder of
+/// the current game variant description.
+pub fn verify_history<G>(
+    game: &G,
+    history: Vec<String>,
+) -> Result<State, NovaError>
+where
+    G: Legible<State> + DynamicAutomaton<State>,
+{
+    let mut curr = game.decode(history[0].clone())?;
+    if curr != game.start() {
+        return Err(NovaError::InvalidHistory {
+            game_name: game.info().name,
+            hint: format!(
+                "The state history must begin with the starting state for this \
+                variant ({}), which is {}.",
+                game.variant(),
+                game.encode(game.start())
+            ),
+        });
+    }
+    for i in 1..history.len() {
+        let next = game.decode(history[i].clone())?;
+        let transitions = game.transition(curr);
+        if !transitions.contains(&next) {
+            return Err(NovaError::InvalidHistory {
+                game_name: game.info().name,
+                hint: format!(
+                    "Transitioning from the state '{}' to the sate '{}' is \
+                    illegal in the current game variant ({}).",
+                    game.encode(curr),
+                    game.encode(next),
+                    game.variant()
+                ),
+            });
+        }
+        curr = next;
+    }
+    Ok(curr)
 }
 
 #[cfg(test)]

@@ -51,7 +51,7 @@ currently available in the set.";
 /* GAME IMPLEMENTATION */
 
 pub struct Session {
-    variant: Option<String>,
+    variant: String,
     players: PlayerCount,
     start: State,
     by: Vec<u64>,
@@ -66,16 +66,17 @@ impl Game for Session {
         }
     }
 
+    fn variant(&self) -> String {
+        self.variant.clone()
+    }
+
     fn id(&self) -> String {
-        if let Some(variant) = self.variant.clone() {
-            format!("{}.{}", NAME, variant)
-        } else {
-            NAME.to_owned()
-        }
+        format!("{}.{}", NAME, self.variant)
     }
 
     fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError> {
-        todo!()
+        self.start = utils::verify_history(self, history)?;
+        Ok(())
     }
 
     fn info(&self) -> GameData {
@@ -121,11 +122,10 @@ impl DynamicAutomaton<State> for Session {
 
     fn transition(&self, state: State) -> Vec<State> {
         let (state, turn) = utils::unpack_turn(state, self.players);
-        self.by
+        let mut next = self
+            .by
             .iter()
-            .cloned()
-            .map(|choice| if state <= choice { state } else { choice })
-            .filter(|&choice| state >= choice)
+            .map(|&choice| if state <= choice { state } else { choice })
             .map(|choice| {
                 utils::pack_turn(
                     state - choice,
@@ -133,19 +133,23 @@ impl DynamicAutomaton<State> for Session {
                     self.players,
                 )
             })
-            .collect::<Vec<State>>()
+            .collect::<Vec<State>>();
+        next.sort();
+        next.dedup();
+        next
     }
 }
 
 /* SUPPLEMENTAL DECLARATIONS */
 
 impl Legible<State> for Session {
-    fn decode(string: String) -> Result<State, NovaError> {
-        todo!()
+    fn decode(&self, string: String) -> Result<State, NovaError> {
+        Ok(parse_state(&self, string)?)
     }
 
-    fn encode(state: State) -> String {
-        todo!()
+    fn encode(&self, state: State) -> String {
+        let (elements, turn) = utils::unpack_turn(state, self.players);
+        format!("{}-{}", elements, turn)
     }
 }
 
