@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables)]
 //! # Database Record Definition Module
 //!
 //! This module implements a static-size record storing the attributes

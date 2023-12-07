@@ -1,4 +1,3 @@
-#![allow(unused_variables)]
 #![warn(missing_docs)]
 //! # Execution Module
 //!

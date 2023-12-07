@@ -70,7 +70,7 @@ impl fmt::Display for NovaError {
                     f,
                     "The provided variant is malformed: {}\n\nMore information \
                     on how the game expects you to format it can be found with \
-                    'nova info --target {} --output extra'.",
+                    'nova info {} --output extra'.",
                     hint, game_name
                 )
             },
@@ -79,7 +79,7 @@ impl fmt::Display for NovaError {
                     f,
                     "The provided state is malformed: {}\n\nMore information \
                     on how the game expects you to format it can be found with \
-                    'nova info --target {} --output extra'.",
+                    'nova info {} --output extra'.",
                     hint, game_name
                 )
             },
@@ -87,8 +87,8 @@ impl fmt::Display for NovaError {
                 write!(
                     f,
                     "The provided history is incorrect: {}\n\nMore information \
-                    on the game's rules can be found with 'nova info --target \
-                    {} --output extra'.",
+                    on the game's rules can be found with 'nova info {} \
+                    --output extra'.",
                     hint, game_name
                 )
             },

@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_variables)]
 //! # Bit Perfect Database Module
 //!
 //! This module contains the implementation for a bit-perfect database.

@@ -11,6 +11,7 @@ use crate::games::GameData;
 use crate::interfaces::terminal::cli::*;
 use crate::interfaces::{find_game, GameModule};
 use serde_json::json;
+use std::fmt::Display;
 
 /* API */
 
@@ -65,5 +66,26 @@ impl GameData<'_> {
             },
             OutputFormat::None => (),
         }
+    }
+}
+
+impl Display for GameData<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "\tGame:\n{}\n\n\tAuthor:\n{}\n\n\tDescription:\n{}\n\n\tVariant \
+            Protocol:\n{}\n\n\tVariant Default:\n{}\n\n\tVariant Pattern:\n{}\
+            \n\n\tState Protocol:\n{}\n\n\tState Default:\n{}\n\n\tState \
+            Pattern:\n{}\n",
+            self.name,
+            self.authors,
+            self.about,
+            self.variant_protocol,
+            self.variant_default,
+            self.variant_pattern,
+            self.state_protocol,
+            self.state_default,
+            self.state_pattern
+        )
     }
 }

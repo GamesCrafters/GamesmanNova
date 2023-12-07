@@ -10,9 +10,10 @@
 use crate::{
     errors::NovaError,
     models::{PlayerCount, State, Turn},
+    solvers::MAX_TRANSITIONS,
 };
 
-use super::{DynamicAutomaton, Legible};
+use super::{DynamicAutomaton, Legible, StaticAutomaton};
 
 /* TURN ENCODING */
 
@@ -56,58 +57,126 @@ pub fn unpack_turn(
 /* STATE HISTORY VERIFICATION */
 
 /// Returns the latest state in a sequential `history` of state string encodings
-/// by verifying that the first state in the history is the same as `start`, and
-/// that each state can be reached from its predecessor with `transition`. If
-/// these conditions are not met, it returns an error message signaling the pair
-/// of states that are not connected by `transition`, along with a reminder of
-/// the current game variant description.
-pub fn verify_history<G>(
+/// by verifying that the first state in the history is the same as the `game`'s
+/// start and that each state can be reached from its predecessor through the
+/// `game`'s transition function. If these conditions are not met, it returns an
+/// error message signaling the pair of states that are not connected by the
+/// transition function, with a reminder of the current game variant.
+///
+/// This is implementation specifically consumes a `DynamicAutomaton<State>` as
+/// a means of obtaining a `transition` function. A similar implementation is
+/// available for `StaticAutomaton<State, MAX_TRANSITIONS>` under the symbol
+/// `verify_history_static`.
+pub fn verify_history_dynamic<G>(
     game: &G,
     history: Vec<String>,
 ) -> Result<State, NovaError>
 where
     G: Legible<State> + DynamicAutomaton<State>,
 {
-    if history.is_empty() {
-        return Err(NovaError::InvalidHistory {
-            game_name: game.info().name,
-            hint: format!("State history must contain at least one state."),
-        });
-    }
-    let mut curr = game.decode(history[0].clone())?;
-    if curr != game.start() {
-        return Err(NovaError::InvalidHistory {
-            game_name: game.info().name,
-            hint: format!(
-                "The state history must begin with the starting state for this \
-                variant ({}), which is {}.",
-                game.info().variant,
-                game.encode(game.start())
-            ),
-        });
-    }
-    for i in 1..history.len() {
-        let next = game.decode(history[i].clone())?;
-        let transitions = game.transition(curr);
-        if !transitions.contains(&next) {
-            return Err(NovaError::InvalidHistory {
-                game_name: game.info().name,
-                hint: format!(
-                    "Transitioning from the state '{}' to the sate '{}' is \
-                    illegal in the current game variant ({}).",
-                    game.encode(curr),
-                    game.encode(next),
-                    game.info().variant
-                ),
-            });
+    if let Some(s) = history.first() {
+        let mut prev = game.decode(s.clone())?;
+        if prev == game.start() {
+            for i in 1..history.len() {
+                let next = game.decode(history[i].clone())?;
+                let transitions = game.transition(prev);
+                if !transitions.contains(&next) {
+                    return transition_history_error(game, prev, next);
+                }
+                prev = next;
+            }
+            Ok(prev)
+        } else {
+            start_history_error(game, game.start())
         }
-        curr = next;
+    } else {
+        empty_history_error(game)
     }
-    Ok(curr)
 }
+
+/// Returns the latest state in a sequential `history` of state string encodings
+/// by verifying that the first state in the history is the same as the `game`'s
+/// start and that each state can be reached from its predecessor through the
+/// `game`'s transition function. If these conditions are not met, it returns an
+/// error message signaling the pair of states that are not connected by the
+/// transition function, with a reminder of the current game variant.
+///
+/// This is implementation consumes a `StaticAutomaton<State, MAX_TRANSITIONS>
+/// as a means of obtaining a `transition` function. A similar implementation is
+/// available for `DynamicAutomaton<State>` as `verify_history_dynamic`.
+pub fn verify_history_static<G>(
+    game: &G,
+    history: Vec<String>,
+) -> Result<State, NovaError>
+where
+    G: Legible<State> + StaticAutomaton<State, MAX_TRANSITIONS>,
+{
+    if let Some(s) = history.first() {
+        let mut prev = game.decode(s.clone())?;
+        if prev == game.start() {
+            for i in 1..history.len() {
+                let next = game.decode(history[i].clone())?;
+                let transitions = game.transition(prev);
+                if !transitions.contains(&Some(next)) {
+                    return transition_history_error(game, prev, next);
+                }
+                prev = next;
+            }
+            Ok(prev)
+        } else {
+            start_history_error(game, game.start())
+        }
+    } else {
+        empty_history_error(game)
+    }
+}
+
+fn empty_history_error<G: Legible<State>>(
+    game: &G,
+) -> Result<State, NovaError> {
+    Err(NovaError::InvalidHistory {
+        game_name: game.info().name,
+        hint: format!("State history must contain at least one state."),
+    })
+}
+
+fn start_history_error<G: Legible<State>>(
+    game: &G,
+    start: State,
+) -> Result<State, NovaError> {
+    Err(NovaError::InvalidHistory {
+        game_name: game.info().name,
+        hint: format!(
+            "The state history must begin with the starting state for this \
+            variant ({}), which is {}.",
+            game.info().variant,
+            game.encode(start)
+        ),
+    })
+}
+
+fn transition_history_error<G: Legible<State>>(
+    game: &G,
+    prev: State,
+    next: State,
+) -> Result<State, NovaError> {
+    Err(NovaError::InvalidHistory {
+        game_name: game.info().name,
+        hint: format!(
+            "Transitioning from the state '{}' to the sate '{}' is \
+            illegal in the current game variant ({}).",
+            game.encode(prev),
+            game.encode(next),
+            game.info().variant
+        ),
+    })
+}
+
+/* TESTS */
 
 #[cfg(test)]
 mod test {
+
     use super::*;
 
     /* TURN ENCODING TESTS */

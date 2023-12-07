@@ -125,7 +125,9 @@ fn check_variant_coherence(
 mod test {
 
     use super::*;
-    use crate::games::Game;
+    use crate::games::{utils::verify_history_dynamic, Game};
+
+    /* STATE STRING PARSING */
 
     #[test]
     fn state_pattern_is_valid_regex() {
@@ -219,5 +221,88 @@ mod test {
         assert!(parse_state(&f(v3), s1.clone()).is_ok());
         assert!(parse_state(&f(v3), s2.clone()).is_ok());
         assert!(parse_state(&f(v3), s3.clone()).is_ok());
+    }
+
+    /* GAME HISTORY VERIFICATION */
+
+    #[test]
+    fn verify_incorrect_default_zero_by_history_fails() {
+        let i1 = vec!["10-0", "9-1", "8-0", "5-1"]; // Illegal move
+        let i2 = vec!["10-0", "8-0", "7-0", "5-1"]; // Turns don't switch
+        let i3 = vec!["10-1", "8-0", "7-1", "5-0"]; // Starting turn wrong
+        let i4 = vec!["1-10", "0-9", "1-7", "0-5"]; // Turn and state switched
+        let i5 = vec!["10-0", "", "9-1", "", "8-0"]; // Empty states
+        let i6 = vec!["ten-zero", "nine-one"]; // Malformed
+        let i7: Vec<&str> = vec![]; // No history
+        let i8 = vec![""]; // Empty string
+
+        assert!(verify_history_dynamic(&session(None), owned(i1)).is_err());
+        assert!(verify_history_dynamic(&session(None), owned(i2)).is_err());
+        assert!(verify_history_dynamic(&session(None), owned(i3)).is_err());
+        assert!(verify_history_dynamic(&session(None), owned(i4)).is_err());
+        assert!(verify_history_dynamic(&session(None), owned(i5)).is_err());
+        assert!(verify_history_dynamic(&session(None), owned(i6)).is_err());
+        assert!(verify_history_dynamic(&session(None), owned(i7)).is_err());
+        assert!(verify_history_dynamic(&session(None), owned(i8)).is_err());
+    }
+
+    #[test]
+    fn verify_correct_default_zero_by_history_passes() {
+        let c1 = vec![
+            "10-0", "8-1", "6-0", "4-1", "2-0", "0-1",
+        ];
+        let c2 = vec!["10-0", "8-1", "6-0", "4-1", "2-0"];
+        let c3 = vec!["10-0", "9-1", "7-0", "6-1"];
+        let c4 = vec!["10-0", "8-1", "6-0"];
+        let c5 = vec!["10-0", "9-1"];
+        let c6 = vec!["10-0"];
+
+        assert!(verify_history_dynamic(&session(None), owned(c1)).is_ok());
+        assert!(verify_history_dynamic(&session(None), owned(c2)).is_ok());
+        assert!(verify_history_dynamic(&session(None), owned(c3)).is_ok());
+        assert!(verify_history_dynamic(&session(None), owned(c4)).is_ok());
+        assert!(verify_history_dynamic(&session(None), owned(c5)).is_ok());
+        assert!(verify_history_dynamic(&session(None), owned(c6)).is_ok());
+    }
+
+    #[test]
+    fn verify_zero_by_history_compatibility() {
+        fn v() -> Option<String> {
+            Some(format!("8-200-30-70-15-1"))
+        }
+
+        let c1 = vec![
+            "200-0", "185-1", "115-2", "114-3", "113-4", "83-5", "82-6",
+            "81-7", "11-0", "10-1", "9-2", "0-3",
+        ];
+        let c2 = vec![
+            "200-0", "199-1", "198-2", "197-3", "196-4", "195-5", "180-6",
+            "110-7", "80-0", "79-1",
+        ];
+
+        assert!(verify_history_dynamic(&session(v()), owned(c1)).is_ok());
+        assert!(verify_history_dynamic(&session(v()), owned(c2)).is_ok());
+
+        let i1 = vec!["200-0", "184-1", "115-2", "114-3"]; // Illegal move
+        let i2 = vec!["200-0", "185-1", "115-1", "114-2"]; // Turns don't switch
+        let i3 = vec!["200-2", "185-3", "115-4", "114-5"]; // Bad initial turn
+        let i4 = vec!["201-0", "186-1", "116-2", "115-3"]; // Bad initial state
+
+        assert!(verify_history_dynamic(&session(v()), owned(i1)).is_err());
+        assert!(verify_history_dynamic(&session(v()), owned(i2)).is_err());
+        assert!(verify_history_dynamic(&session(v()), owned(i3)).is_err());
+        assert!(verify_history_dynamic(&session(v()), owned(i4)).is_err());
+    }
+
+    /* UTILITIES */
+
+    fn session(v: Option<String>) -> Session {
+        Session::initialize(v).unwrap()
+    }
+
+    fn owned(v: Vec<&str>) -> Vec<String> {
+        v.iter()
+            .map(|&s| s.to_owned())
+            .collect()
     }
 }

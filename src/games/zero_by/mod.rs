@@ -71,7 +71,7 @@ impl Game for Session {
     }
 
     fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError> {
-        self.start = utils::verify_history(self, history)?;
+        self.start = utils::verify_history_dynamic(self, history)?;
         Ok(())
     }
 
@@ -120,6 +120,9 @@ impl DynamicAutomaton<State> for Session {
 
     fn transition(&self, state: State) -> Vec<State> {
         let (state, turn) = utils::unpack_turn(state, self.players);
+        if state == 0 {
+            return Vec::new();
+        }
         let mut next = self
             .by
             .iter()
@@ -160,7 +163,7 @@ implement! { for Session =>
 
 impl Solvable<2> for Session {
     fn utility(&self, state: State) -> SVector<Utility, 2> {
-        let (state, turn) = utils::unpack_turn(state, 2);
+        let (_, turn) = utils::unpack_turn(state, 2);
         let mut result = SVector::<Utility, 2>::zeros();
         result.fill(-1);
         result[turn] = 1;
@@ -174,7 +177,7 @@ impl Solvable<2> for Session {
 
 impl Solvable<10> for Session {
     fn utility(&self, state: State) -> SVector<Utility, 10> {
-        let (state, turn) = utils::unpack_turn(state, 10);
+        let (_, turn) = utils::unpack_turn(state, 10);
         let mut result = SVector::<Utility, 10>::zeros();
         result.fill(-1);
         result[turn] = 9;
