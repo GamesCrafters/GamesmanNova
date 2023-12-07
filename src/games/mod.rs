@@ -31,43 +31,48 @@ use num_traits::Float;
 
 pub mod zero_by;
 
-pub mod utils; // <==== Not a game
+pub mod utils; // <==== Not a game >:3
 
 /* DATA CONSTRUCTS */
 
 /// Contains useful data about a game, intended to provide users of the program
 /// information they can use to understand the output of analysis and solving,
 /// in addition to specifying game variants.
-pub struct GameData {
-    /* METADATA */
+pub struct GameData<'a> {
+    /* INSTANCE */
+    /// The variant string used to initialize the `Game` instance which returned
+    /// this `GameData` object from its `info` associated method.
+    pub variant: &'a String,
+
+    /* GENERAL */
     /// Known name for the game. This should return a string that can be used as
     /// a command-line argument to the CLI endpoints which require a game name
     /// as a target (e.g. `nova solve <TARGET>`).
-    pub name: String,
+    pub name: &'static str,
     /// The names of the people who implemented the game listed out, optionally
     /// including their contact. For example: "John Doe <john@rust-lang.org>,
     /// Ricardo L. <ricardo@go-lang.com>, Quin Bligh".
-    pub authors: String,
+    pub authors: &'static str,
     /// General introduction to the game's rules and setup, including any facts
     /// that are interesting about it.
-    pub about: String,
+    pub about: &'static str,
 
     /* VARIANTS */
     /// Explanation of how to use strings to communicate which variant a user
     /// wishes to play to the game's implementation.
-    pub variant_protocol: String,
+    pub variant_protocol: &'static str,
     /// Regular expression pattern that all variant strings must match.
-    pub variant_pattern: String,
+    pub variant_pattern: &'static str,
     /// Default variant string to be used when none is specified.
-    pub variant_default: String,
+    pub variant_default: &'static str,
 
     /* STATES */
     /// Explanation of how to use a string to encode a game state.
-    pub state_protocol: String,
+    pub state_protocol: &'static str,
     /// Regular expression pattern that all state encodings must match.
-    pub state_pattern: String,
+    pub state_pattern: &'static str,
     /// Default state encoding to be used when none is specified.
-    pub state_default: String,
+    pub state_default: &'static str,
 }
 
 /* ACCESS INTERFACES */
@@ -104,13 +109,6 @@ pub trait Game {
     fn initialize(variant: Option<String>) -> Result<Self, NovaError>
     where
         Self: Sized;
-
-    /* UTILITIES */
-
-    /// Returns the verified variant string which was passed to the `initialize`
-    /// function to obtain this game instance. Useful for providing rich errors
-    /// with descriptive messages from generic code.
-    fn variant(&self) -> String;
 
     /* SECONDARY PLUGINS
      *

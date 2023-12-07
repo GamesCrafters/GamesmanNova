@@ -66,10 +66,6 @@ impl Game for Session {
         }
     }
 
-    fn variant(&self) -> String {
-        self.variant.clone()
-    }
-
     fn id(&self) -> String {
         format!("{}.{}", NAME, self.variant)
     }
@@ -81,17 +77,19 @@ impl Game for Session {
 
     fn info(&self) -> GameData {
         GameData {
-            name: NAME.to_owned(),
-            authors: AUTHORS.to_owned(),
-            about: ABOUT.to_owned(),
+            variant: &self.variant,
 
-            variant_protocol: VARIANT_PROTOCOL.to_owned(),
-            variant_pattern: VARIANT_PATTERN.to_owned(),
-            variant_default: VARIANT_DEFAULT.to_owned(),
+            name: NAME,
+            authors: AUTHORS,
+            about: ABOUT,
 
-            state_default: STATE_DEFAULT.to_owned(),
-            state_pattern: STATE_PATTERN.to_owned(),
-            state_protocol: STATE_PROTOCOL.to_owned(),
+            variant_protocol: VARIANT_PROTOCOL,
+            variant_pattern: VARIANT_PATTERN,
+            variant_default: VARIANT_DEFAULT,
+
+            state_default: STATE_DEFAULT,
+            state_pattern: STATE_PATTERN,
+            state_protocol: STATE_PROTOCOL,
         }
     }
 
@@ -105,7 +103,7 @@ impl Game for Session {
             },
             _ => {
                 return Err(NovaError::SolverNotFound {
-                    input_game_name: NAME.to_owned(),
+                    input_game_name: NAME,
                 })
             },
         }

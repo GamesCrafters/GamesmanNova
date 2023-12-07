@@ -52,7 +52,7 @@ fn check_state_pattern(from: &String) -> Result<(), NovaError> {
     let re = Regex::new(STATE_PATTERN).unwrap();
     if !re.is_match(&from) {
         Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
+            game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{}'.",
                 STATE_PATTERN
@@ -69,7 +69,7 @@ fn parse_parameters(from: &String) -> Result<Vec<u64>, NovaError> {
             int_string
                 .parse::<u64>()
                 .map_err(|e| NovaError::StateMalformed {
-                    game_name: NAME.to_owned(),
+                    game_name: NAME,
                     hint: format!("{}", e.to_string()),
                 })
         })
@@ -79,7 +79,7 @@ fn parse_parameters(from: &String) -> Result<Vec<u64>, NovaError> {
 fn check_param_count(params: &Vec<u64>) -> Result<(State, Turn), NovaError> {
     if params.len() != 2 {
         Err(NovaError::StateMalformed {
-            game_name: NAME.to_owned(),
+            game_name: NAME,
             hint: format!(
                 "String contains {} integers, but needs to have exactly 2.",
                 params.len()
@@ -98,7 +98,7 @@ fn check_variant_coherence(
     let (session_from, _) = unpack_turn(session.start, session.players);
     if from > session_from {
         Err(NovaError::StateMalformed {
-            game_name: NAME.to_owned(),
+            game_name: NAME,
             hint: format!(
                 "Specified more starting elements ({}) than variant allows \
                 ({}).",
@@ -107,7 +107,7 @@ fn check_variant_coherence(
         })
     } else if turn >= session.players {
         Err(NovaError::StateMalformed {
-            game_name: NAME.to_owned(),
+            game_name: NAME,
             hint: format!(
                 "Specified a turn ({}) too high for this ({}-player) game \
                 variant.",

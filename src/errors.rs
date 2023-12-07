@@ -20,27 +20,36 @@ use std::{error::Error, fmt};
 pub enum NovaError {
     /// An error to indicate that a user attempted to solve a game variant
     /// which is valid, but has no solver available to solve it.
-    SolverNotFound { input_game_name: String },
+    SolverNotFound { input_game_name: &'static str },
 
     /// An error to indicate that the variant passed to the game with
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
     /// that `game_name` should be a valid argument to the `--target`
     /// parameter in any command.
-    VariantMalformed { game_name: String, hint: String },
+    VariantMalformed {
+        game_name: &'static str,
+        hint: String,
+    },
 
     /// An error to indicate that the state string passed to the game with
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
     /// that `game_name` should be a valid argument to the `--target`
     /// parameter in any command.
-    StateMalformed { game_name: String, hint: String },
+    StateMalformed {
+        game_name: &'static str,
+        hint: String,
+    },
 
     /// An error to indicate that a sequence of states in string form would
     /// be impossible to reproduce in real play. Includes a message from the
     /// game implementation on exactly what went wrong. Note that `game_name`
     /// should be a valid argument to the `--target` parameter in any command.
-    InvalidHistory { game_name: String, hint: String },
+    InvalidHistory {
+        game_name: &'static str,
+        hint: String,
+    },
 }
 
 impl Error for NovaError {}

@@ -122,8 +122,8 @@ pub struct AnalyzeArgs {
     #[arg(short, long)]
     pub variant: Option<String>,
     /// Set output in a specific format.
-    #[arg(short, long)]
-    pub output: Option<OutputFormat>,
+    #[arg(short, long, default_value_t = OutputFormat::Extra)]
+    pub output: OutputFormat,
     /// Skips prompts for confirming destructive operations.
     #[arg(short, long)]
     pub yes: bool,
@@ -142,8 +142,8 @@ pub struct InfoArgs {
 
     /* DEFAULTS PROVIDED */
     /// Set output in a specific format.
-    #[arg(short, long)]
-    pub output: Option<OutputFormat>,
+    #[arg(short, long, default_value_t = OutputFormat::Extra)]
+    pub output: OutputFormat,
 }
 
 /* DEFINITIONS */
@@ -215,7 +215,7 @@ pub enum IOMode {
     Write,
 }
 
-/* UTILITY IMPLEMENTATIONS */
+/* AUXILIARY IMPLEMENTATIONS */
 
 impl fmt::Display for IOMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -231,6 +231,16 @@ impl fmt::Display for Solution {
         match self {
             Solution::Weak => write!(f, "weak"),
             Solution::Strong => write!(f, "strong"),
+        }
+    }
+}
+
+impl fmt::Display for OutputFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OutputFormat::Json => write!(f, "json"),
+            OutputFormat::Extra => write!(f, "extra"),
+            OutputFormat::None => write!(f, "none"),
         }
     }
 }

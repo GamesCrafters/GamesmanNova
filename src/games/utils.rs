@@ -68,6 +68,12 @@ pub fn verify_history<G>(
 where
     G: Legible<State> + DynamicAutomaton<State>,
 {
+    if history.is_empty() {
+        return Err(NovaError::InvalidHistory {
+            game_name: game.info().name,
+            hint: format!("State history must contain at least one state."),
+        });
+    }
     let mut curr = game.decode(history[0].clone())?;
     if curr != game.start() {
         return Err(NovaError::InvalidHistory {
@@ -75,7 +81,7 @@ where
             hint: format!(
                 "The state history must begin with the starting state for this \
                 variant ({}), which is {}.",
-                game.variant(),
+                game.info().variant,
                 game.encode(game.start())
             ),
         });
@@ -91,7 +97,7 @@ where
                     illegal in the current game variant ({}).",
                     game.encode(curr),
                     game.encode(next),
-                    game.variant()
+                    game.info().variant
                 ),
             });
         }
