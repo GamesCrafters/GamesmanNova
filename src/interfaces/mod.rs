@@ -34,7 +34,7 @@ pub fn find_game(
 ) -> Result<Box<dyn Game>, NovaError> {
     match game {
         GameModule::ZeroBy => Ok(Box::new(zero_by::Session::initialize(
-            variant, state,
+            variant,
         )?)),
     }
 }

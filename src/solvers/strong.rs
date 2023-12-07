@@ -49,7 +49,7 @@ pub mod acyclic {
         /// game by exploring using `from` as a starting state. For specifics
         /// on when files are written, see `cli::IOMode`. This function assumes
         /// that `from` is a valid state encoding of the underlying game.
-        fn solve(&self, mode: IOMode, from: S);
+        fn solve(&self, mode: IOMode);
     }
 
     /// Provides behavior for strongly solving games whose states do not repeat
@@ -72,7 +72,7 @@ pub mod acyclic {
         /// game by exploring using `from` as a starting state. For specifics
         /// on when files are written, see `cli::IOMode`. This function assumes
         /// that `from` is a valid state encoding of the underlying game.
-        fn solve(&self, mode: IOMode, from: S);
+        fn solve(&self, mode: IOMode);
     }
 
     /* BLANKET IMPLEMENTATIONS */
@@ -81,9 +81,9 @@ pub mod acyclic {
     where
         G: Acyclic<N> + DynamicAutomaton<State>,
     {
-        fn solve(&self, mode: IOMode, from: State) {
+        fn solve(&self, mode: IOMode) {
             let mut db = BPDatabase::new(self.id(), mode);
-            dfs_heap_reverse_induction(&mut db, from, self);
+            dfs_heap_reverse_induction(&mut db, self);
         }
     }
 
@@ -91,9 +91,9 @@ pub mod acyclic {
     where
         G: Acyclic<N> + StaticAutomaton<State, MAX_TRANSITIONS>,
     {
-        fn solve(&self, mode: IOMode, from: State) {
+        fn solve(&self, mode: IOMode) {
             let mut db = BPDatabase::new(self.id(), mode);
-            dfs_stack_reverse_induction(&mut db, from, self);
+            dfs_stack_reverse_induction(&mut db, self);
         }
     }
 
@@ -104,11 +104,10 @@ pub mod acyclic {
         G: DynamicSolver<N, State>,
     >(
         db: &mut BPDatabase<N>,
-        from: State,
         game: &G,
     ) {
         let mut stack = Vec::new();
-        stack.push(from);
+        stack.push(game.start());
         while let Some(curr) = stack.pop() {
             let children = game.transition(curr);
             if let None = db.get(curr) {
@@ -140,11 +139,10 @@ pub mod acyclic {
         G: StaticSolver<N, MAX_TRANSITIONS, State>,
     >(
         db: &mut BPDatabase<N>,
-        from: State,
         game: &G,
     ) {
         let mut stack = Vec::new();
-        stack.push(from);
+        stack.push(game.start());
         while let Some(curr) = stack.pop() {
             let children = game.transition(curr);
             if let None = db.get(curr) {

@@ -101,12 +101,17 @@ pub trait Game {
     /// Returns `Result::Ok(Self)` if the specified `variant` and `from` are
     /// not malformed. Otherwise, returns a `Result::Err(String)` containing a
     /// text string explaining why they could not be parsed.
-    fn initialize(
-        variant: Option<String>,
-        from: Option<String>,
-    ) -> Result<Self, NovaError>
+    fn initialize(variant: Option<String>) -> Result<Self, NovaError>
     where
         Self: Sized;
+
+    /* SECONDARY PLUGINS
+     *
+     * The functions below facilitate secondary functionality used in features
+     * of this project. Some of the interfaces in this file might help implement
+     * the procedures they specify. If this is the case, a list of related
+     * interfaces is listed in the docstring of each function.
+     */
 
     /// Returns an ID unique to this game. The return value should be consistent
     /// across calls from the same game and variant, but differing across calls
@@ -114,6 +119,33 @@ pub trait Game {
     /// string hash whose input is the game and variant (although it is not at
     /// all necessary that it conforms to any measure of hashing performance).
     fn id(&self) -> String;
+
+    /// Advances the game's starting state to the last state in `history`. All
+    /// all of the `String`s in `history` must conform to the `state_protocol`
+    /// defined in the `GameData` object returned by `info`. The states in
+    /// `history` should be verified by ensuring that the following is true:
+    ///
+    /// - `history[0]` is the start state specified by the game variant.
+    /// - Calling `transition` on `history[i]` returns `history[i + 1]`.
+    ///
+    /// If these conditions are not satisfied, this function should return a
+    /// useful error containing information about why the provided `history`
+    /// is not possible for the game variant. Otherwise, it should mutate `self`
+    /// to have a starting state whose string encoding is `history.pop()`, which
+    /// can then be returned by whichever traversal interface is implemented by
+    /// this game. Related interfaces:
+    ///  
+    /// - `Legible<S>`.
+    fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError>;
+
+    /* MAIN PLUGINS
+     *
+     * These functions provide core functionality, and are directly associated
+     * with an execution module (e.g., solving, analyzing, informing, etc.).
+     * The interfaces declared in this file are structured around providing the
+     * necessary functionality to implement these procedures. A list of related
+     * interfaces is listed in the docstring of each function.
+     */
 
     /// Returns useful information about the game, such as the type of game it
     /// is, who implemented it, and an explanation of how to specify different
@@ -124,8 +156,51 @@ pub trait Game {
     /// effects specified by the `mode` parameter. This should return an error
     /// if solving the specific game variant is not supported (among other
     /// possibilities for an error), and a unit type if everything goes per
-    /// specification.
+    /// specification. See `IOMode` for specifics on intended side effects.
+    /// Related interfaces:
+    ///
+    /// - `Solvable<N>`.
+    /// - Traversal interfaces (e.g., `StaticAutomaton<S, F>`).
+    /// - Game structure markers (e.g., `Acyclic<N>`).
     fn solve(&self, mode: IOMode) -> Result<(), NovaError>;
+}
+
+/* MANUAL TRAVERSAL INTERFACES */
+
+/// Defines the necessary behavior to encode and decode a state type **S** to
+/// and from a `String`. This is related to the `GameData` object, which should
+/// contain information about the way in which game states can be represented
+/// using a string.
+///
+/// ## Explanation
+///
+/// Efficient game state hashes are rarely intuitive to understand due to being
+/// highly optimized. Providing a way to transform them to and from a string
+/// gives a representation that is easier to understand. This, in turn, can be
+/// used throughout the project's interfaces to do things like fast-forwarding
+/// a game to a user-provided state, providing readable debug output, etc.
+///
+/// Note that this is not supposed to provide a "fancy" printable game board
+/// drawing; a lot of the utility obtained from implementing this interface is
+/// having access to understandable yet compact game state representations. As
+/// a rule of thumb, all strings should be single-lined and have no whitespace.
+pub trait Legible<S>
+where
+    Self: Game,
+{
+    /// Transforms a string representation of a game state into a type **S**.
+    /// The `string` representation should conform to the `state_protocol`
+    /// specified in the `GameData` object returned by `Game::info`. If it does
+    /// not, an error containing a message with a brief explanation on what is
+    /// wrong with `string` should be returned.
+    fn decode(string: String) -> Result<S, NovaError>;
+
+    /// Transforms a game state type **S** into a string representation. The
+    /// string returned should conform to the `state_protocol` specified in the
+    /// `GameData` object returned by `Game::info`. If the `state` is malformed,
+    /// this function should panic with a useful debug message. No two `state`s
+    /// should return the same string representation (ideally).
+    fn encode(state: S) -> String;
 }
 
 /* DETERMINISTIC TRAVERSAL INTERFACES */

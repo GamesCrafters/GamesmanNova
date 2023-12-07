@@ -56,18 +56,11 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(
-        variant: Option<String>,
-        from: Option<String>,
-    ) -> Result<Self, NovaError> {
-        match (variant, from) {
-            (None, None) => parse_variant(VARIANT_DEFAULT.to_owned()),
-            (Some(v), Some(f)) => parse_state(parse_variant(v)?, f),
-            (Some(v), None) => parse_variant(v),
-            (None, Some(f)) => parse_state(
-                parse_variant(VARIANT_DEFAULT.to_owned())?,
-                f,
-            ),
+    fn initialize(variant: Option<String>) -> Result<Self, NovaError> {
+        if let Some(v) = variant {
+            parse_variant(v)
+        } else {
+            parse_variant(VARIANT_DEFAULT.to_owned())
         }
     }
 
@@ -84,9 +77,11 @@ impl Game for Session {
             name: NAME.to_owned(),
             authors: AUTHORS.to_owned(),
             about: ABOUT.to_owned(),
+
             variant_protocol: VARIANT_PROTOCOL.to_owned(),
             variant_pattern: VARIANT_PATTERN.to_owned(),
             variant_default: VARIANT_DEFAULT.to_owned(),
+
             state_default: STATE_DEFAULT.to_owned(),
             state_pattern: STATE_PATTERN.to_owned(),
             state_protocol: STATE_PROTOCOL.to_owned(),
@@ -95,12 +90,10 @@ impl Game for Session {
 
     fn solve(&self, mode: IOMode) -> Result<(), NovaError> {
         match self.players {
-            2 => <Self as acyclic::DynamicSolver<2, State>>::solve(
-                &self, mode, self.start,
-            ),
-            10 => <Self as acyclic::DynamicSolver<10, State>>::solve(
-                &self, mode, self.start,
-            ),
+            2 => <Self as acyclic::DynamicSolver<2, State>>::solve(&self, mode),
+            10 => {
+                <Self as acyclic::DynamicSolver<10, State>>::solve(&self, mode)
+            },
             _ => {
                 return Err(NovaError::SolverNotFound {
                     input_game_name: NAME.to_owned(),
