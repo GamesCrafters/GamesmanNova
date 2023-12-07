@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_variables)]
 //! # Data Models Module
 //!
 //! This module contains centralized definitions for custom data types used

@@ -69,6 +69,6 @@ fn solve(args: &SolveArgs) -> Result<(), NovaError> {
 }
 
 fn info(args: &InfoArgs) -> Result<(), NovaError> {
-    informing::print_game_info(args.target, args.output);
+    informing::print_game_info(args.target, args.output)?;
     Ok(())
 }

@@ -9,22 +9,6 @@
 use crate::interfaces::terminal::cli::IOMode;
 use std::process;
 
-/* ALGORITHMS */
-
-/// Returns the most similar string to `model` in the vector `all`. Used for
-/// checking user input against offerings to provide useful suggestions for
-/// malformed command arguments. Assumes that `all` is not empty.
-pub fn most_similar(model: &str, all: Vec<&str>) -> String {
-    all.iter()
-        .min_by(|s1, s2| {
-            let d1 = strsim::damerau_levenshtein(model, s1);
-            let d2 = strsim::damerau_levenshtein(model, s2);
-            d1.cmp(&d2)
-        })
-        .unwrap()[..]
-        .to_owned()
-}
-
 /* PRINTING AND OTHER I/O */
 
 /// Prompts the user to confirm their operation as appropriate according to
