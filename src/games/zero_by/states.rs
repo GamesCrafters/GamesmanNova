@@ -12,7 +12,7 @@
 use super::{Session, NAME};
 use crate::{
     errors::NovaError,
-    games::utils::pack_turn,
+    games::utils::{pack_turn, unpack_turn},
     models::{State, Turn},
 };
 use regex::Regex;
@@ -26,9 +26,8 @@ pub const STATE_PROTOCOL: &str =
 decimal points. The first integer will indicate the amount of elements left to \
 remove from the set, and the second indicates whose turn it is to remove an \
 element. The first integer must be less than or equal to the number of initial \
-elements specified by the game variant, and it must also be reachable from \
-that state according to the rules of the variant. Likewise, the second integer \
-must be strictly less than the number of players in the game.";
+elements specified by the game variant. Likewise, the second integer must be \
+strictly less than the number of players in the game.";
 
 /* API */
 
@@ -37,14 +36,14 @@ must be strictly less than the number of players in the game.";
 /// state encoded in `from`. This does not verify that the provided `from` is
 /// reachable in `session`'s game variant.
 pub fn parse_state(
-    session: &mut Session,
+    session: &Session,
     from: String,
 ) -> Result<State, NovaError> {
     check_state_pattern(&from)?;
     let params = parse_parameters(&from)?;
-    let (state, turn) = check_param_count(&params)?;
-    check_coherence(state, turn, &session)?;
-    let state = pack_turn(state, turn, session.players);
+    let (from, turn) = check_param_count(&params)?;
+    check_coherence(from, turn, &session)?;
+    let state = pack_turn(from, turn, session.players);
     Ok(state)
 }
 
@@ -93,17 +92,18 @@ fn check_param_count(params: &Vec<u64>) -> Result<(State, Turn), NovaError> {
 }
 
 fn check_coherence(
-    state: State,
+    from: State,
     turn: Turn,
     session: &Session,
 ) -> Result<(), NovaError> {
-    if state > session.start {
+    let (session_from, _) = unpack_turn(session.start, session.players);
+    if from > session_from {
         Err(NovaError::StateMalformed {
             game_name: NAME.to_owned(),
             hint: format!(
                 "Specified more starting elements ({}) than variant allows \
                 ({}).",
-                state, session.start,
+                from, session.start,
             ),
         })
     } else if turn >= session.players {
@@ -142,13 +142,12 @@ mod test {
     #[test]
     fn no_state_equals_default_state() {
         let with_none = Session::initialize(None).unwrap();
+        let with_default = Session::initialize(None).unwrap();
 
-        let mut with_default = Session::initialize(None).unwrap();
-        with_default.forward(vec![STATE_DEFAULT.to_owned()]);
-
-        assert_eq!(with_none.variant, with_default.variant);
-        assert_eq!(with_none.start, with_default.start);
-        assert_eq!(with_none.by, with_default.by);
+        assert_eq!(
+            with_none.start,
+            parse_state(&with_default, STATE_DEFAULT.to_string()).unwrap()
+        );
     }
 
     #[test]
@@ -166,12 +165,12 @@ mod test {
             Session::initialize(None).unwrap()
         }
 
-        assert!(parse_state(&mut f(), s1).is_err());
-        assert!(parse_state(&mut f(), s2).is_err());
-        assert!(parse_state(&mut f(), s3).is_err());
-        assert!(parse_state(&mut f(), s4).is_err());
-        assert!(parse_state(&mut f(), s5).is_err());
-        assert!(parse_state(&mut f(), s6).is_err());
+        assert!(parse_state(&f(), s1).is_err());
+        assert!(parse_state(&f(), s2).is_err());
+        assert!(parse_state(&f(), s3).is_err());
+        assert!(parse_state(&f(), s4).is_err());
+        assert!(parse_state(&f(), s5).is_err());
+        assert!(parse_state(&f(), s6).is_err());
     }
 
     #[test]
@@ -188,11 +187,38 @@ mod test {
             Session::initialize(None).unwrap()
         }
 
-        assert!(parse_state(&mut f(), s1).is_ok());
-        assert!(parse_state(&mut f(), s2).is_ok());
-        assert!(parse_state(&mut f(), s3).is_ok());
-        assert!(parse_state(&mut f(), s4).is_ok());
-        assert!(parse_state(&mut f(), s5).is_ok());
-        assert!(parse_state(&mut f(), s6).is_ok());
+        assert!(parse_state(&f(), s1).is_ok());
+        assert!(parse_state(&f(), s2).is_ok());
+        assert!(parse_state(&f(), s3).is_ok());
+        assert!(parse_state(&f(), s4).is_ok());
+        assert!(parse_state(&f(), s5).is_ok());
+        assert!(parse_state(&f(), s6).is_ok());
+    }
+
+    #[test]
+    fn compatible_variants_and_states_pass_checks() {
+        let v1 = "50-10-12-1-4";
+        let v2 = "5-100-6-2-7";
+        let v3 = "10-200-1-5";
+
+        let s1 = "1-4".to_owned();
+        let s2 = "150-9".to_owned();
+        let s3 = "200-0".to_owned();
+
+        fn f(v: &str) -> Session {
+            Session::initialize(Some(v.to_owned())).unwrap()
+        }
+
+        assert!(parse_state(&f(v1), s1.clone()).is_ok());
+        assert!(parse_state(&f(v1), s2.clone()).is_err());
+        assert!(parse_state(&f(v1), s3.clone()).is_err());
+
+        assert!(parse_state(&f(v2), s1.clone()).is_ok());
+        assert!(parse_state(&f(v2), s2.clone()).is_err());
+        assert!(parse_state(&f(v2), s3.clone()).is_err());
+
+        assert!(parse_state(&f(v3), s1.clone()).is_ok());
+        assert!(parse_state(&f(v3), s2.clone()).is_ok());
+        assert!(parse_state(&f(v3), s3.clone()).is_ok());
     }
 }

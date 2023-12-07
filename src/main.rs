@@ -59,7 +59,6 @@ fn tui(args: &TuiArgs) -> Result<(), NovaError> {
 }
 
 fn analyze(args: &AnalyzeArgs) -> Result<(), NovaError> {
-    utils::confirm_potential_overwrite(args.yes, args.mode);
     todo!()
 }
 
