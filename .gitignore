@@ -10,3 +10,6 @@
 
 # VSCode preferences
 /.vscode
+
+# Profiling output
+flamegraph.svg

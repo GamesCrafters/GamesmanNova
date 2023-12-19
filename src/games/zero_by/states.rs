@@ -172,6 +172,7 @@ mod test {
         assert!(parse_state(&f(), s4).is_err());
         assert!(parse_state(&f(), s5).is_err());
         assert!(parse_state(&f(), s6).is_err());
+        assert!(parse_state(&f(), s7).is_err());
     }
 
     #[test]
@@ -194,6 +195,7 @@ mod test {
         assert!(parse_state(&f(), s4).is_ok());
         assert!(parse_state(&f(), s5).is_ok());
         assert!(parse_state(&f(), s6).is_ok());
+        assert!(parse_state(&f(), s7).is_ok());
     }
 
     #[test]

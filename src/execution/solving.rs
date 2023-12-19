@@ -19,6 +19,6 @@ pub fn solve_by_name(args: &SolveArgs) -> Result<(), NovaError> {
         args.variant.to_owned(),
         args.from.to_owned(),
     )?;
-    game.solve(args.mode, args.method)?;
+    game.solve(args.mode, args.solver)?;
     Ok(())
 }

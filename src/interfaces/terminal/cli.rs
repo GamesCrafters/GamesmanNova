@@ -95,7 +95,7 @@ pub struct SolveArgs {
     pub from: Option<String>,
     /// Specify what type of solution to compute.
     #[arg(short, long, default_value_t = Solution::Strong)]
-    pub method: Solution,
+    pub solver: Solution,
     /// Specify whether the solution should be fetched or generated.
     #[arg(short, long, default_value_t = IOMode::Find)]
     pub mode: IOMode,

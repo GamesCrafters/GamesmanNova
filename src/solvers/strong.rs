@@ -119,7 +119,11 @@ pub mod acyclic {
                     db.put(curr, record)
                 } else {
                     stack.push(curr);
-                    stack.extend(children.iter());
+                    stack.extend(
+                        children
+                            .iter()
+                            .filter(|&x| db.get(*x).is_none()),
+                    );
                 }
             } else {
                 db.put(
@@ -157,7 +161,12 @@ pub mod acyclic {
                     db.put(curr, record)
                 } else {
                     stack.push(curr);
-                    stack.extend(children.iter().filter_map(|&x| x));
+                    stack.extend(
+                        children
+                            .iter()
+                            .filter_map(|&x| x)
+                            .filter(|&x| db.get(x).is_none()),
+                    );
                 }
             } else {
                 db.put(

@@ -19,6 +19,7 @@ bench = true
 [profile.release]
 lto = "fat"
 codegen-units = 1
+debug = true
 
 [dependencies]
 clap = { version = "^4", features = ["derive"] }
