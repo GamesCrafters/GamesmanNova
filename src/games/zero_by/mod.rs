@@ -13,9 +13,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use super::utils;
-use super::Acyclic;
-use super::Legible;
+use super::{utils, Acyclic, Bounded, Legible};
 use crate::games::{DynamicAutomaton, Game, GameData, Solvable};
 use crate::implement;
 use crate::interfaces::terminal::cli::IOMode;
@@ -113,11 +111,13 @@ impl Game for Session {
 
 /* TRAVERSAL DECLARATIONS */
 
-impl DynamicAutomaton<State> for Session {
+impl Bounded<State> for Session {
     fn start(&self) -> State {
         self.start
     }
+}
 
+impl DynamicAutomaton<State> for Session {
     fn transition(&self, state: State) -> Vec<State> {
         let (state, turn) = utils::unpack_turn(state, self.players);
         if state == 0 {

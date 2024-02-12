@@ -25,7 +25,6 @@ use crate::{
     models::{Partition, PlayerCount, State, StateCount, Turn, Utility},
 };
 use nalgebra::{SMatrix, SVector};
-use num_traits::Float;
 
 /* IMPLEMENTED GAMES */
 
@@ -79,33 +78,21 @@ pub struct GameData<'a> {
 
 /// Defines miscellaneous behavior of a deterministic economic game object. Note
 /// that player count is arbitrary; puzzles are semantically one-player games.
-/// This interface is generic over **S**, the type encoding a state of the game.
 ///
 /// ## Explanation
 ///
 /// This interface is used to group together things that all such objects need
 /// to do in relation to the rest of the project's modules, and not necessarily
-/// in relation to their underlying nature. Namely, the methods in this
-/// interface do not actually show the behavior of a game, only useful
-/// information and procedures related to one for performing tasks which are
-/// independent of the structure of the underlying game.
+/// in relation to their underlying nature.
 pub trait Game {
-    /// Allows for the specification of a game variant and the initialization of
-    /// a game's internal representation to a specific state. Calling this with
-    /// a different `variant` argument should result in the `id` associated
-    /// method returning a different string, meaning that game IDs should
-    /// uniquely identify game variants. However, changing the initialization
-    /// state `from` should make no difference in the output of `id`.
+    /// Allows for the specification of a game variant. Calling this with a
+    /// different `variant` argument should result in the `id` associated method
+    /// returning a different string, meaning that game IDs should uniquely
+    /// identify game variants.
     ///
-    /// It is important for the integrity of solution sets that implementers of
-    /// this function verify that the provided `from` state is reachable from
-    /// the starting state implied by the provided `variant`. As such, `variant`
-    /// should be treated as the source of truth in the event that of the
-    /// provided parameters is inconsistent with the other.
-    ///
-    /// Returns `Result::Ok(Self)` if the specified `variant` and `from` are
-    /// not malformed. Otherwise, returns a `Result::Err(String)` containing a
-    /// text string explaining why they could not be parsed.
+    /// Returns `Result::Ok(Self)` if the specified `variant` is not malformed.
+    /// Otherwise, returns a `Result::Err(String)` containing a text string
+    /// explaining why it could not be parsed.
     fn initialize(variant: Option<String>) -> Result<Self, NovaError>
     where
         Self: Sized;
@@ -138,7 +125,9 @@ pub trait Game {
     /// is not possible for the game variant. Otherwise, it should mutate `self`
     /// to have a starting state whose string encoding is `history.pop()`, which
     /// can then be returned by whichever traversal interface is implemented by
-    /// this game. Related interfaces:
+    /// this game.
+    ///
+    /// Related interfaces:
     ///  
     /// - `Legible<S>`.
     fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError>;
@@ -162,6 +151,7 @@ pub trait Game {
     /// if solving the specific game variant is not supported (among other
     /// possibilities for an error), and a unit type if everything goes per
     /// specification. See `IOMode` for specifics on intended side effects.
+    ///
     /// Related interfaces:
     ///
     /// - `Solvable<N>`.
@@ -170,7 +160,7 @@ pub trait Game {
     fn solve(&self, mode: IOMode, method: Solution) -> Result<(), NovaError>;
 }
 
-/* MANUAL TRAVERSAL INTERFACES */
+/* INTERFACING */
 
 /// Defines the necessary behavior to encode and decode a state type **S** to
 /// and from a `String`. This is related to the `GameData` object, which should
@@ -191,7 +181,7 @@ pub trait Game {
 /// a rule of thumb, all strings should be single-lined and have no whitespace.
 pub trait Legible<S>
 where
-    Self: Game,
+    Self: Bounded<S>,
 {
     /// Transforms a string representation of a game state into a type **S**.
     /// The `string` representation should conform to the `state_protocol`
@@ -209,6 +199,21 @@ where
 }
 
 /* DETERMINISTIC TRAVERSAL INTERFACES */
+
+/// Defines the necessary behavior for the traversal of finite games by
+/// providing a way to retrieve a unique starting state from which to begin a
+/// traversal. Generic over a state type **S**. Note that there is no `end`
+/// checking behavior due to the assumption that terminal states in games should
+/// yield an empty set of transition states, which would make this additional
+/// function redundant.
+pub trait Bounded<S>
+where
+    Self: Game,
+{
+    /// Returns the starting state of the underlying game. Used to initialize a
+    /// traversal deterministically.
+    fn start(&self) -> S;
+}
 
 /// Defines the behavior of a nondeterministic finite automaton _M_. Generic
 /// over **S**, the type encoding a member of the set of states of _M_. An
@@ -265,14 +270,8 @@ where
 /// solved.
 pub trait DynamicAutomaton<S>
 where
-    Self: Game,
+    Self: Bounded<S>,
 {
-    /// Returns an encoding of the start state for any automatic run in this
-    /// automaton. All sequences in the formal language accepted by this
-    /// automaton must satisfy that this function returns their first
-    /// element.
-    fn start(&self) -> S;
-
     /// Returns a vector of states reachable from `state` in this automaton.
     /// This is a mapping _T : S -> P(S)_ such that an element _x_ of _S_ is
     /// mapped to the set of other elements of _S_ reachable from _x_ by
@@ -339,14 +338,8 @@ where
 /// solved.
 pub trait StaticAutomaton<S, const F: usize>
 where
-    Self: Game,
+    Self: Bounded<S>,
 {
-    /// Returns an encoding of the start state for any automatic run in this
-    /// automaton. All sequences in the formal language accepted by this
-    /// automaton must satisfy that this function returns their first
-    /// element.
-    fn start(&self) -> S;
-
     /// Returns a vector of states reachable from `state` in this automaton.
     /// This is a mapping _T : S -> P(S)_ such that an element _x_ of _S_ is
     /// mapped to the set of other elements of _S_ reachable from _x_ by
@@ -356,87 +349,6 @@ where
     /// contains only `Option::None` variants, we assume that the automata
     /// accepts `state`.
     fn transition(&self, state: S) -> [Option<S>; F];
-}
-
-/* STOCHASTIC TRAVERSAL INTERFACES */
-
-/// Defines the local behavior of a discrete markov model. Generic over **S**
-/// (the type of the states within the model) and over **P** (the type used to
-/// represent a probability primitive). An implementation of this trait allows
-/// for an arbitrary number of transition states for any given state by using
-/// heap-allocated variable-sized vectors in the `transition` function to return
-/// an encoding of a probability mass function of arbitrary size.
-///
-/// ## Explanation
-///
-/// While solution concepts for nondeterministic games do not always provide
-/// strategies that "guarantee" an outcome, there are still many interesting
-/// statements to make about them. Most notably, it is possible to solve for
-/// different notions of equilibrium within a probabilistic game, which also
-/// requires a process of backwards induction, and hence benefits from this
-/// computer program.
-///
-/// ## Note
-///
-/// While considering potentially infinite play is down to human decision in the
-/// case of deterministic games, for many games there is a nonzero probability
-/// associated with not having the game end after an arbitrary number of turns
-/// **regardless** of player strategy.
-pub trait DynamicMarkovModel<S, P>
-where
-    Self: Game,
-    P: Float,
-{
-    /// Returns an encoding of the start state for an instance of this model.
-    /// While this is could also model a fundamentally probabilistic process, it
-    /// is left to the implementer to decide whether this function is pure.
-    fn start(&self) -> S;
-
-    /// Returns a vector of states `v` reachable from `state`, and another
-    /// vector of the same size `p` of probabilities such that the probability
-    /// of a transition from `state` to `v[i]` is `p[i]`. The sum of all values
-    /// in `p` should be `1` (up to floating point accuracy).
-    fn transition(&self, state: S) -> (Vec<S>, Vec<P>);
-}
-
-/// Defines the local behavior of a discrete markov model. Generic over **S**
-/// (the type of the states within the model), **P** (the type used to represent
-/// a probability primitive), and over **F** (the maximum state fan-out of the
-/// transition function). A limitation on the number of transition states for
-/// all states is imposed to gain the performance benefit of the usage of static
-/// data structures in `transition`. See `DynamicMarkovModel` for an interface
-/// that allows returning a PMF of arbitrary size from `transition`.
-///
-/// ## Explanation
-///
-/// While solution concepts for nondeterministic games do not always provide
-/// strategies that "guarantee" an outcome, there are still many interesting
-/// statements to make about them. Most notably, it is possible to solve for
-/// different notions of equilibrium within a probabilistic game, which also
-/// requires a process of backwards induction, and hence benefits from this
-/// computer program.
-///
-/// ## Note
-///
-/// While considering potentially infinite play is down to human decision in the
-/// case of deterministic games, for many games there is a nonzero probability
-/// associated with not having the game end after an arbitrary number of turns
-/// **regardless** of player strategy.
-pub trait StaticMarkovModel<S, P, const F: usize>
-where
-    Self: Game,
-    P: Float,
-{
-    /// Returns an encoding of the start state for an instance of this model.
-    /// While this is could also model a fundamentally probabilistic process, it
-    /// is left to the implementer to decide whether this function is pure.
-    fn start(&self) -> S;
-
-    /// Returns a static vector of states `v` reachable from `state` and another
-    /// vector of the same size `p` of probabilities such that the probability
-    /// of a transition from `state` to `v[i]` is `p[i]`. The sum of all values
-    /// in `p` should be `1` (up to floating point accuracy).
-    fn transition(&self, state: S) -> (SVector<S, F>, SVector<P, F>);
 }
 
 /* SOLVING INTERFACES */
