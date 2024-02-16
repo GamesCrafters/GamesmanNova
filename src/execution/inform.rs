@@ -6,10 +6,10 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::NovaError;
-use crate::games::GameData;
-use crate::interfaces::terminal::cli::*;
-use crate::interfaces::{find_game, GameModule};
+use crate::error::NovaError;
+use crate::game::GameData;
+use crate::interface::terminal::cli::*;
+use crate::interface::{find_game, GameModule};
 use serde_json::json;
 use std::fmt::Display;
 

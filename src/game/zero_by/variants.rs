@@ -8,16 +8,16 @@
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use super::{Session, NAME};
-use crate::errors::NovaError;
-use crate::games::utils::pack_turn;
-use crate::models::Turn;
+use crate::error::NovaError;
+use crate::game::utils::pack_turn;
+use crate::model::Turn;
 use regex::Regex;
 
 /* ZERO-BY VARIANT ENCODING */
 
-pub const VARIANT_DEFAULT: &str = "2-10-1-2";
-pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
-pub const VARIANT_PROTOCOL: &str =
+pub const VARIANT_DEFAULT: &'static str = "2-10-1-2";
+pub const VARIANT_PATTERN: &'static str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
+pub const VARIANT_PROTOCOL: &'static str =
 "The variant string should be a dash-separated group of three or more positive \
 integers. For example, '4-232-23-6-3-6' is valid but '598', '-23-1-5', and \
 'fifteen-2-5' are not. The first integer represents the number of players in \
@@ -123,7 +123,7 @@ fn parse_player_count(params: &Vec<u64>) -> Result<Turn, NovaError> {
 mod test {
 
     use super::*;
-    use crate::games::Game;
+    use crate::game::Game;
 
     #[test]
     fn variant_pattern_is_valid_regex() {

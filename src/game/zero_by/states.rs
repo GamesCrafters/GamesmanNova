@@ -10,17 +10,17 @@
 
 use super::{Session, NAME};
 use crate::{
-    errors::NovaError,
-    games::utils::{pack_turn, unpack_turn},
-    models::{State, Turn},
+    error::NovaError,
+    game::utils::{pack_turn, unpack_turn},
+    model::{State, Turn},
 };
 use regex::Regex;
 
 /* ZERO-BY STATE ENCODING */
 
-pub const STATE_DEFAULT: &str = "10-0";
-pub const STATE_PATTERN: &str = r"^\d+-\d+$";
-pub const STATE_PROTOCOL: &str =
+pub const STATE_DEFAULT: &'static str = "10-0";
+pub const STATE_PATTERN: &'static str = r"^\d+-\d+$";
+pub const STATE_PROTOCOL: &'static str =
 "The state string should be two dash-separated positive integers without any \
 decimal points. The first integer will indicate the amount of elements left to \
 remove from the set, and the second indicates whose turn it is to remove an \
@@ -125,7 +125,7 @@ fn check_variant_coherence(
 mod test {
 
     use super::*;
-    use crate::games::{utils::verify_history_dynamic, Game};
+    use crate::game::{utils::verify_history_dynamic, Game};
 
     /* STATE STRING PARSING */
 

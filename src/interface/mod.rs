@@ -8,15 +8,15 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::{
-    errors::NovaError,
-    games::{zero_by, Game},
+    error::NovaError,
+    game::{zero_by, Game},
 };
 use clap::ValueEnum;
 
 /* MODULES */
 
-pub mod graphical;
-pub mod networked;
+pub mod graphic;
+pub mod network;
 pub mod terminal;
 
 /// Specifies the game offerings available through all interfaces.

@@ -20,9 +20,9 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use crate::{
-    errors::NovaError,
-    interfaces::terminal::cli::{IOMode, Solution},
-    models::{Partition, PlayerCount, State, StateCount, Turn, Utility},
+    error::NovaError,
+    interface::terminal::cli::{IOMode, Solution},
+    model::{Partition, PlayerCount, State, StateCount, Turn, Utility},
 };
 use nalgebra::{SMatrix, SVector};
 
@@ -35,7 +35,7 @@ pub mod utils; // <==== Not a game >:3
 /* DATA CONSTRUCTS */
 
 /// Contains useful data about a game, intended to provide users of the program
-/// information they can use to understand the output of analysis and solving,
+/// information they can use to understand the output of solving algorithms,
 /// in addition to specifying game variants.
 pub struct GameData<'a> {
     /* INSTANCE */

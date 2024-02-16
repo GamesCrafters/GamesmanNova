@@ -16,21 +16,20 @@
 use clap::Parser;
 use std::process;
 
-use crate::errors::NovaError;
+use crate::error::NovaError;
 use crate::execution::*;
-use crate::interfaces::terminal::cli::*;
+use crate::interface::terminal::cli::*;
 
 /* MODULES */
 
-mod analyzers;
-mod database;
-mod errors;
 mod execution;
-mod games;
-mod interfaces;
-mod models;
-mod solvers;
-mod utils;
+mod interface;
+mod database;
+mod solver;
+mod error;
+mod model;
+mod game;
+mod util;
 
 /* PROGRAM ENTRY */
 
@@ -62,12 +61,12 @@ fn analyze(args: &AnalyzeArgs) -> Result<(), NovaError> {
 }
 
 fn solve(args: &SolveArgs) -> Result<(), NovaError> {
-    utils::confirm_potential_overwrite(args.yes, args.mode);
-    solving::solve_by_name(args)?;
+    util::confirm_potential_overwrite(args.yes, args.mode);
+    solve::by_name(args)?;
     Ok(())
 }
 
 fn info(args: &InfoArgs) -> Result<(), NovaError> {
-    informing::print_game_info(args.target, args.output)?;
+    inform::print_game_info(args.target, args.output)?;
     Ok(())
 }

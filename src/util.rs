@@ -6,7 +6,7 @@
 //!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use crate::interfaces::terminal::cli::IOMode;
+use crate::interface::terminal::cli::IOMode;
 use std::process;
 
 /* PRINTING AND OTHER I/O */

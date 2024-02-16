@@ -1,36 +1,44 @@
-//! # Databases Module
+//! # Database Module [WIP]
 //!
-//! This module contains the I/O subroutines to store the results of the
-//! solving algorithms persistently.
+//! This module contains memory and I/O mechanisms used to store and fetch
+//! solution set data, hopefully in an efficient and scalable way.
 //!
 //! #### Authorship
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use crate::{
-    interfaces::terminal::cli::IOMode,
-    models::{PlayerCount, State},
-};
-use record::Record;
+use crate::error::NovaError;
+use std::path::Path;
 
-/* DBMS IMLPEMENTATIONS */
+pub mod schema;
+pub mod simple;
 
-pub mod bpdb;
-pub mod record;
+/* DATABASE PARAMETERS */
 
-/* TRAITS */
+pub enum Persistence<'a> {
+    On(&'a Path),
+    Off,
+}
 
-/// Database management system interface for storing game state to value
-/// mappings.
-pub trait Database<const N: PlayerCount> {
-    /// Instantiate a new database.
-    fn new(id: String, mode: IOMode) -> Self
-    where
-        Self: Sized;
-    /// Create a new record.
-    fn put(&mut self, state: State, record: Record<N>);
-    /// Read a record. Returns `None` if record does not exist.
-    fn get(&self, state: State) -> Option<Record<N>>;
-    /// Delete a record.
-    fn delete(&mut self, state: State);
+/* INTERFACE DEFINITIONS */
+
+pub trait KVStore {
+    fn put(&mut self, key: usize, value: &[u8]);
+    fn get(&self, key: usize) -> Option<&[u8]>;
+    fn delete(&self, key: usize);
+}
+
+/* FEATURE ADDITIONS */
+
+pub trait Persistent
+where
+    Self: Drop,
+{
+    fn bind(&self, path: &Path) -> Result<(), NovaError>;
+}
+
+pub trait Tabular {
+    fn create_table(&self, id: &str, width: u32) -> Result<(), NovaError>;
+    fn select_table(&self, id: &str) -> Result<(), NovaError>;
+    fn delete_table(&self, id: &str) -> Result<(), NovaError>;
 }

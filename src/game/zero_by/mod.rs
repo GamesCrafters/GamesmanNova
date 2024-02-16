@@ -1,7 +1,7 @@
 //! # Zero-By Game Module
 //!
-//! Zero-By is a small acyclic game, where two players take turns removing
-//! one of certain amounts of elements from a set of N elements. For example,
+//! Zero-By is a simple acyclic game where two players take turns removing one
+//! of certain amounts of elements from a set of N elements. For example,
 //! players could take turns removing either one or two coins from a stack
 //! of ten, which would be an instance of Ten to Zero by One or Two (coins).
 //!
@@ -14,16 +14,16 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use super::{utils, Acyclic, Bounded, Legible};
-use crate::games::{DynamicAutomaton, Game, GameData, Solvable};
+use crate::game::{DynamicAutomaton, Game, GameData, Solvable};
 use crate::implement;
-use crate::interfaces::terminal::cli::IOMode;
-use crate::interfaces::terminal::cli::Solution;
-use crate::models::PlayerCount;
-use crate::models::Utility;
-use crate::solvers::strong::acyclic;
+use crate::interface::terminal::cli::IOMode;
+use crate::interface::terminal::cli::Solution;
+use crate::model::PlayerCount;
+use crate::model::Utility;
+use crate::solver::strong::acyclic;
 use crate::{
-    errors::NovaError,
-    models::{State, Turn},
+    error::NovaError,
+    model::{State, Turn},
 };
 use nalgebra::SVector;
 use states::*;
@@ -36,9 +36,9 @@ mod variants;
 
 /* GAME DATA */
 
-const NAME: &str = "zero-by";
-const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
-const ABOUT: &str =
+const NAME: &'static str = "zero-by";
+const AUTHORS: &'static str = "Max Fierro <maxfierro@berkeley.edu>";
+const ABOUT: &'static str =
 "Many players take turns removing a number of elements from a set of arbitrary \
 size. The game variant determines how many players are in the game, how many \
 elements are in the set to begin with, and the options players have in the \

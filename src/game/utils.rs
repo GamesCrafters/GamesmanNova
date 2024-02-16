@@ -8,9 +8,9 @@
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use crate::{
-    errors::NovaError,
-    models::{PlayerCount, State, Turn},
-    solvers::MAX_TRANSITIONS,
+    error::NovaError,
+    model::{PlayerCount, State, Turn},
+    solver::MAX_TRANSITIONS,
 };
 
 use super::{DynamicAutomaton, Legible, StaticAutomaton};

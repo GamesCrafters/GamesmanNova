@@ -6,14 +6,14 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::errors::NovaError;
-use crate::interfaces::find_game;
-use crate::interfaces::terminal::cli::SolveArgs;
+use crate::error::NovaError;
+use crate::interface::find_game;
+use crate::interface::terminal::cli::SolveArgs;
 
 /// Attempts to solve the game with the indicated `name`, and returns the value
 /// or an error containing what was actually passed in versus what was
 /// probably meant to be passed in.
-pub fn solve_by_name(args: &SolveArgs) -> Result<(), NovaError> {
+pub fn by_name(args: &SolveArgs) -> Result<(), NovaError> {
     let game = find_game(
         args.target,
         args.variant.to_owned(),

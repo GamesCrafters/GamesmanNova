@@ -9,7 +9,7 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use crate::interfaces::GameModule;
+use crate::interface::GameModule;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::fmt;
 

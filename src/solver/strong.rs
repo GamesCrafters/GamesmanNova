@@ -21,12 +21,10 @@
 ///
 /// - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
 pub mod acyclic {
-    use crate::database::record::Record;
-    use crate::database::{bpdb::BPDatabase, Database};
-    use crate::games::{Acyclic, DynamicAutomaton, StaticAutomaton};
-    use crate::interfaces::terminal::cli::IOMode;
-    use crate::models::{PlayerCount, State};
-    use crate::solvers::MAX_TRANSITIONS;
+    use crate::game::{Acyclic, DynamicAutomaton, StaticAutomaton};
+    use crate::interface::terminal::cli::IOMode;
+    use crate::model::{PlayerCount, State};
+    use crate::solver::MAX_TRANSITIONS;
 
     /* SOLVER INTERFACES */
 

@@ -8,7 +8,6 @@
 
 /* MODULES */
 
-pub mod analyzing;
-pub mod informing;
-pub mod interfacing;
-pub mod solving;
+pub mod inform;
+pub mod interface;
+pub mod solve;
