@@ -21,8 +21,11 @@
 ///
 /// - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
 pub mod acyclic {
+
+    use std::collections::HashMap;
+
     use crate::game::{Acyclic, DynamicAutomaton, StaticAutomaton};
-    use crate::interface::terminal::cli::IOMode;
+    use crate::interface::IOMode;
     use crate::model::{PlayerCount, State};
     use crate::solver::MAX_TRANSITIONS;
 
@@ -80,7 +83,7 @@ pub mod acyclic {
         G: Acyclic<N> + DynamicAutomaton<State>,
     {
         fn solve(&self, mode: IOMode) {
-            let mut db = BPDatabase::new(self.id(), mode);
+            let mut db: HashMap<State, Record<N>> = HashMap::new();
             dfs_heap_reverse_induction(&mut db, self);
         }
     }

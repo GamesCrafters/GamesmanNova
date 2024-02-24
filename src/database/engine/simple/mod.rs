@@ -16,11 +16,12 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
+use anyhow::{Context, Result};
 use std::fs::File;
 
 use crate::database::Persistence;
 use crate::database::{KVStore, Tabular};
-use crate::error::NovaError;
+use crate::model::State;
 
 /* CONSTANTS */
 
@@ -45,8 +46,10 @@ pub struct Parameters<'a> {
     persistence: Persistence<'a>,
 }
 
+/* IMPLEMENTATION */
+
 impl Database<'_> {
-    fn initialize(params: Parameters) -> Result<Self, NovaError> {
+    fn initialize(params: Parameters) -> Result<Self> {
         let mode = params.persistence;
         let buffer = Vec::new();
         let table = Table {
@@ -77,33 +80,33 @@ impl Database<'_> {
 }
 
 impl KVStore for Database<'_> {
-    fn put(&mut self, key: usize, value: &[u8]) {
-        self.buffer.insert(key, value)
-    }
-
-    fn get(&self, key: usize) -> Option<&[u8]> {
+    fn put(&mut self, key: State, value: &[u8]) {
         todo!()
     }
 
-    fn delete(&self, key: usize) {
+    fn get(&self, key: State) -> Option<&[u8]> {
+        todo!()
+    }
+
+    fn del(&self, key: State) {
         todo!()
     }
 }
 
 impl Tabular for Database<'_> {
-    fn create_table(&self, id: &str, width: u32) -> Result<(), NovaError> {
+    fn create_table(&self, id: &str, width: u32) -> Result<()> {
         todo!()
     }
 
-    fn select_table(&self, id: &str) -> Result<(), NovaError> {
+    fn select_table(&self, id: &str) -> Result<()> {
         todo!()
     }
 
-    fn delete_table(&self, id: &str) -> Result<(), NovaError> {
+    fn delete_table(&self, id: &str) -> Result<()> {
         todo!()
     }
 }
 
-fn initialize_metadata_table(file: File) -> Result<(), NovaError> {
+fn initialize_metadata_table(file: File) -> Result<()> {
     todo!()
 }

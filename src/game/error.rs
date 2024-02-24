@@ -1,23 +1,21 @@
-//! # Errors Module
+//! # Game Error Module
 //!
-//! This module defines the errors that can happen during execution, only as
-//! a result of a Nova-specific reason. Some examples of this are:
-//!
-//! - Malformed game variant strings provided to game implementations.
-//! - A game or solver not being found among the offerings.
-//! - Reading an incorrectly serialized solution set database.
+//! This module defines possible errors that could happen as a result of user
+//! input or an incomplete game implementation.
 //!
 //! #### Authorship
 //!
-//! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
+//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};
 
-/* UNIVERSAL WRAPPER */
+/* ERROR WRAPPER */
 
-/// Wrapper for all errors that could happen during runtime.
+/// Wrapper for all game-related errors that could happen during runtime. Note
+/// that the elements of this enumeration are all related to the implementation
+/// of interface elements in `crate::game::mod`.
 #[derive(Debug)]
-pub enum NovaError {
+pub enum GameError {
     /// An error to indicate that a user attempted to solve a game variant
     /// which is valid, but has no solver available to solve it.
     SolverNotFound { input_game_name: &'static str },
@@ -26,7 +24,7 @@ pub enum NovaError {
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
     /// that `game_name` should be a valid argument to the `--target`
-    /// parameter in any command.
+    /// parameter in the CLI.
     VariantMalformed {
         game_name: &'static str,
         hint: String,
@@ -36,7 +34,7 @@ pub enum NovaError {
     /// `game_name` was not in a format the game could parse. Includes a
     /// message from the game implementation on exactly what went wrong. Note
     /// that `game_name` should be a valid argument to the `--target`
-    /// parameter in any command.
+    /// parameter in the CLI.
     StateMalformed {
         game_name: &'static str,
         hint: String,
@@ -45,50 +43,47 @@ pub enum NovaError {
     /// An error to indicate that a sequence of states in string form would
     /// be impossible to reproduce in real play. Includes a message from the
     /// game implementation on exactly what went wrong. Note that `game_name`
-    /// should be a valid argument to the `--target` parameter in any command.
+    /// should be a valid argument to the `--target` parameter in the CLI.
     InvalidHistory {
         game_name: &'static str,
         hint: String,
     },
 }
 
-impl Error for NovaError {}
+impl Error for GameError {}
 
-impl fmt::Display for NovaError {
+impl fmt::Display for GameError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::SolverNotFound { input_game_name } => {
                 write!(
                     f,
-                    "Sorry, the variant you specified for the game {} has no \
-                    solvers associated with it.",
+                    "The variant you specified for the game {} has no solvers \
+                    associated with it.",
                     input_game_name
                 )
             },
             Self::VariantMalformed { game_name, hint } => {
                 write!(
                     f,
-                    "The provided variant is malformed: {}\n\nMore information \
-                    on how the game expects you to format it can be found with \
-                    'nova info {} --output extra'.",
+                    "{}\n\n\tMore information on how the game expects you to \
+                    format it can be found with 'nova info {} --output extra'.",
                     hint, game_name
                 )
             },
             Self::StateMalformed { game_name, hint } => {
                 write!(
                     f,
-                    "The provided state is malformed: {}\n\nMore information \
-                    on how the game expects you to format it can be found with \
-                    'nova info {} --output extra'.",
+                    "{}\n\n\tMore information on how the game expects you to \
+                    format it can be found with 'nova info {} --output extra'.",
                     hint, game_name
                 )
             },
             Self::InvalidHistory { game_name, hint } => {
                 write!(
                     f,
-                    "The provided history is incorrect: {}\n\nMore information \
-                    on the game's rules can be found with 'nova info {} \
-                    --output extra'.",
+                    "{}\n\n\tMore information on the game's rules can be found \
+                    with 'nova info {} --output extra'.",
                     hint, game_name
                 )
             },

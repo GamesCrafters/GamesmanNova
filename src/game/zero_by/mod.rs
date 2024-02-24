@@ -13,21 +13,20 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use super::{utils, Acyclic, Bounded, Legible};
-use crate::game::{DynamicAutomaton, Game, GameData, Solvable};
-use crate::implement;
-use crate::interface::terminal::cli::IOMode;
-use crate::interface::terminal::cli::Solution;
-use crate::model::PlayerCount;
-use crate::model::Utility;
-use crate::solver::strong::acyclic;
-use crate::{
-    error::NovaError,
-    model::{State, Turn},
-};
+use anyhow::{Context, Result};
 use nalgebra::SVector;
 use states::*;
-use variants::*;
+
+use crate::game::error::GameError;
+use crate::game::zero_by::variants::*;
+use crate::game::{util, Acyclic, Bounded, Legible};
+use crate::game::{DTransition, Game, GameData, Solvable};
+use crate::implement;
+use crate::interface::{IOMode, SolutionMode};
+use crate::model::PlayerCount;
+use crate::model::Utility;
+use crate::model::{State, Turn};
+use crate::solver::strong::acyclic;
 
 /* SUBMODULES */
 
@@ -56,11 +55,11 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<String>) -> Result<Self, NovaError> {
+    fn initialize(variant: Option<String>) -> Result<Self> {
         if let Some(v) = variant {
-            parse_variant(v)
+            parse_variant(v).context("Malformed game variant.")
         } else {
-            parse_variant(VARIANT_DEFAULT.to_owned())
+            Ok(parse_variant(VARIANT_DEFAULT.to_owned()).unwrap())
         }
     }
 
@@ -68,8 +67,8 @@ impl Game for Session {
         format!("{}.{}", NAME, self.variant)
     }
 
-    fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError> {
-        self.start = utils::verify_history_dynamic(self, history)?;
+    fn forward(&mut self, history: Vec<String>) -> Result<()> {
+        self.start = util::verify_history_dynamic(self, history)?;
         Ok(())
     }
 
@@ -91,18 +90,19 @@ impl Game for Session {
         }
     }
 
-    fn solve(&self, mode: IOMode, method: Solution) -> Result<(), NovaError> {
+    fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
         match (self.players, method) {
-            (2, Solution::Strong) => {
+            (2, SolutionMode::Strong) => {
                 <Self as acyclic::DynamicSolver<2, State>>::solve(&self, mode)
             },
-            (10, Solution::Strong) => {
+            (10, SolutionMode::Strong) => {
                 <Self as acyclic::DynamicSolver<10, State>>::solve(&self, mode)
             },
             _ => {
-                return Err(NovaError::SolverNotFound {
+                return Err(GameError::SolverNotFound {
                     input_game_name: NAME,
                 })
+                .context("Solver not found.");
             },
         }
         Ok(())
@@ -115,20 +115,21 @@ impl Bounded<State> for Session {
     fn start(&self) -> State {
         self.start
     }
+
+    fn end(&self, state: State) -> bool {
+        state == 0
+    }
 }
 
-impl DynamicAutomaton<State> for Session {
-    fn transition(&self, state: State) -> Vec<State> {
-        let (state, turn) = utils::unpack_turn(state, self.players);
-        if state == 0 {
-            return Vec::new();
-        }
+impl DTransition<State> for Session {
+    fn prograde(&self, state: State) -> Vec<State> {
+        let (state, turn) = util::unpack_turn(state, self.players);
         let mut next = self
             .by
             .iter()
             .map(|&choice| if state <= choice { state } else { choice })
             .map(|choice| {
-                utils::pack_turn(
+                util::pack_turn(
                     state - choice,
                     (turn + 1) % self.players,
                     self.players,
@@ -139,17 +140,42 @@ impl DynamicAutomaton<State> for Session {
         next.dedup();
         next
     }
+
+    fn retrograde(&self, state: State) -> Vec<State> {
+        let (state, turn) = util::unpack_turn(state, self.players);
+        let mut next =
+            self.by
+                .iter()
+                .map(|&choice| {
+                    if state + choice <= self.start {
+                        choice
+                    } else {
+                        self.start
+                    }
+                })
+                .map(|choice| {
+                    util::pack_turn(
+                        state + choice,
+                        (turn - 1) % self.players,
+                        self.players,
+                    )
+                })
+                .collect::<Vec<State>>();
+        next.sort();
+        next.dedup();
+        next
+    }
 }
 
 /* SUPPLEMENTAL DECLARATIONS */
 
 impl Legible<State> for Session {
-    fn decode(&self, string: String) -> Result<State, NovaError> {
+    fn decode(&self, string: String) -> Result<State> {
         Ok(parse_state(&self, string)?)
     }
 
     fn encode(&self, state: State) -> String {
-        let (elements, turn) = utils::unpack_turn(state, self.players);
+        let (elements, turn) = util::unpack_turn(state, self.players);
         format!("{}-{}", elements, turn)
     }
 }
@@ -163,7 +189,7 @@ implement! { for Session =>
 
 impl Solvable<2> for Session {
     fn utility(&self, state: State) -> SVector<Utility, 2> {
-        let (_, turn) = utils::unpack_turn(state, 2);
+        let (_, turn) = util::unpack_turn(state, 2);
         let mut result = SVector::<Utility, 2>::zeros();
         result.fill(-1);
         result[turn] = 1;
@@ -171,13 +197,13 @@ impl Solvable<2> for Session {
     }
 
     fn turn(&self, state: State) -> Turn {
-        utils::unpack_turn(state, 2).1
+        util::unpack_turn(state, 2).1
     }
 }
 
 impl Solvable<10> for Session {
     fn utility(&self, state: State) -> SVector<Utility, 10> {
-        let (_, turn) = utils::unpack_turn(state, 10);
+        let (_, turn) = util::unpack_turn(state, 10);
         let mut result = SVector::<Utility, 10>::zeros();
         result.fill(-1);
         result[turn] = 9;
@@ -185,6 +211,6 @@ impl Solvable<10> for Session {
     }
 
     fn turn(&self, state: State) -> Turn {
-        utils::unpack_turn(state, 10).1
+        util::unpack_turn(state, 10).1
     }
 }

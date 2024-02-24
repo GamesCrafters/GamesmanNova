@@ -60,6 +60,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.80"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -163,11 +169,11 @@ checksum = "de853764b47027c2e862a995c34978ffa63c1501f2e15f987ba11bd4f9bba193"
 name = "gamesman-nova"
 version = "0.1.5"
 dependencies = [
+ "anyhow",
  "clap",
  "colored",
  "exitcode",
  "nalgebra",
- "num-traits",
  "regex",
  "serde_json",
 ]

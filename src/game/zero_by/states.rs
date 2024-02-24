@@ -8,13 +8,14 @@
 //!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
-use super::{Session, NAME};
+use regex::Regex;
+
+use crate::game::zero_by::{Session, NAME};
 use crate::{
-    error::NovaError,
-    game::utils::{pack_turn, unpack_turn},
+    game::error::GameError,
+    game::util::{pack_turn, unpack_turn},
     model::{State, Turn},
 };
-use regex::Regex;
 
 /* ZERO-BY STATE ENCODING */
 
@@ -37,7 +38,7 @@ strictly less than the number of players in the game.";
 pub fn parse_state(
     session: &Session,
     from: String,
-) -> Result<State, NovaError> {
+) -> Result<State, GameError> {
     check_state_pattern(&from)?;
     let params = parse_parameters(&from)?;
     let (from, turn) = check_param_count(&params)?;
@@ -48,10 +49,10 @@ pub fn parse_state(
 
 /* STATE STRING VERIFICATION */
 
-fn check_state_pattern(from: &String) -> Result<(), NovaError> {
+fn check_state_pattern(from: &String) -> Result<(), GameError> {
     let re = Regex::new(STATE_PATTERN).unwrap();
     if !re.is_match(&from) {
-        Err(NovaError::VariantMalformed {
+        Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{}'.",
@@ -63,12 +64,12 @@ fn check_state_pattern(from: &String) -> Result<(), NovaError> {
     }
 }
 
-fn parse_parameters(from: &String) -> Result<Vec<u64>, NovaError> {
+fn parse_parameters(from: &String) -> Result<Vec<u64>, GameError> {
     from.split('-')
         .map(|int_string| {
             int_string
                 .parse::<u64>()
-                .map_err(|e| NovaError::StateMalformed {
+                .map_err(|e| GameError::StateMalformed {
                     game_name: NAME,
                     hint: format!("{}", e.to_string()),
                 })
@@ -76,9 +77,9 @@ fn parse_parameters(from: &String) -> Result<Vec<u64>, NovaError> {
         .collect()
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(State, Turn), NovaError> {
+fn check_param_count(params: &Vec<u64>) -> Result<(State, Turn), GameError> {
     if params.len() != 2 {
-        Err(NovaError::StateMalformed {
+        Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "String contains {} integers, but needs to have exactly 2.",
@@ -94,10 +95,10 @@ fn check_variant_coherence(
     from: State,
     turn: Turn,
     session: &Session,
-) -> Result<(), NovaError> {
+) -> Result<(), GameError> {
     let (session_from, _) = unpack_turn(session.start, session.players);
     if from > session_from {
-        Err(NovaError::StateMalformed {
+        Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "Specified more starting elements ({}) than variant allows \
@@ -106,7 +107,7 @@ fn check_variant_coherence(
             ),
         })
     } else if turn >= session.players {
-        Err(NovaError::StateMalformed {
+        Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "Specified a turn ({}) too high for this ({}-player) game \
@@ -125,7 +126,7 @@ fn check_variant_coherence(
 mod test {
 
     use super::*;
-    use crate::game::{utils::verify_history_dynamic, Game};
+    use crate::game::{util::verify_history_dynamic, Game};
 
     /* STATE STRING PARSING */
 

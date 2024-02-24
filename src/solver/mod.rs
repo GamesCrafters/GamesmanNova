@@ -36,6 +36,8 @@
 
 pub mod stochastic;
 pub mod strong;
+pub mod error;
+pub mod util;
 pub mod weak;
 
 /* CONSTANTS */

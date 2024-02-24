@@ -1,36 +1,32 @@
 //! # Game Implementations Module
 //!
-//! The `games` crate includes implementations for games intended to be
+//! The `games` module includes implementations for games intended to be
 //! solved. To be able to solve a game with GamesmanNova, it must satisfy
 //! the following characteristics/constraints:
 //!
-//! * It must have a finite amount of possible states and moves
-//! * It must be reasonably "sized" (in terms of number of unique states)
+//! * It must be reasonably "sized" (number of equivalent states)
 //! * It must have states which can be efficiently represented
-//! * It must not allow collaboration between players (WIP)
-//!
-//! This module includes functional constructs for economic games and for
-//! methods that can be used to traverse them deterministically as well as
-//! probabilistically. It also provides interfaces which make finding the
-//! solution concepts for games we consider more efficient by taking advantage
-//! of fundamental differences in their structure.
 //!
 //! #### Authorship
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use anyhow::Result;
+use nalgebra::{SMatrix, SVector};
+
 use crate::{
-    error::NovaError,
-    interface::terminal::cli::{IOMode, Solution},
+    interface::{IOMode, SolutionMode},
     model::{Partition, PlayerCount, State, StateCount, Turn, Utility},
 };
-use nalgebra::{SMatrix, SVector};
+
+/* UTILITY MODULES */
+
+mod error;
+mod util;
 
 /* IMPLEMENTED GAMES */
 
 pub mod zero_by;
-
-pub mod utils; // <==== Not a game >:3
 
 /* DATA CONSTRUCTS */
 
@@ -77,7 +73,8 @@ pub struct GameData<'a> {
 /* ACCESS INTERFACES */
 
 /// Defines miscellaneous behavior of a deterministic economic game object. Note
-/// that player count is arbitrary; puzzles are semantically one-player games.
+/// that player count is arbitrary; puzzles are semantically one-player games,
+/// although they are more alike to optimization problems than cases of games.
 ///
 /// ## Explanation
 ///
@@ -85,25 +82,14 @@ pub struct GameData<'a> {
 /// to do in relation to the rest of the project's modules, and not necessarily
 /// in relation to their underlying nature.
 pub trait Game {
-    /// Allows for the specification of a game variant. Calling this with a
-    /// different `variant` argument should result in the `id` associated method
-    /// returning a different string, meaning that game IDs should uniquely
-    /// identify game variants.
-    ///
     /// Returns `Result::Ok(Self)` if the specified `variant` is not malformed.
     /// Otherwise, returns a `Result::Err(String)` containing a text string
     /// explaining why it could not be parsed.
-    fn initialize(variant: Option<String>) -> Result<Self, NovaError>
+    fn initialize(variant: Option<String>) -> Result<Self>
     where
         Self: Sized;
 
-    /* SECONDARY PLUGINS
-     *
-     * The functions below facilitate secondary functionality used in features
-     * of this project. Some of the interfaces in this file might help implement
-     * the procedures they specify. If this is the case, a list of related
-     * interfaces is listed in the docstring of each function.
-     */
+    /* SECONDARY PLUGINS */
 
     /// Returns an ID unique to this game. The return value should be consistent
     /// across calls from the same game and variant, but differing across calls
@@ -118,28 +104,15 @@ pub trait Game {
     /// `history` should be verified by ensuring that the following is true:
     ///
     /// - `history[0]` is the start state specified by the game variant.
-    /// - Calling `transition` on `history[i]` returns `history[i + 1]`.
+    /// - The set `transition(history[i])` contains `history[i + 1]`.
     ///
     /// If these conditions are not satisfied, this function should return a
     /// useful error containing information about why the provided `history`
     /// is not possible for the game variant. Otherwise, it should mutate `self`
-    /// to have a starting state whose string encoding is `history.pop()`, which
-    /// can then be returned by whichever traversal interface is implemented by
-    /// this game.
-    ///
-    /// Related interfaces:
-    ///  
-    /// - `Legible<S>`.
-    fn forward(&mut self, history: Vec<String>) -> Result<(), NovaError>;
+    /// to have a starting state whose string encoding is `history.pop()`.
+    fn forward(&mut self, history: Vec<String>) -> Result<()>;
 
-    /* MAIN PLUGINS
-     *
-     * These functions provide core functionality, and are directly associated
-     * with an execution module (e.g., solving, analyzing, informing, etc.).
-     * The interfaces declared in this file are structured around providing the
-     * necessary functionality to implement these procedures. A list of related
-     * interfaces is listed in the docstring of each function.
-     */
+    /* MAIN PLUGINS */
 
     /// Returns useful information about the game, such as the type of game it
     /// is, who implemented it, and an explanation of how to specify different
@@ -151,21 +124,14 @@ pub trait Game {
     /// if solving the specific game variant is not supported (among other
     /// possibilities for an error), and a unit type if everything goes per
     /// specification. See `IOMode` for specifics on intended side effects.
-    ///
-    /// Related interfaces:
-    ///
-    /// - `Solvable<N>`.
-    /// - Traversal interfaces (e.g., `StaticAutomaton<S, F>`).
-    /// - Game structure markers (e.g., `Acyclic<N>`).
-    fn solve(&self, mode: IOMode, method: Solution) -> Result<(), NovaError>;
+    fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()>;
 }
 
 /* INTERFACING */
 
-/// Defines the necessary behavior to encode and decode a state type **S** to
-/// and from a `String`. This is related to the `GameData` object, which should
-/// contain information about the way in which game states can be represented
-/// using a string.
+/// Defines behavior to encode and decode a state type **S** to and from a
+/// `String`. This is related to the `GameData` object, which should contain
+/// information about how game states can be represented using a string.
 ///
 /// ## Explanation
 ///
@@ -188,7 +154,7 @@ where
     /// specified in the `GameData` object returned by `Game::info`. If it does
     /// not, an error containing a message with a brief explanation on what is
     /// wrong with `string` should be returned.
-    fn decode(&self, string: String) -> Result<S, NovaError>;
+    fn decode(&self, string: String) -> Result<S>;
 
     /// Transforms a game state type **S** into a string representation. The
     /// string returned should conform to the `state_protocol` specified in the
@@ -200,155 +166,135 @@ where
 
 /* DETERMINISTIC TRAVERSAL INTERFACES */
 
-/// Defines the necessary behavior for the traversal of finite games by
-/// providing a way to retrieve a unique starting state from which to begin a
-/// traversal. Generic over a state type **S**. Note that there is no `end`
-/// checking behavior due to the assumption that terminal states in games should
-/// yield an empty set of transition states, which would make this additional
-/// function redundant.
+/// Provides a way to retrieve a unique starting state from which to begin a
+/// traversal, and a way to tell when a traversal can no longer continue from
+/// a state. This does not necessarily imply that the underlying structure being
+/// traversed over is finite; just that there exist finite traversals over it.
+/// Generic over a state type **S**.
+///
+/// ## Explanation
+///
+/// In the example of games, there often exist ways to arrange their elements
+/// in a way that unexpectedly invalidates game state. For example, there is no
+/// valid game of chess with no kings remaining on the board. However, the most
+/// intuitive implementations of `Transition` interfaces would not bat an eye at
+/// this, and would simply return more states without any kings (this is one of
+/// the more obvious examples of an invalid state, but there are subtler ones).
+///
+/// In addition, not all valid states may be reachable from other valid states.
+/// For example, the empty board of Tic Tac Toe is not reachable from a board
+/// with any number of pieces on the board. In some games, though, these states
+/// become valid by simply changing the starting state (which is within the
+/// realm of game variants). For example, in the game 10 to 0 by 1 or 3, it is
+/// not valid to have a state of 8, but it becomes valid when the starting state
+/// is made to be 11. A similar line of reasoning applies to end states.
+///
+/// These facts motivate that the logic which determines the starting and ending
+/// states of games should be independent of the logic that transitions from
+/// valid states to other valid states.
 pub trait Bounded<S>
 where
     Self: Game,
 {
-    /// Returns the starting state of the underlying game. Used to initialize a
-    /// traversal deterministically.
+    /// Returns the starting state of the underlying structure. This is used to
+    /// deterministically initialize a traversal.
     fn start(&self) -> S;
+
+    /// Returns true if and only if there are no possible transitions from the
+    /// provided `state`. Inputting an invalid `state` is undefined behavior.
+    fn end(&self, state: S) -> bool;
 }
 
-/// Defines the behavior of a nondeterministic finite automaton _M_. Generic
-/// over **S**, the type encoding a member of the set of states of _M_. An
-/// implementation of this trait allows for an arbitrary number of transition
-/// states for any given state by using a heap-allocated variable-sized vector
-/// in the `transition` function. See `StaticAutomaton` for a static equivalent
-/// of this interface.
+/// Defines the behavior that allows for traversing what could be best described
+/// as a discrete automata (specifically, a NFA if at all) whose states are
+/// encoded with type `S`. While such an automata only provisions a transition
+/// function that provides state transitions in the prograde of time, here we
+/// also provide a way to define a transition function which acts as if all
+/// transitions defined by the automata were inverted (which provides a way to
+/// express transitions in the retrograde of time).
 ///
-/// ## Explanation
+/// As opposed to `STransition`, this interface trades off efficiency in the
+/// interest of versatility by using dynamically-sized data structures to return
+/// queries without explicitly upper-bounding the amount of states that each
+/// transition query can return.
 ///
-/// The motivation behind introducing this is the fundamental overlap between
-/// the behavior of games of differing player count. The notion of an NFA allows
-/// for somewhat of a formal grappling with these similarities, as automata
-/// theory has a lot of vocabulary to draw from. If you do not know what this
-/// is, please see [the NFA wikipedia page](https://tinyurl.com/4vxdkvzh) for
-/// more information.
+/// ### Explanation
 ///
-/// ### Game Automata
+/// Most extensive-form games this project pertains to have a well-defined way
+/// of making state transitions in the prograde of time, namely, making moves
+/// that transition game states. What may seem most confusing is doing this in
+/// retrograde.
 ///
-/// For deterministic finite games, the final (or "accepting") state set _F_ of
-/// an automaton _M_ modeling its behavior would be all of the end states (e.g.,
-/// a board of tic-tac-toe with no more empty slots). Then, the formal language
-/// _L(M)_ recognized by this automaton would contain all valid sequences of
-/// moves leading from the start state of the game to a final state in _F_, with
-/// the understanding that a finite alphabet is formed by all possible moves in
-/// the game.
+/// The reason this is desireable is to decrease the memory usage of many forms
+/// of backwards induction. If it is necessary to have the information of the
+/// states in `prograde(state)` to make a judgement on `state`, it is usually
+/// necessary to "remember" the structure of the game during exploration in
+/// order to figure out which states' information we can deduce from all of the
+/// terminal states (whose information is independent from any other state).
 ///
-/// ### Puzzle Automata
-///
-/// In the case of puzzle automata, the final state set _F_ is similarly the set
-/// of states where the puzzle is considered solved, and the language recognized
-/// by them is the set of all combinations of transformations that can be
-/// applied to the puzzle which bring it from the start state to a member of
-/// _F_. Again, this is with the understanding that the amount of
-/// transformations that can be applied to any state of the puzzle is finite.
-///
-/// ## Example
-///
-/// Consider a puzzle P which consists of removing elements from a set E one at
-/// a time until there are no more elements. Then, we can define _M_ an NFA to
-/// model P in the following manner:
-///
-/// - **S** `:= Unsigned Integer`, as sets can only have sizes in [0, _inf_).
-/// - The set of states of _M_ is `{|E|, |E| - 1, ..., 0}`, which are all
-///   intermediary sizes of E during the existence of the puzzle.
-/// - The set of final (or accepting) states of _M_ is `{0}`, which contains the
-///   size of the empty set.
-/// - _M_'s recognized language _L(M)_ is the set containing only the sequence
-///   `{1, 1, 1, ..., 1}` of length _|E|_, as you can only remove one element at
-///   any given state, and there are _|E|_ states.
-///
-/// Note that _|L(M)|_ = 1 implies that there is only one way to solve this
-/// puzzle. If _|L(M)|_ were equal to 0, that would imply the puzzle cannot be
-/// solved.
-pub trait DynamicAutomaton<S>
-where
-    Self: Bounded<S>,
-{
-    /// Returns a vector of states reachable from `state` in this automaton.
-    /// This is a mapping _T : S -> P(S)_ such that an element _x_ of _S_ is
-    /// mapped to the set of other elements of _S_ reachable from _x_ by
-    /// accepting an arbitrary element of the input alphabet, where _S_ is
-    /// the set of all possible states that this automaton can be in, and
-    /// _P(S)_ is the power set of _S_. If the return value of this function is
-    /// empty, we assume that the automata accepts `state`.
-    fn transition(&self, state: S) -> Vec<S>;
+/// However, if we have the ability to transition states in retrograde, we can
+/// simply move in retrograde from terminal states, without having to search for
+/// for the terminal states' pre-images through the entire game tree.
+pub trait DTransition<S> {
+    /// Given a `state` at time `t`, returns all states that are possible at
+    /// time `t + 1`. This should only guarantee that if `state` is feasible and
+    /// not an end state, then all returned states are also feasible; therefore,
+    /// inputting an invalid or end `state` is undefined behavior. The order of
+    /// the values returned is insignificant.
+    fn prograde(&self, state: S) -> Vec<S>;
+
+    /// Given a `state` at time `t`, returns all states that are possible at
+    /// time `t - 1`. This should only guarantee that if `state` is feasible,
+    /// then all returned states are also feasible; therefore, inputting an
+    /// invalid `state` is undefined behavior. The order of the values returned
+    /// is insignificant.
+    fn retrograde(&self, state: S) -> Vec<S>;
 }
 
-/// Defines the behavior of a nondeterministic finite automaton _M_. Generic
-/// over **S** (the type encoding a member of the set of states of _M_) and
-/// **F** (the maximum fan-out of the transition function). A limitation on
-/// the number of transition states for all states is imposed to gain the
-/// performance benefit of the usage of static arrays in `transition`. See
-/// `DynamicAutomaton` for an interface that allows returning an arbitrary
-/// number of states in `transition`.
+/// Defines the behavior that allows for traversing what could be best described
+/// as a discrete automata (specifically, a NFA if at all) whose states are
+/// encoded with type `S`. While such an automata only provisions a transition
+/// function that provides state transitions in the prograde of time, here we
+/// also provide a way to define a transition function which acts as if all
+/// transitions defined by the automata were inverted (which provides a way to
+/// express transitions in the retrograde of time).
 ///
-/// ## Explanation
+/// As opposed to `DTransition`, this interface trades off versatility in the
+/// interest of efficiency by using statically-sized data structures to return
+/// queries without the overhead of dynamic memory allocation.
 ///
-/// The motivation behind introducing this is the fundamental overlap between
-/// the behavior of games of differing player count. The notion of an NFA allows
-/// for somewhat of a formal grappling with these similarities, as automata
-/// theory has a lot of vocabulary to draw from. If you do not know what this
-/// is, please see [the NFA wikipedia page](https://tinyurl.com/4vxdkvzh) for
-/// more information.
+/// ### Explanation
 ///
-/// ### Game Automata
+/// Most extensive-form games this project pertains to have a well-defined way
+/// of making state transitions in the prograde of time, namely, making moves
+/// that transition game states. What may seem most confusing is doing this in
+/// retrograde.
 ///
-/// For deterministic finite games, the final (or "accepting") state set _F_ of
-/// an automaton _M_ modeling its behavior would be all of the end states (e.g.,
-/// a board of tic-tac-toe with no more empty slots). Then, the formal language
-/// _L(M)_ recognized by this automaton would contain all valid sequences of
-/// moves leading from the start state of the game to a final state in _F_, with
-/// the understanding that a finite alphabet is formed by all possible moves in
-/// the game.
+/// The reason this is desireable is to decrease the memory usage of many forms
+/// of backwards induction. If it is necessary to have the information of the
+/// states in `prograde(state)` to make a judgement on `state`, it is usually
+/// necessary to "remember" the structure of the game during exploration in
+/// order to figure out which states' information we can deduce from all of the
+/// terminal states (whose information is independent from any other state).
 ///
-/// ### Puzzle Automata
-///
-/// In the case of puzzle automata, the final state set _F_ is similarly the set
-/// of states where the puzzle is considered solved, and the language recognized
-/// by them is the set of all combinations of transformations that can be
-/// applied to the puzzle which bring it from the start state to a member of
-/// _F_. Again, this is with the understanding that the amount of
-/// transformations that can be applied to any state of the puzzle is finite.
-///
-/// ## Example
-///
-/// Consider a puzzle P which consists of removing elements from a set E one at
-/// a time until there are no more elements. Then, we can define _M_ an NFA to
-/// model P in the following manner:
-///
-/// - **S** `:= Unsigned Integer`, as sets can only have sizes in [0, _inf_).
-/// - The set of states of _M_ is `{|E|, |E| - 1, ..., 0}`, which are all
-///   intermediary sizes of E during the existence of the puzzle.
-/// - The set of final (or accepting) states of _M_ is `{0}`, which contains the
-///   size of the empty set.
-/// - _M_'s recognized language _L(M)_ is the set containing only the sequence
-///   `{1, 1, 1, ..., 1}` of length _|E|_, as you can only remove one element at
-///   any given state, and there are _|E|_ states.
-///
-/// Note that _|L(M)|_ = 1 implies that there is only one way to solve this
-/// puzzle. If _|L(M)|_ were equal to 0, that would imply the puzzle cannot be
-/// solved.
-pub trait StaticAutomaton<S, const F: usize>
-where
-    Self: Bounded<S>,
-{
-    /// Returns a vector of states reachable from `state` in this automaton.
-    /// This is a mapping _T : S -> P(S)_ such that an element _x_ of _S_ is
-    /// mapped to the set of other elements of _S_ reachable from _x_ by
-    /// accepting an arbitrary element of the input alphabet, where _S_ is
-    /// the set of all possible states that this automaton can be in, and
-    /// _P(S)_ is the power set of _S_. If the return value of this function
-    /// contains only `Option::None` variants, we assume that the automata
-    /// accepts `state`.
-    fn transition(&self, state: S) -> [Option<S>; F];
+/// However, if we have the ability to transition states in retrograde, we can
+/// simply move in retrograde from terminal states, without having to search for
+/// for the terminal states' pre-images through the entire game tree.
+pub trait STransition<S, const F: usize> {
+    /// Given a `state` at time `t`, returns all states that are possible at
+    /// time `t + 1`. This should only guarantee that if `state` is feasible and
+    /// not an end state, then all returned states are also feasible; therefore,
+    /// inputting an invalid or end `state` is undefined behavior. In the return
+    /// value, `Some(S)` represents a valid state. The order of these values is
+    /// insignificant.
+    fn prograde(&self, state: S) -> [Option<S>; F];
+
+    /// Given a `state` at time `t`, returns all states that are possible at
+    /// time `t - 1`. This should only guarantee that if `state` is feasible,
+    /// then all returned states are also feasible; therefore, inputting an
+    /// invalid `state` is undefined behavior. In the return value, `Some(S)`
+    /// represents a valid state. The order of these values is insignificant.
+    fn retrograde(&self, state: S) -> [Option<S>; F];
 }
 
 /* SOLVING INTERFACES */
@@ -410,7 +356,7 @@ where
     /// Provides an arbitrarily precise notion of the number of states that are
     /// elements of `partition`. This can be used to distribute the work of
     /// analyzing different partitions concurrently across different consumers
-    /// in a way that is equitable (improving efficiency).
+    /// in a way that is equitable to improve efficiency.
     fn size(&self, partition: Partition) -> StateCount;
 }
 
@@ -423,7 +369,7 @@ where
 /// there is no behavior associated with this trait; it is used as a marker for
 /// providing blanket implementations from solvers which require games' state
 /// graphs to not have any cycles.
-pub trait Acyclic<const N: PlayerCount>: Solvable<N> {}
+pub trait Acyclic<const N: PlayerCount> {}
 
 /* UTILITY INTERFACES */
 

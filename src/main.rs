@@ -13,20 +13,18 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use anyhow::Result;
 use clap::Parser;
+
 use std::process;
 
-use crate::error::NovaError;
-use crate::execution::*;
 use crate::interface::terminal::cli::*;
 
 /* MODULES */
 
-mod execution;
 mod interface;
 mod database;
 mod solver;
-mod error;
 mod model;
 mod game;
 mod util;
@@ -52,21 +50,26 @@ fn main() {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs) -> Result<(), NovaError> {
+fn tui(args: &TuiArgs) -> Result<()> {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs) -> Result<(), NovaError> {
+fn analyze(args: &AnalyzeArgs) -> Result<()> {
     todo!()
 }
 
-fn solve(args: &SolveArgs) -> Result<(), NovaError> {
+fn solve(args: &SolveArgs) -> Result<()> {
     util::confirm_potential_overwrite(args.yes, args.mode);
-    solve::by_name(args)?;
+    let game = util::find_game(
+        args.target,
+        args.variant.to_owned(),
+        args.from.to_owned(),
+    )?;
+    game.solve(args.mode, args.solver)?;
     Ok(())
 }
 
-fn info(args: &InfoArgs) -> Result<(), NovaError> {
-    inform::print_game_info(args.target, args.output)?;
+fn info(args: &InfoArgs) -> Result<()> {
+    util::print_game_info(args.target, args.output)?;
     Ok(())
 }

@@ -1,7 +1,7 @@
 //! # Command Line and Terminal Module
 //!
 //! This module defines a standard means of interaction with GamesmanNova
-//! through UNIX-like facilities.
+//! by assuming UNIX utilities for interfacing with a terminal.
 //!
 //! #### Authorship
 //!
@@ -10,4 +10,3 @@
 /* MODULES */
 
 pub mod cli;
-pub mod tui;

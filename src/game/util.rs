@@ -7,13 +7,14 @@
 //!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
+use anyhow::{Context, Result};
+
 use crate::{
-    error::NovaError,
+    game::error::GameError,
+    game::{DTransition, Legible, STransition},
     model::{PlayerCount, State, Turn},
     solver::MAX_TRANSITIONS,
 };
-
-use super::{DynamicAutomaton, Legible, StaticAutomaton};
 
 /* TURN ENCODING */
 
@@ -62,17 +63,12 @@ pub fn unpack_turn(
 /// `game`'s transition function. If these conditions are not met, it returns an
 /// error message signaling the pair of states that are not connected by the
 /// transition function, with a reminder of the current game variant.
-///
-/// This is implementation specifically consumes a `DynamicAutomaton<State>` as
-/// a means of obtaining a `transition` function. A similar implementation is
-/// available for `StaticAutomaton<State, MAX_TRANSITIONS>` under the symbol
-/// `verify_history_static`.
 pub fn verify_history_dynamic<G>(
     game: &G,
     history: Vec<String>,
-) -> Result<State, NovaError>
+) -> Result<State>
 where
-    G: Legible<State> + DynamicAutomaton<State>,
+    G: Legible<State> + DTransition<State>,
 {
     if let Some(s) = history.first() {
         let mut prev = game.decode(s.clone())?;
@@ -100,16 +96,9 @@ where
 /// `game`'s transition function. If these conditions are not met, it returns an
 /// error message signaling the pair of states that are not connected by the
 /// transition function, with a reminder of the current game variant.
-///
-/// This is implementation consumes a `StaticAutomaton<State, MAX_TRANSITIONS>
-/// as a means of obtaining a `transition` function. A similar implementation is
-/// available for `DynamicAutomaton<State>` as `verify_history_dynamic`.
-pub fn verify_history_static<G>(
-    game: &G,
-    history: Vec<String>,
-) -> Result<State, NovaError>
+pub fn verify_history_static<G>(game: &G, history: Vec<String>) -> Result<State>
 where
-    G: Legible<State> + StaticAutomaton<State, MAX_TRANSITIONS>,
+    G: Legible<State> + STransition<State, MAX_TRANSITIONS>,
 {
     if let Some(s) = history.first() {
         let mut prev = game.decode(s.clone())?;
@@ -131,20 +120,19 @@ where
     }
 }
 
-fn empty_history_error<G: Legible<State>>(
-    game: &G,
-) -> Result<State, NovaError> {
-    Err(NovaError::InvalidHistory {
+fn empty_history_error<G: Legible<State>>(game: &G) -> Result<State> {
+    Err(GameError::InvalidHistory {
         game_name: game.info().name,
         hint: format!("State history must contain at least one state."),
     })
+    .context("Invalid game history.")
 }
 
 fn start_history_error<G: Legible<State>>(
     game: &G,
     start: State,
-) -> Result<State, NovaError> {
-    Err(NovaError::InvalidHistory {
+) -> Result<State> {
+    Err(GameError::InvalidHistory {
         game_name: game.info().name,
         hint: format!(
             "The state history must begin with the starting state for this \
@@ -153,14 +141,15 @@ fn start_history_error<G: Legible<State>>(
             game.encode(start)
         ),
     })
+    .context("Invalid game history.")
 }
 
 fn transition_history_error<G: Legible<State>>(
     game: &G,
     prev: State,
     next: State,
-) -> Result<State, NovaError> {
-    Err(NovaError::InvalidHistory {
+) -> Result<State> {
+    Err(GameError::InvalidHistory {
         game_name: game.info().name,
         hint: format!(
             "Transitioning from the state '{}' to the sate '{}' is \
@@ -170,6 +159,7 @@ fn transition_history_error<G: Legible<State>>(
             game.info().variant
         ),
     })
+    .context("Invalid game history.")
 }
 
 /* TESTS */

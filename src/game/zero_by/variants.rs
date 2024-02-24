@@ -7,11 +7,12 @@
 //!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
-use super::{Session, NAME};
-use crate::error::NovaError;
-use crate::game::utils::pack_turn;
-use crate::model::Turn;
 use regex::Regex;
+
+use crate::game::error::GameError;
+use crate::game::util::pack_turn;
+use crate::game::zero_by::{Session, NAME};
+use crate::model::Turn;
 
 /* ZERO-BY VARIANT ENCODING */
 
@@ -31,9 +32,9 @@ be a slight decrease in performance.";
 /* API */
 
 /// Returns a zero-by game session set up using the parameters specified by
-/// `variant`. Returns a `NovaError::VariantMalformed` if the variant string
+/// `variant`. Returns a `GameError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: String) -> Result<Session, NovaError> {
+pub fn parse_variant(variant: String) -> Result<Session, GameError> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -49,13 +50,13 @@ pub fn parse_variant(variant: String) -> Result<Session, NovaError> {
 
 /* VARIANT STRING VERIFICATION */
 
-fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError> {
+fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
     let params: Result<Vec<u64>, _> = variant
         .split('-')
         .map(|int_string| {
             int_string
                 .parse::<u64>()
-                .map_err(|e| NovaError::VariantMalformed {
+                .map_err(|e| GameError::VariantMalformed {
                     game_name: NAME,
                     hint: format!("{}", e.to_string()),
                 })
@@ -64,10 +65,10 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError> {
     params
 }
 
-fn check_variant_pattern(variant: &String) -> Result<(), NovaError> {
+fn check_variant_pattern(variant: &String) -> Result<(), GameError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(&variant) {
-        Err(NovaError::VariantMalformed {
+        Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{}'.",
@@ -79,9 +80,9 @@ fn check_variant_pattern(variant: &String) -> Result<(), NovaError> {
     }
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
+fn check_param_count(params: &Vec<u64>) -> Result<(), GameError> {
     if params.len() < 3 {
-        Err(NovaError::VariantMalformed {
+        Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "String needs to have at least 3 dash-separated integers."
@@ -92,9 +93,9 @@ fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
     }
 }
 
-fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
+fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
     if params.iter().any(|&x| x <= 0) {
-        Err(NovaError::VariantMalformed {
+        Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!("All integers in the string must be positive."),
         })
@@ -103,9 +104,9 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
     }
 }
 
-fn parse_player_count(params: &Vec<u64>) -> Result<Turn, NovaError> {
+fn parse_player_count(params: &Vec<u64>) -> Result<Turn, GameError> {
     if params[0] > (Turn::MAX as u64) {
-        Err(NovaError::VariantMalformed {
+        Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "The number of players in the game must be lower than {}.",
@@ -164,7 +165,7 @@ mod test {
         let v5 = "0-12-234-364";
         let v6 = "-234-256";
 
-        fn wrapper(v: &'static str) -> Result<Session, NovaError> {
+        fn wrapper(v: &'static str) -> Result<Session, GameError> {
             parse_variant(v.to_owned())
         }
 
@@ -184,7 +185,7 @@ mod test {
         let v4 = "5-2-8-23";
         let v5 = "1-619-496-1150";
 
-        fn wrapper(v: &'static str) -> Result<Session, NovaError> {
+        fn wrapper(v: &'static str) -> Result<Session, GameError> {
             parse_variant(v.to_owned())
         }
 
