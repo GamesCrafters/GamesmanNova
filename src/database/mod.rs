@@ -16,13 +16,22 @@ use crate::model::State;
 
 /* UTILITY MODULES */
 
-mod object;
 mod error;
 mod util;
 
-/* IMPLEMENTATION MODULE */
+/* IMPLEMENTATION MODULES */
 
-pub mod engine;
+pub mod engine {
+    pub mod volatile;
+    pub mod simple;
+    pub mod lsmt;
+}
+
+mod object {
+    pub mod record;
+    pub mod schema;
+    pub mod table;
+}
 
 /* DATABASE PARAMETERS */
 

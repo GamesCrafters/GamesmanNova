@@ -3,7 +3,8 @@
 //! This module provides behavior for the systematic traversal of game trees
 //! via their implementation of different interfaces defining deterministic or
 //! probabilistic behavior, with the objective of computing their strong or weak
-//! solutions, or finding different equilibria in nondeterministic cases.
+//! solutions, or finding "solutions" under different game-theoretic DEFINITIONS
+//! of that word.
 //!
 //! ## Development Notes
 //!
@@ -14,35 +15,45 @@
 //! optimized for the interfaces they provide blanket implementations for, and
 //! the module structure should reflect that.
 //!
-//! To make the possible combinations of characteristics of games that we
-//! consider clearer, each game can be:
-//!
-//! - Deterministic or probabilistic
-//! - Cyclic or acyclic (game states can repeat or not)
-//! - Of any positive player count
-//!
-//! To make further clarifications on what the project is structured to provide,
-//! we consider "solutions" which:
-//!
-//! - Are weak or strong
-//! - Start from an arbitrary state in the game
-//! - Are equilibrium concepts (for probabilistic games)
-//!
 //! #### Authorship
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 /* SOLVER MODULES */
 
-pub mod stochastic;
-pub mod strong;
+/// Solving algorithms for games that are either of incomplete information or
+/// non-deterministic. The strategies used here diverge somewhat from the other
+/// solving procedures, as bringing in probability is a fundamental change.
+pub mod stochastic {
+    pub mod acyclic;
+    pub mod cyclic;
+}
+
+/// Solving algorithms for deterministic complete-information games that are
+/// able to generate complete solution sets (from which an equilibrium strategy
+/// can be distilled for any possible state in the game).
+pub mod strong {
+    pub mod acyclic;
+    pub mod cyclic;
+}
+
+/// Solving algorithms for deterministic complete-information games that only
+/// guarantee to provide an equilibrium strategy for the underlying game's
+/// starting position, but which do not necessarily explore entire game trees.
+pub mod weak {
+    pub mod acyclic;
+    pub mod cyclic;
+}
+
+/* UTILITY MODULES */
+
 pub mod error;
 pub mod util;
-pub mod weak;
 
 /* CONSTANTS */
 
 /// Describes the maximum number of states that are one move away from any state
 /// within a game. Used to allocate statically-sized arrays on the stack for
-/// faster execution of solving algorithms.
+/// faster execution of solving algorithms. If this limit is violated by a game
+/// implementation, this program will enter panic.
 pub const MAX_TRANSITIONS: usize = 50;
