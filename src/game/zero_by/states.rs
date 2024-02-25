@@ -52,7 +52,7 @@ pub fn parse_state(
 fn check_state_pattern(from: &String) -> Result<(), GameError> {
     let re = Regex::new(STATE_PATTERN).unwrap();
     if !re.is_match(&from) {
-        Err(GameError::VariantMalformed {
+        Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{}'.",
@@ -251,9 +251,7 @@ mod test {
 
     #[test]
     fn verify_correct_default_zero_by_history_passes() {
-        let c1 = vec![
-            "10-0", "8-1", "6-0", "4-1", "2-0", "0-1",
-        ];
+        let c1 = vec!["10-0", "8-1", "6-0", "4-1", "2-0", "0-1"];
         let c2 = vec!["10-0", "8-1", "6-0", "4-1", "2-0"];
         let c3 = vec!["10-0", "9-1", "7-0", "6-1"];
         let c4 = vec!["10-0", "8-1", "6-0"];

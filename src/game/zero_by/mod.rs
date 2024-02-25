@@ -68,7 +68,8 @@ impl Game for Session {
     }
 
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
-        self.start = util::verify_history_dynamic(self, history)?;
+        self.start = util::verify_history_dynamic(self, history)
+            .context("Malformed game state encoding.")?;
         Ok(())
     }
 

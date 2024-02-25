@@ -16,9 +16,11 @@
 //!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+
 use std::fs::File;
 
+use crate::database::object::schema::Schema;
 use crate::database::Persistence;
 use crate::database::{KVStore, Tabular};
 use crate::model::State;
@@ -94,7 +96,7 @@ impl KVStore for Database<'_> {
 }
 
 impl Tabular for Database<'_> {
-    fn create_table(&self, id: &str, width: u32) -> Result<()> {
+    fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
         todo!()
     }
 

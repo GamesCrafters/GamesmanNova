@@ -24,7 +24,7 @@ pub mod acyclic {
 
     use std::collections::HashMap;
 
-    use crate::game::{Acyclic, DynamicAutomaton, StaticAutomaton};
+    use crate::game::{Acyclic, Bounded, DTransition, STransition};
     use crate::interface::IOMode;
     use crate::model::{PlayerCount, State};
     use crate::solver::MAX_TRANSITIONS;
@@ -44,7 +44,7 @@ pub mod acyclic {
     /// arguments of `solve` for specifics.
     pub trait DynamicSolver<const N: PlayerCount, S>
     where
-        Self: Acyclic<N> + DynamicAutomaton<S>,
+        Self: Acyclic<N> + DTransition<S>,
     {
         /// Has the side effect of writing a strong solution to the underlying
         /// game by exploring using `from` as a starting state. For specifics
@@ -59,7 +59,7 @@ pub mod acyclic {
     /// is at that position, and associates the value achievable through that
     /// strategy to the position. This interface specifies that the traversal
     /// of the game must be possible via stack-allocated data structures by
-    /// requiring the implementation of `StaticAutomaton` with a preset number
+    /// requiring the implementation of `STransition` with a preset number
     /// of maximum state transitions `solvers::MAX_TRANSITIONS`.
     ///
     /// This interface only provides non-pure behavior for generating this
@@ -67,7 +67,7 @@ pub mod acyclic {
     /// arguments of `solve` for specifics.
     pub trait StaticSolver<const N: PlayerCount, const F: usize, S>
     where
-        Self: Acyclic<N> + StaticAutomaton<S, F>,
+        Self: Acyclic<N> + STransition<S, F>,
     {
         /// Has the side effect of writing a strong solution to the underlying
         /// game by exploring using `from` as a starting state. For specifics
@@ -80,37 +80,36 @@ pub mod acyclic {
 
     impl<const N: PlayerCount, G> DynamicSolver<N, State> for G
     where
-        G: Acyclic<N> + DynamicAutomaton<State>,
+        G: Acyclic<N> + DTransition<State> + Bounded<State>,
     {
         fn solve(&self, mode: IOMode) {
             let mut db: HashMap<State, Record<N>> = HashMap::new();
-            dfs_heap_reverse_induction(&mut db, self);
+            dynamic_backward_induction(&mut db, self);
         }
     }
 
     impl<const N: PlayerCount, G> StaticSolver<N, MAX_TRANSITIONS, State> for G
     where
-        G: Acyclic<N> + StaticAutomaton<State, MAX_TRANSITIONS>,
+        G: Acyclic<N> + STransition<State, MAX_TRANSITIONS> + Bounded<State>,
     {
         fn solve(&self, mode: IOMode) {
             let mut db = BPDatabase::new(self.id(), mode);
-            dfs_stack_reverse_induction(&mut db, self);
+            static_backward_induction(&mut db, self);
         }
     }
 
     /* SOLVING ALGORITHMS */
 
-    fn dfs_heap_reverse_induction<
-        const N: PlayerCount,
-        G: DynamicSolver<N, State>,
-    >(
+    fn dynamic_backward_induction<const N: PlayerCount, G>(
         db: &mut BPDatabase<N>,
         game: &G,
-    ) {
+    ) where
+        G: Bounded<State> + DTransition<State>,
+    {
         let mut stack = Vec::new();
         stack.push(game.start());
         while let Some(curr) = stack.pop() {
-            let children = game.transition(curr);
+            let children = game.prograde(curr);
             if let None = db.get(curr) {
                 db.put(curr, Record::default());
                 if children.is_empty() {
@@ -139,13 +138,12 @@ pub mod acyclic {
         }
     }
 
-    fn dfs_stack_reverse_induction<
-        const N: PlayerCount,
-        G: StaticSolver<N, MAX_TRANSITIONS, State>,
-    >(
+    fn static_backward_induction<const N: PlayerCount, G>(
         db: &mut BPDatabase<N>,
         game: &G,
-    ) {
+    ) where
+        G: StaticSolver<N, MAX_TRANSITIONS, State> + Bounded<State>,
+    {
         let mut stack = Vec::new();
         stack.push(game.start());
         while let Some(curr) = stack.pop() {

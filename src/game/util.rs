@@ -75,7 +75,7 @@ where
         if prev == game.start() {
             for i in 1..history.len() {
                 let next = game.decode(history[i].clone())?;
-                let transitions = game.transition(prev);
+                let transitions = game.prograde(prev);
                 if !transitions.contains(&next) {
                     return transition_history_error(game, prev, next);
                 }
@@ -105,7 +105,7 @@ where
         if prev == game.start() {
             for i in 1..history.len() {
                 let next = game.decode(history[i].clone())?;
-                let transitions = game.transition(prev);
+                let transitions = game.prograde(prev);
                 if !transitions.contains(&Some(next)) {
                     return transition_history_error(game, prev, next);
                 }
@@ -180,10 +180,7 @@ mod test {
         // 31 in decimal
         let state: State = 0b0001_1111;
         // 0b00...00_1111_1101 in binary = 0b[state bits][player bits]
-        assert_eq!(
-            0b1111_1101,
-            pack_turn(state, turn, player_count)
-        );
+        assert_eq!(0b1111_1101, pack_turn(state, turn, player_count));
     }
 
     #[test]
@@ -194,10 +191,7 @@ mod test {
         let encoding: State = 0b0001_0101_1010;
         // 0b00...00_0001_0101_1010 -> 0b00...00_0101 and 0b0001_1010, which
         // means that 346 should be decoded to a state of 5 and a turn of 26
-        assert_eq!(
-            (5, 26),
-            unpack_turn(encoding, player_count)
-        );
+        assert_eq!((5, 26), unpack_turn(encoding, player_count));
     }
 
     #[test]
@@ -211,10 +205,7 @@ mod test {
         // 0b00...011101 in binary
         let packed: State = pack_turn(state, turn, player_count);
         // Packing and unpacking should yield equivalent results
-        assert_eq!(
-            (state, turn),
-            unpack_turn(packed, player_count)
-        );
+        assert_eq!((state, turn), unpack_turn(packed, player_count));
 
         // About 255 * 23^2 iterations
         for p in Turn::MIN..=255 {
@@ -225,10 +216,7 @@ mod test {
 
             for s in (State::MIN..max_state).step_by(state_step) {
                 for t in (Turn::MIN..p).step_by(turn_step) {
-                    assert_eq!(
-                        (s, t),
-                        unpack_turn(pack_turn(s, t, p), p)
-                    );
+                    assert_eq!((s, t), unpack_turn(pack_turn(s, t, p), p));
                 }
             }
         }

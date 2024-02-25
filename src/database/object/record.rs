@@ -12,13 +12,14 @@
 
 use std::fmt::Display;
 
-use crate::model::RecordLength;
+use crate::database::object::schema::Schema;
 
 /* DEFINITION */
 
-#[derive(Eq, Hash, PartialEq, Debug, Clone, Copy)]
+/// Represents a fixed-length contiguous list of bytes with meaning. The meaning
+/// of each byte is defined by the enclosed schema, while the data is referenced
+/// as a pointer without a predetermined length.
 pub struct Record<'a> {
-    length: RecordLength,
     schema: Schema,
     data: &'a [u8],
 }

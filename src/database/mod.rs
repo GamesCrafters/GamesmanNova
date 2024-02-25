@@ -11,7 +11,8 @@ use anyhow::Result;
 
 use std::path::Path;
 
-use crate::model::{RecordLength, State};
+use crate::database::object::schema::Schema;
+use crate::model::State;
 
 /* UTILITY MODULES */
 
@@ -61,7 +62,7 @@ pub trait Persistent {
 /// interface's semantics are such that its implementations optimize performance
 /// for cases of sequential operations on a single table.
 pub trait Tabular {
-    fn create_table(&self, id: &str, width: RecordLength) -> Result<()>;
+    fn create_table(&self, id: &str, schema: Schema) -> Result<()>;
     fn select_table(&self, id: &str) -> Result<()>;
     fn delete_table(&self, id: &str) -> Result<()>;
 }

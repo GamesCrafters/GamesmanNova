@@ -4,8 +4,8 @@
 # Stable features
 edition = "2021"
 max_width = 80
-fn_call_width = 40
-array_width = 40
+fn_call_width = 50
+array_width = 50
 chain_width = 35
 fn_params_layout = "Tall"
 force_explicit_abi = true

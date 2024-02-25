@@ -41,9 +41,6 @@ pub type Remoteness = u64;
 /// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
 pub type MinimumExcludedValue = u64;
 
-/// The length of a database record in bytes under a specific schema.
-pub type RecordLength = u32;
-
 /* SECONDARY TYPES */
 
 /// Used to count the number of states in a set. Although this has an identical

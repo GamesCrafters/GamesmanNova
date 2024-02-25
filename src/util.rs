@@ -36,9 +36,9 @@ pub fn find_game(
     state: Option<String>,
 ) -> Result<Box<dyn Game>> {
     match game {
-        GameModule::ZeroBy => Ok(Box::new(zero_by::Session::initialize(
-            variant,
-        )?)),
+        GameModule::ZeroBy => {
+            Ok(Box::new(zero_by::Session::initialize(variant)?))
+        },
     }
 }
 
@@ -200,4 +200,41 @@ macro_rules! collection {
     ($($v:expr),* $(,)?) => {{
         core::convert::From::from([$($v,)*])
     }};
+}
+
+/// Syntax sugar. Allows for a declarative way of expressing attribute names
+/// and sizes for constructing database schemas.
+///
+/// Example usage:
+///
+/// ```no_run
+/// let s1 = schema!("attribute1": 10, "attribute2": 5);
+/// let s2 = schema! {
+///     "attribute3": 20,
+///     "attribute4": 60,   
+/// };
+/// ```
+///
+/// ...which expands to the following:
+///
+/// ```no_run
+/// let s1 = SchemaBuilder::new()
+///     .add(Attribute::new("attribute1", 10))?
+///     .add(Attribute::new("attribute2", 5))?
+///     .build();
+///
+/// let s2 = SchemaBuilder::new()
+///     .add(Attribute::new("attribute3", 20))?
+///     .add(Attribute::new("attribute4", 60))?
+///     .build();
+/// ```
+#[macro_export]
+macro_rules! schema {
+    {$($key:literal: $value:expr),*} => {
+        SchemaBuilder::new()
+            $(
+                .add(Attribute::new($key, $value))?
+            )*
+            .build()
+    };
 }
