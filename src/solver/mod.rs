@@ -19,6 +19,14 @@
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+/* CONSTANTS */
+
+/// Describes the maximum number of states that are one move away from any state
+/// within a game. Used to allocate statically-sized arrays on the stack for
+/// faster execution of solving algorithms. If this limit is violated by a game
+/// implementation, this program should panic.
+pub const MAX_TRANSITIONS: usize = 50;
+
 /* SOLVER MODULES */
 
 /// Solving algorithms for games that are either of incomplete information or
@@ -50,10 +58,4 @@ pub mod weak {
 pub mod error;
 pub mod util;
 
-/* CONSTANTS */
-
-/// Describes the maximum number of states that are one move away from any state
-/// within a game. Used to allocate statically-sized arrays on the stack for
-/// faster execution of solving algorithms. If this limit is violated by a game
-/// implementation, this program will enter panic.
-pub const MAX_TRANSITIONS: usize = 50;
+/* SCHEMAS */

@@ -202,16 +202,17 @@ macro_rules! collection {
     }};
 }
 
-/// Syntax sugar. Allows for a declarative way of expressing attribute names
-/// and sizes for constructing database schemas.
+/// Syntax sugar. Allows for a declarative way of expressing attribute names,
+/// data types, and bit sizes for constructing database schemas.
 ///
 /// Example usage:
 ///
 /// ```no_run
-/// let s1 = schema!("attribute1": 10, "attribute2": 5);
+/// let s1 = schema!("attribute1"; Datatype::CSTR; 16);
+///
 /// let s2 = schema! {
-///     "attribute3": 20,
-///     "attribute4": 60,   
+///     "attribute3"; Datatype::UINT; 20,
+///     "attribute4"; Datatype::SINT; 60,   
 /// };
 /// ```
 ///
@@ -219,21 +220,20 @@ macro_rules! collection {
 ///
 /// ```no_run
 /// let s1 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute1", 10))?
-///     .add(Attribute::new("attribute2", 5))?
+///     .add(Attribute::new("attribute1", Datatype::CSTR, 10))?
 ///     .build();
 ///
 /// let s2 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute3", 20))?
-///     .add(Attribute::new("attribute4", 60))?
+///     .add(Attribute::new("attribute3", Datatype::UINT, 20))?
+///     .add(Attribute::new("attribute4", Datatype::SINT, 60))?
 ///     .build();
 /// ```
 #[macro_export]
 macro_rules! schema {
-    {$($key:literal: $value:expr),*} => {
+    {$($key:literal; $dt:expr; $value:expr),*} => {
         SchemaBuilder::new()
             $(
-                .add(Attribute::new($key, $value))?
+                .add(Attribute::new($key, $dt, $value))?
             )*
             .build()
     };

@@ -13,13 +13,15 @@ use anyhow::Result;
 
 use crate::database::error::DatabaseError;
 use crate::database::object::schema::Attribute;
+use crate::database::object::schema::Datatype;
 
 /// Verifies that adding a `new` attribute to an `existing` set of attributes
-/// would not result in an invalid state for the schema who owns `existing`.
-pub fn check_attribute_validity(
+/// would not result in an invalid state for the schema who owns `existing`,
+/// and that the added attribute does not break any datatype sizing rules.
+pub fn check_attribute_validity<'a>(
     existing: &Vec<Attribute>,
     new: &Attribute,
-) -> Result<(), DatabaseError> {
+) -> Result<(), DatabaseError<'a>> {
     if new.name().is_empty() {
         Err(DatabaseError::UnnamedAttribute { table: None })
     } else if new.size() == 0 {
@@ -33,6 +35,45 @@ pub fn check_attribute_validity(
             table: None,
         })
     } else {
+        check_datatype_validity(new)?;
         Ok(())
+    }
+}
+
+fn check_datatype_validity<'a>(
+    new: &Attribute,
+) -> Result<(), DatabaseError<'a>> {
+    let s = new.size();
+    if match new.datatype() {
+        Datatype::CSTR => s % 4 != 0,
+        Datatype::DPFP => s != 64,
+        Datatype::SPFP => s != 32,
+        Datatype::SINT => s < 2,
+        Datatype::ENUM { map } => s > 8,
+        Datatype::UINT => unreachable!("UINTs can have any size."),
+    } {
+        Err(DatabaseError::InvalidSize {
+            size: new.size(),
+            name: new.name().to_string(),
+            data: new.datatype(),
+            table: None,
+        })
+    } else {
+        Ok(())
+    }
+}
+
+/* UTILITY IMPLEMENTATIONS */
+
+impl ToString for Datatype<'_> {
+    fn to_string(&self) -> String {
+        match self {
+            Datatype::DPFP => "Double-Precision Floating Point".to_string(),
+            Datatype::SPFP => "Single-Precision Floating Point".to_string(),
+            Datatype::CSTR => "C-Style ASCII String".to_string(),
+            Datatype::ENUM { map } => "Enumeration".to_string(),
+            Datatype::UINT => "Unsigned Integer".to_string(),
+            Datatype::SINT => "Signed Integer".to_string(),
+        }
     }
 }

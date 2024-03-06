@@ -11,6 +11,8 @@
 
 use std::{error::Error, fmt};
 
+use crate::database::object::schema::Datatype;
+
 /* ERROR WRAPPER */
 
 /// Wrapper for all database-interface-related errors that could happen during
@@ -19,7 +21,7 @@ use std::{error::Error, fmt};
 /// of the variants of this wrapper include a field for a schema; this allows
 /// consumers to provide specific errors when deserializing persisted schemas.
 #[derive(Debug)]
-pub enum DatabaseError {
+pub enum DatabaseError<'a> {
     /// An error to indicate that there was an attempt to construct a schema
     /// containing two attributes with the same name.
     RepeatedAttribute { name: String, table: Option<String> },
@@ -31,11 +33,21 @@ pub enum DatabaseError {
     /// An error to indicate that there was an attempt to construct a schema
     /// containing an attribute of zero size.
     EmptyAttribute { table: Option<String> },
+
+    /// An error to indicate that the size of the attribute is not compatible
+    /// with its datatype (e.g., attempting to use 3 bits for an ASCII `char`).
+    /// Includes information about the name of the attribute, its
+    InvalidSize {
+        size: usize,
+        name: String,
+        data: &'a Datatype<'a>,
+        table: Option<String>,
+    },
 }
 
-impl Error for DatabaseError {}
+impl Error for DatabaseError<'_> {}
 
-impl fmt::Display for DatabaseError {
+impl fmt::Display for DatabaseError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::RepeatedAttribute { name, table } => {
@@ -84,6 +96,39 @@ impl fmt::Display for DatabaseError {
                         f,
                         "Attempted to build a schema containing an attribute \
                         of size zero.",
+                    )
+                }
+            },
+            Self::InvalidSize {
+                size,
+                name,
+                data,
+                table,
+            } => {
+                let rule = match data {
+                    Datatype::CSTR => "divisible by 8 bits",
+                    Datatype::DPFP => "of exactly 64 bits",
+                    Datatype::SPFP => "of exactly 32 bits",
+                    Datatype::SINT => "greater than 1 bit",
+                    Datatype::ENUM { map } => "of up to 8 bits",
+                    Datatype::UINT => unreachable!("UINTs can be of any size."),
+                };
+                let data = data.to_string();
+                if let Some(t) = table {
+                    write!(
+                        f,
+                        "Encountered an attribute with inconsistent datatype \
+                        and size while deserializing the schema of table '{}'. \
+                        The attribute '{}' was found to have size {}, but \
+                        attributes of type '{}' should have a size {}.",
+                        t, name, size, data, rule,
+                    )
+                } else {
+                    write!(
+                        f,
+                        "The attribute '{}' was found to have size {}, but \
+                        attributes of type '{}' should have a size {}.",
+                        name, size, data, rule,
                     )
                 }
             },

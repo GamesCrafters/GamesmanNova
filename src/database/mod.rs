@@ -27,7 +27,7 @@ pub mod engine {
     pub mod lsmt;
 }
 
-mod object {
+pub mod object {
     pub mod record;
     pub mod schema;
     pub mod table;

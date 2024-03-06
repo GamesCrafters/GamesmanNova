@@ -8,72 +8,28 @@
 //!
 //! - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
 
-use std::collections::HashMap;
-
+use crate::database::engine::volatile;
 use crate::game::{Acyclic, Bounded, DTransition, STransition};
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, State};
 use crate::solver::MAX_TRANSITIONS;
 
-/* SOLVER INTERFACES */
+/* SOLVERS */
 
-/// Provides behavior for strongly solving games whose states do not repeat
-/// during play. A strong solution inherently visits all positions in the
-/// game, determines the best possible strategy for the player whose turn it
-/// is at that position, and associates the value achievable through that
-/// strategy to the position. This interface allows for an arbitrary number
-/// of state transitions being possible from all game states by using a
-/// dynamically-sized data structure at the cost of performance.
-pub trait DynamicSolver<const N: PlayerCount, S>
+pub fn dynamic<const N: usize, G>(game: &G, mode: IOMode)
 where
-    Self: Acyclic<N> + DTransition<S> + Bounded<S>,
+    G: Acyclic<N> + DTransition<State> + Bounded<State>
 {
-    /// Has the side effect of writing a strong solution to the underlying
-    /// game by exploring using `from` as a starting state. For specifics
-    /// on when files are written, see `cli::IOMode`. This function assumes
-    /// that `from` is a valid state encoding of the underlying game.
-    fn solve(&self, mode: IOMode);
+    let mut db = volatile::Database::initialize();
+    dynamic_backward_induction(db, game);
 }
 
-/// Provides behavior for strongly solving games whose states do not repeat
-/// during play. A strong solution inherently visits all positions in the
-/// game, determines the best possible strategy for the player whose turn it
-/// is at that position, and associates the value achievable through that
-/// strategy to the position. This interface specifies that the traversal
-/// of the game must be possible via stack-allocated data structures by
-/// requiring the implementation of `STransition` with a preset number
-/// of maximum state transitions `solvers::MAX_TRANSITIONS`.
-pub trait StaticSolver<const N: PlayerCount, const F: usize, S>
+pub fn static<const N: usize, G>(game: &G, mode: IOMode)
 where
-    Self: Acyclic<N> + STransition<S, F> + Bounded<S>,
+    G: Acyclic<N> + STransition<State, MAX_TRANSITIONS> + Bounded<State>
 {
-    /// Has the side effect of writing a strong solution to the underlying
-    /// game by exploring using `from` as a starting state. For specifics
-    /// on when files are written, see `cli::IOMode`. This function assumes
-    /// that `from` is a valid state encoding of the underlying game.
-    fn solve(&self, mode: IOMode);
-}
-
-/* BLANKET IMPLEMENTATIONS */
-
-impl<const N: PlayerCount, G> DynamicSolver<N, State> for G
-where
-    G: Acyclic<N> + DTransition<State> + Bounded<State>,
-{
-    fn solve(&self, mode: IOMode) {
-        let mut db: HashMap<State, Record<N>> = HashMap::new();
-        dynamic_backward_induction(&mut db, self);
-    }
-}
-
-impl<const N: PlayerCount, G> StaticSolver<N, MAX_TRANSITIONS, State> for G
-where
-    G: Acyclic<N> + STransition<State, MAX_TRANSITIONS> + Bounded<State>,
-{
-    fn solve(&self, mode: IOMode) {
-        let mut db = BPDatabase::new(self.id(), mode);
-        static_backward_induction(&mut db, self);
-    }
+    let mut db = volatile::Database::initialize();
+    static_backward_induction(db, game);
 }
 
 /* SOLVING ALGORITHMS */
@@ -82,7 +38,7 @@ fn dynamic_backward_induction<const N: PlayerCount, G>(
     db: &mut BPDatabase<N>,
     game: &G,
 ) where
-    G: Bounded<State> + DTransition<State>,
+    G: Acyclic<N> + Bounded<State> + DTransition<State>,
 {
     let mut stack = Vec::new();
     stack.push(game.start());
@@ -120,7 +76,7 @@ fn static_backward_induction<const N: PlayerCount, G>(
     db: &mut BPDatabase<N>,
     game: &G,
 ) where
-    G: StaticSolver<N, MAX_TRANSITIONS, State> + Bounded<State>,
+    G: Acyclic<N> + STransition<State, MAX_TRANSITIONS> + Bounded<State>,
 {
     let mut stack = Vec::new();
     stack.push(game.start());
