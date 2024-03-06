@@ -212,7 +212,7 @@ macro_rules! collection {
 ///
 /// let s2 = schema! {
 ///     "attribute3"; Datatype::UINT; 20,
-///     "attribute4"; Datatype::SINT; 60,   
+///     "attribute4"; Datatype::SINT; 60
 /// };
 /// ```
 ///

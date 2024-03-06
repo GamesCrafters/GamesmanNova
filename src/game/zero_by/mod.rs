@@ -94,10 +94,12 @@ impl Game for Session {
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
         match (self.players, method) {
             (2, SolutionMode::Strong) => {
-                <Self as acyclic::DynamicSolver<2, State>>::solve(&self, mode)
+                acyclic::dynamic_solver::<2, Self>(self, mode)
+                    .context("Failed solver run.")?
             },
             (10, SolutionMode::Strong) => {
-                <Self as acyclic::DynamicSolver<10, State>>::solve(&self, mode)
+                acyclic::dynamic_solver::<10, Self>(self, mode)
+                    .context("Failed solver run.")?
             },
             _ => {
                 return Err(GameError::SolverNotFound {

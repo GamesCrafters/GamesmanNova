@@ -57,5 +57,3 @@ pub mod weak {
 
 pub mod error;
 pub mod util;
-
-/* SCHEMAS */

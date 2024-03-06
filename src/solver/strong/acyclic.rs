@@ -8,37 +8,50 @@
 //!
 //! - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
 
+use anyhow::{Context, Result};
+
 use crate::database::engine::volatile;
-use crate::game::{Acyclic, Bounded, DTransition, STransition};
+use crate::database::object::schema::{Attribute, Datatype, SchemaBuilder};
+use crate::database::{KVStore, Tabular};
+use crate::game::{Acyclic, Bounded, DTransition, STransition, Solvable};
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, State};
+use crate::schema;
 use crate::solver::MAX_TRANSITIONS;
 
 /* SOLVERS */
 
-pub fn dynamic<const N: usize, G>(game: &G, mode: IOMode)
+pub fn dynamic_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: Acyclic<N> + DTransition<State> + Bounded<State>
+    G: Acyclic<N> + DTransition<State> + Bounded<State> + Solvable<N>,
 {
-    let mut db = volatile::Database::initialize();
-    dynamic_backward_induction(db, game);
+    let mut db = volatile_database(&game.id())
+        .context("Failed to initialize database.")?;
+
+    dynamic_backward_induction(&mut db, game);
+    Ok(())
 }
 
-pub fn static<const N: usize, G>(game: &G, mode: IOMode)
+pub fn static_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: Acyclic<N> + STransition<State, MAX_TRANSITIONS> + Bounded<State>
+    G: Acyclic<N>
+        + STransition<State, MAX_TRANSITIONS>
+        + Bounded<State>
+        + Solvable<N>,
 {
-    let mut db = volatile::Database::initialize();
-    static_backward_induction(db, game);
+    let mut db = volatile_database(&game.id())
+        .context("Failed to initialize database.")?;
+
+    static_backward_induction(&mut db, game);
+    Ok(())
 }
 
 /* SOLVING ALGORITHMS */
 
-fn dynamic_backward_induction<const N: PlayerCount, G>(
-    db: &mut BPDatabase<N>,
-    game: &G,
-) where
-    G: Acyclic<N> + Bounded<State> + DTransition<State>,
+fn dynamic_backward_induction<const N: PlayerCount, G, D>(db: &mut D, game: &G)
+where
+    G: Acyclic<N> + Bounded<State> + DTransition<State> + Solvable<N>,
+    D: KVStore,
 {
     let mut stack = Vec::new();
     stack.push(game.start());
@@ -72,16 +85,18 @@ fn dynamic_backward_induction<const N: PlayerCount, G>(
     }
 }
 
-fn static_backward_induction<const N: PlayerCount, G>(
-    db: &mut BPDatabase<N>,
-    game: &G,
-) where
-    G: Acyclic<N> + STransition<State, MAX_TRANSITIONS> + Bounded<State>,
+fn static_backward_induction<const N: PlayerCount, G, D>(db: &mut D, game: &G)
+where
+    G: Acyclic<N>
+        + STransition<State, MAX_TRANSITIONS>
+        + Bounded<State>
+        + Solvable<N>,
+    D: KVStore,
 {
     let mut stack = Vec::new();
     stack.push(game.start());
     while let Some(curr) = stack.pop() {
-        let children = game.transition(curr);
+        let children = game.prograde(curr);
         if let None = db.get(curr) {
             db.put(curr, Record::default());
             if children
@@ -113,4 +128,20 @@ fn static_backward_induction<const N: PlayerCount, G>(
             );
         }
     }
+}
+
+/* HELPERS */
+
+fn volatile_database(table: &str) -> Result<volatile::Database> {
+    let schema = schema! {
+        "Player 1 Utility"; Datatype::SINT; 8,
+        "Player 2 Utility"; Datatype::SINT; 8,
+        "Total Remoteness"; Datatype::UINT; 8
+    };
+
+    let mut db = volatile::Database::initialize();
+    db.create_table(table, schema);
+    db.select_table(table);
+
+    Ok(db)
 }
