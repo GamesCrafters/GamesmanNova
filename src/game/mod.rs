@@ -27,6 +27,7 @@ mod util;
 /* IMPLEMENTED GAMES */
 
 pub mod zero_by;
+pub mod crossteaser;
 
 /* DATA CONSTRUCTS */
 
