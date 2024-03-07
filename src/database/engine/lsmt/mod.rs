@@ -1,3 +1,3 @@
-//! # LSM-Tree Database
+//! # Log-Structured Merge Tree Database
 //!
-//! ...
+//! TBD
