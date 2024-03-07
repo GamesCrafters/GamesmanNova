@@ -1,6 +1,6 @@
-# Nova
+# GamesmanNova
 
-This is a re-focused spinoff of Dr. Dan Garcia's [GamesmanClassic](https://github.com/GamesCrafters/GamesmanClassic), a system for strongly solving (_takes a deep breath_) complete-information turn-based deterministic abstract strategy games, such as Tic-Tac-Toe, Connect4, and Chess (if it weren't so darn big). In particular, the purpose of Nova is to take learnings and ambitions from GamesmanClassic and provide a software system with an architecture that can accommodate them through meaningful, equally performant, and safe abstractions. 
+Nova is a research project primarily built for efficiently searching extensive-form games, such as Tic-Tac-Toe, Connect4, and Chess (if it weren't so darn big). In particular, the prupose of this project is to take learnings and ambitions from [Prof. Dan Garcia's](https://people.eecs.berkeley.edu/~ddgarcia/) multi-decade project [GamesmanClassic](https://github.com/GamesCrafters/GamesmanClassic) and provide a software system that is more general, performant, and ergonomic.
 
 ## Installation
 
@@ -36,7 +36,7 @@ The current big objectives for this project are:
 * Creating a memory-efficient and thread-safe implementation of GamesmanClassic's database engine.
 * Designing a database file serialization protocol to make GamesmanClassic's databases compatible with Nova.
 * Building a wonderful terminal user interface and expanding the current command-line interface.
-* Implementing and wrapping a distributed MPI controller for solves on the Savio cluster.
+* Implementing and wrapping a distributed MPI controller for distribution.
 
 ### Subprojects
 
@@ -48,4 +48,4 @@ Smaller modules currently being built:
 
 This project was created in affiliation with GamesCrafters, a computational game theory applied research group at UC Berkeley. If you would like to contribute as someone outside the GamesCrafters org, feel free to fork the repository and open a PR. If you are part of the org, create a branch anytime and code away (but do let others know, so we can help or thank you). Some light CI is set up to ensure some loose measure of quality on the main branch (namely compilation, testing, and formatting checks).
 
--- Max Fierro, maxfierro@berkeley.edu
+-- Cheers, [Max Fierro](https://www.maxfierro.me/)
