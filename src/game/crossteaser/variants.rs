@@ -9,9 +9,10 @@
 //! - Atharva Gupta, 11/28/2023
 //! - Cindy Xu, 11/28/2023
 
-use super::{Session, NAME};
-use crate::{errors::NovaError, models::Variant};
 use regex::Regex;
+
+use crate::game::crossteaser::{Session, NAME};
+use crate::game::error::GameError;
 
 /* CROSSTEASER VARIANT DEFINITION */
 
@@ -27,10 +28,10 @@ for the resulting variant to not be solvable.";
 /* API */
 
 /// Returns a crossteaser session set up using the parameters specified by
-/// `variant`. Returns a `NovaError::VariantMalformed` if the variant string
+/// `variant`. Returns a `GameError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol specified, which should contain
 /// useful information about why it was not parsed/accepted.
-pub fn parse_variant(variant: Variant) -> Result<Session, NovaError> {
+pub fn parse_variant(variant: String) -> Result<Session, GameError> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -45,11 +46,11 @@ pub fn parse_variant(variant: Variant) -> Result<Session, NovaError> {
 
 /* VARIANT STRING VERIFICATION */
 
-fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError> {
+fn check_variant_pattern(variant: &String) -> Result<(), GameError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(&variant) {
-        Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
+        Err(GameError::VariantMalformed {
+            game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{}'.",
                 VARIANT_PATTERN
@@ -60,24 +61,24 @@ fn check_variant_pattern(variant: &Variant) -> Result<(), NovaError> {
     }
 }
 
-fn parse_parameters(variant: &str) -> Result<Vec<u64>, NovaError> {
+fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
     variant
         .split(['x', '-'])
         .map(|int_string| {
             int_string
                 .parse::<u64>()
-                .map_err(|e| NovaError::VariantMalformed {
-                    game_name: NAME.to_owned(),
+                .map_err(|e| GameError::VariantMalformed {
+                    game_name: NAME,
                     hint: format!("{}", e.to_string()),
                 })
         })
         .collect()
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
+fn check_param_count(params: &Vec<u64>) -> Result<(), GameError> {
     if params.len() != 3 {
-        Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
+        Err(GameError::VariantMalformed {
+            game_name: NAME,
             hint: "String needs to have exactly 3 dash-separated integers."
                 .to_owned(),
         })
@@ -86,10 +87,10 @@ fn check_param_count(params: &Vec<u64>) -> Result<(), NovaError> {
     }
 }
 
-fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
+fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
     if params.iter().any(|&x| x <= 0) {
-        Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
+        Err(GameError::VariantMalformed {
+            game_name: NAME,
             hint: "All integers in the string must be positive.".to_owned(),
         })
     } else if params
@@ -97,9 +98,9 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
         .take(2)
         .any(|&x| x <= 1)
     {
-        Err(NovaError::VariantMalformed {
-            game_name: NAME.to_owned(),
-            hint: "L and W must both be strictly greater than 1!".to_owned(),
+        Err(GameError::VariantMalformed {
+            game_name: NAME,
+            hint: "L and W must both be strictly greater than 1.".to_owned(),
         })
     } else {
         Ok(())
@@ -112,7 +113,7 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), NovaError> {
 mod test {
 
     use super::*;
-    use crate::games::Game;
+    use crate::game::Game;
 
     #[test]
     fn variant_pattern_is_valid_regex() {

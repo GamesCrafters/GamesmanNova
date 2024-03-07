@@ -19,19 +19,26 @@
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Cindy Xu, 11/28/2023
 
-use super::{AcyclicallySolvable, Automaton, Game, GameData, Solvable};
-use crate::{
-    errors::NovaError,
-    implement,
-    interfaces::terminal::cli::IOMode,
-    models::{State, Utility, Variant},
-    solvers::acyclic::AcyclicSolver,
-};
-use nalgebra::{SMatrix, SVector};
+use anyhow::{Context, Result};
+use nalgebra::SVector;
+
+use crate::game::Acyclic;
+use crate::game::Bounded;
+use crate::game::DTransition;
+use crate::game::Game;
+use crate::game::GameData;
+use crate::game::Legible;
+use crate::game::Solvable;
+use crate::implement;
+use crate::interface::IOMode;
+use crate::interface::SolutionMode;
+use crate::model::State;
+use crate::model::Utility;
 use variants::*;
 
 /* SUBMODULES */
 
+mod states;
 mod variants;
 
 /* GAME DATA */
@@ -76,11 +83,11 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<Variant>) -> Result<Self, NovaError> {
+    fn initialize(variant: Option<String>) -> Result<Self> {
         if let Some(v) = variant {
-            parse_variant(v)
+            parse_variant(v).context("Malformed game variant.")
         } else {
-            parse_variant(VARIANT_DEFAULT.to_owned())
+            Ok(parse_variant(VARIANT_DEFAULT.to_owned()).unwrap())
         }
     }
 
@@ -93,57 +100,64 @@ impl Game for Session {
     }
 
     fn info(&self) -> GameData {
-        GameData {
-            name: NAME.to_owned(),
-            authors: AUTHORS.to_owned(),
-            about: ABOUT.to_owned(),
-            category: CATEGORY.to_owned(),
-            variant_protocol: VARIANT_PROTOCOL.to_owned(),
-            variant_pattern: VARIANT_PATTERN.to_owned(),
-            variant_default: VARIANT_DEFAULT.to_owned(),
-        }
+        todo!()
     }
 
-    fn solve(&self, mode: Option<IOMode>) -> Result<(), NovaError> {
-        <Self as AcyclicSolver<1>>::solve(self, mode);
-        Ok(())
+    fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
+        todo!()
+    }
+
+    fn forward(&mut self, history: Vec<String>) -> Result<()> {
+        todo!()
     }
 }
 
-impl Automaton<State> for Session {
+/* TRAVERSAL DECLARATIONS */
+
+impl Bounded<State> for Session {
     fn start(&self) -> State {
         todo!()
     }
 
-    fn transition(&self, state: State) -> Vec<State> {
-        todo!()
-    }
-
-    fn accepts(&self, state: State) -> bool {
+    fn end(&self, state: State) -> bool {
         todo!()
     }
 }
 
-/* SOLVABLE DECLARATIONS */
+impl DTransition<State> for Session {
+    fn prograde(&self, state: State) -> Vec<State> {
+        todo!()
+    }
+
+    fn retrograde(&self, state: State) -> Vec<State> {
+        todo!()
+    }
+}
+
+/* SUPPLEMENTAL DECLARATIONS */
+
+impl Legible<State> for Session {
+    fn decode(&self, string: String) -> Result<State> {
+        todo!()
+    }
+
+    fn encode(&self, state: State) -> String {
+        todo!()
+    }
+}
+
+/* SOLVING DECLARATIONS */
 
 implement! { for Session =>
-    AcyclicallySolvable<1>
+    Acyclic<1>
 }
 
 impl Solvable<1> for Session {
-    fn weights(&self) -> SMatrix<Utility, 1, 1> {
-        SMatrix::<Utility, 1, 1>::identity()
+    fn utility(&self, state: State) -> SVector<Utility, 1> {
+        todo!()
     }
 
-    fn utility(&self, state: State) -> Option<SVector<Utility, 1>> {
-        if !self.accepts(state) {
-            None
-        } else {
-            Some(SVector::<Utility, 1>::from_element(1))
-        }
-    }
-
-    fn coalesce(&self, state: State) -> SVector<Utility, 1> {
-        SVector::<Utility, 1>::from_element(1)
+    fn turn(&self, state: crate::model::State) -> crate::model::Turn {
+        todo!()
     }
 }

@@ -10,12 +10,13 @@
 
 use regex::Regex;
 
-use crate::game::zero_by::{Session, NAME};
-use crate::{
-    game::error::GameError,
-    game::util::{pack_turn, unpack_turn},
-    model::{State, Turn},
-};
+use crate::game::error::GameError;
+use crate::game::util::pack_turn;
+use crate::game::util::unpack_turn;
+use crate::game::zero_by::Session;
+use crate::game::zero_by::NAME;
+use crate::model::State;
+use crate::model::Turn;
 
 /* ZERO-BY STATE ENCODING */
 
