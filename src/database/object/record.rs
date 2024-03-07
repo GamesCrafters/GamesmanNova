@@ -1,6 +1,7 @@
 //! # Database Record Module
 //!
-//! This module provides an interface for statically-allocated database records.
+//! This module defines the interface of a database record, and provides some
+//! handy implementations for them.
 //!
 //! #### Authorship
 //!

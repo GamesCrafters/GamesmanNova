@@ -45,7 +45,7 @@ fn check_datatype_validity<'a>(
 ) -> Result<(), DatabaseError<'a>> {
     let s = new.size();
     if match new.datatype() {
-        Datatype::CSTR => s % 4 != 0,
+        Datatype::CSTR => s % 8 != 0,
         Datatype::DPFP => s != 64,
         Datatype::SPFP => s != 32,
         Datatype::SINT => s < 2,

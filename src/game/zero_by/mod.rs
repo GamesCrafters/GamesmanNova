@@ -26,7 +26,7 @@ use crate::interface::{IOMode, SolutionMode};
 use crate::model::PlayerCount;
 use crate::model::Utility;
 use crate::model::{State, Turn};
-use crate::solver::strong::acyclic;
+use crate::solver::strong;
 
 /* SUBMODULES */
 
@@ -94,11 +94,11 @@ impl Game for Session {
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
         match (self.players, method) {
             (2, SolutionMode::Strong) => {
-                acyclic::dynamic_solver::<2, Self>(self, mode)
+                strong::acyclic::dynamic_solver::<2, Self>(self, mode)
                     .context("Failed solver run.")?
             },
             (10, SolutionMode::Strong) => {
-                acyclic::dynamic_solver::<10, Self>(self, mode)
+                strong::acyclic::dynamic_solver::<10, Self>(self, mode)
                     .context("Failed solver run.")?
             },
             _ => {
