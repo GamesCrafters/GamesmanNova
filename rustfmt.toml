@@ -21,7 +21,6 @@ use_try_shorthand = true
 use_field_init_shorthand = true
 tab_spaces = 4
 
-
 # Unstable features (nightly only, tracking issues linked)
 binop_separator = "Front"           # https://github.com/rust-lang/rustfmt/issues/3368
 brace_style = "AlwaysNextLine"      # https://github.com/rust-lang/rustfmt/issues/3376
