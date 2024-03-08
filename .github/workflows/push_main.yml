@@ -46,5 +46,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
     - name: Publish to crates.io
       run: cargo publish --token ${{ secrets.CRATES_TOKEN }}
