@@ -13,7 +13,7 @@
 #[cfg(test)]
 mod test {
 
-    use crate::*;
+    use crate::game::*;
 
     /* TURN ENCODING TESTS */
 
