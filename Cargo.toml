@@ -1,7 +1,7 @@
 [package]
 name = "gamesman-nova"
 version = "0.1.5"
-description = "System for efficient search of extensive-form games."
+description = "System facilitating the search of extensive-form games."
 authors = ["Max Fierro <maxfierro@berkeley.edu>"]
 license = "GPL-3.0"
 repository = "https://github.com/GamesCrafters/GamesmanNova"
