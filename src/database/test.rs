@@ -114,7 +114,34 @@ mod test {
         result = panic::catch_unwind(|| parse_unsigned(&data, 32));
         assert!(result.is_err());
     }
-    
+    #[test]
+    fn parse_enum_correctness() {
+        const enum_map: &[(u8, [u8; 8]); 2] = &[
+            (1, [b'A', b'R', b'G', b'_', b'1', b'\0']),
+            (2, [b'A', b'R', b'G', b'_', b'2', b'\0']),
+            (3, [b'U', b'N', b'D', b'E', b'F', b'I', b'N', b'E'])
+        ];
+        let data1: &[u8] = &[1];
+        let data2: &[u8] = &[2];
+        assert_eq!(parse_enum(data1, enum_map), "ARG_1");
+        assert_eq!(parse_enum(data2, enum_map), "ARG_2");
+    }
+
+    #[test]
+    fn parse_enum_error_correctness() {
+        const enum_map: &[(u8, [u8; 8]); 2] = &[
+            (1, [b'A', b'R', b'G', b'_', b'1', b'\0']),
+            (2, [b'A', b'R', b'G', b'_', b'2', b'\0']),
+            (3, [b'U', b'N', b'D', b'E', b'F', b'I', b'N', b'E'])
+        ];
+        let invalid_size_data: &[u8] = &[];
+        let invalid_variant_data: &[u8] = &[4];
+        let mut result = panic::catch_unwind(|| parse_unsigned(invalid_size_data, enum_map));
+        assert!(result.is_err());
+        result = panic::catch_unwind(|| parse_unsigned(invalid_variant_data, enum_map));
+        assert!(result.is_err());
+    }
+
     /* SCHEMA TESTS */
 
     /* ENGINE TESTS */
