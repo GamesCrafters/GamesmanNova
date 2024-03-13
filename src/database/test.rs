@@ -114,6 +114,7 @@ mod test {
         result = panic::catch_unwind(|| parse_unsigned(&data, 32));
         assert!(result.is_err());
     }
+
     #[test]
     fn parse_enum_correctness() {
         const enum_map: &[(u8, [u8; 8]); 2] = &[
@@ -143,6 +144,69 @@ mod test {
     }
 
     /* SCHEMA TESTS */
+    #[test]
+    fn test_schema_builder_empty() {
+        let builder = SchemaBuilder::new();
+        let schema = builder.build();
+        assert_eq!(schema.size(), 0);
+        assert!(schema.iter().next().is_none());
+    }
+
+    #[test]
+    fn test_schema_builder_single_attribute() {
+        let builder = SchemaBuilder::new()
+            .add(Attribute::new("age", Datatype::UINT, 8))
+            .unwrap();
+        let schema = builder.build();
+        assert_eq!(schema.size(), 8);
+        assert_eq!(schema.iter().next().unwrap().name(), "age");
+    }
+
+    #[test]
+    fn test_schema_builder_multiple_attributes() {
+        let builder = SchemaBuilder::new()
+            .add(Attribute::new("name", Datatype::CSTR, 16))
+            .unwrap()
+            .add(Attribute::new("score", Datatype::SPFP, 32))
+            .unwrap();
+        let schema = builder.build();
+        assert_eq!(schema.size(), 48);
+        let mut iter = schema.iter();
+        assert_eq!(iter.next().unwrap().name(), "name");
+        assert_eq!(iter.next().unwrap().name(), "score");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_schema_builder_invalid_attribute_size() {
+        let builder = SchemaBuilder::new()
+            .add(Attribute::new("name", Datatype::CSTR, -1))
+            .unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_check_attribute_empty_name() {
+        let existing: Vec<Attribute> = vec![];
+        let new_attr = Attribute::new("", Datatype::UINT, 8);
+        check_attribute_validity(&existing, &new_attr).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_check_attribute_duplicate_name() {
+        let existing = vec![Attribute::new("age", Datatype::UINT, 8)];
+        let new_attr = Attribute::new("age", Datatype::SINT, 16);
+        check_attribute_validity(&existing, &new_attr).unwrap();
+    }
+    
+    #[test]
+    fn test_check_attribute_valid() {
+        let existing: Vec<Attribute> = vec![];
+        let new_attr = Attribute::new("score", Datatype::SPFP, 32);
+        let result = check_attribute_validity(&existing, &new_attr);
+        assert!(result.is_ok());
+    }
 
     /* ENGINE TESTS */
 
