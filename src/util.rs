@@ -33,11 +33,16 @@ pub enum GameModule {
 pub fn find_game(
     game: GameModule,
     variant: Option<String>,
-    state: Option<String>,
+    from: Option<String>,
 ) -> Result<Box<dyn Game>> {
     match game {
         GameModule::ZeroBy => {
-            Ok(Box::new(zero_by::Session::initialize(variant)?))
+            let session = zero_by::Session::initialize(variant)
+                .context("Failed to initialize zero-by game session.")?;
+            if let Some(path) = from {
+                todo!()
+            }
+            Ok(Box::new(session))
         },
     }
 }

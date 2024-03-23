@@ -19,7 +19,6 @@
 use anyhow::Result;
 use bitvec::order::Msb0;
 use bitvec::slice::BitSlice;
-use bitvec::store::BitStore;
 
 use crate::database::Persistence;
 use crate::database::Schema;

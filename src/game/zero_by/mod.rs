@@ -14,7 +14,6 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
-use nalgebra::SVector;
 use states::*;
 
 use crate::game::error::GameError;

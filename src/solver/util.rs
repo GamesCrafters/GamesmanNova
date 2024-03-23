@@ -9,11 +9,6 @@
 
 use crate::model::Utility;
 
-/* CONSTANTS */
-
-/// The number of bits in a byte. This is here mainly for readability.
-pub const BITS_PER_BYTE: usize = 8;
-
 /* BIT FIELDS */
 
 /// Returns the minimum number of bits required to represent unsigned `val`.
