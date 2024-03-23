@@ -19,6 +19,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
     - name: Build
       run: cargo build --verbose
 
@@ -28,6 +30,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
     - name: Test
       run: cargo test --verbose
   
@@ -36,6 +40,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
     - name: Format Check
       run: cargo fmt --verbose -- --check
   
