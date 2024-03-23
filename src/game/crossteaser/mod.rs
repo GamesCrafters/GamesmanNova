@@ -20,7 +20,6 @@
 //! - Cindy Xu, 11/28/2023
 
 use anyhow::{Context, Result};
-use nalgebra::SVector;
 
 use crate::game::Acyclic;
 use crate::game::Bounded;
@@ -153,7 +152,7 @@ implement! { for Session =>
 }
 
 impl Solvable<1> for Session {
-    fn utility(&self, state: State) -> SVector<Utility, 1> {
+    fn utility(&self, state: State) -> [Utility; 1] {
         todo!()
     }
 

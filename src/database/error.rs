@@ -11,7 +11,7 @@
 
 use std::{error::Error, fmt};
 
-use crate::database::object::schema::Datatype;
+use crate::database::Datatype;
 
 /* ERROR WRAPPER */
 
@@ -21,7 +21,7 @@ use crate::database::object::schema::Datatype;
 /// of the variants of this wrapper include a field for a schema; this allows
 /// consumers to provide specific errors when deserializing persisted schemas.
 #[derive(Debug)]
-pub enum DatabaseError<'a> {
+pub enum DatabaseError {
     /// An error to indicate that there was an attempt to construct a schema
     /// containing two attributes with the same name.
     RepeatedAttribute { name: String, table: Option<String> },
@@ -40,15 +40,15 @@ pub enum DatabaseError<'a> {
     InvalidSize {
         size: usize,
         name: String,
-        data: &'a Datatype<'a>,
+        data: Datatype,
         table: Option<String>,
     },
 }
 
-impl Error for DatabaseError<'_> {}
+impl Error for DatabaseError {}
 
-impl fmt::Display for DatabaseError<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Display for DatabaseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::RepeatedAttribute { name, table } => {
                 if let Some(t) = table {
@@ -106,12 +106,15 @@ impl fmt::Display for DatabaseError<'_> {
                 table,
             } => {
                 let rule = match data {
-                    Datatype::CSTR => "divisible by 8 bits",
                     Datatype::DPFP => "of exactly 64 bits",
                     Datatype::SPFP => "of exactly 32 bits",
                     Datatype::SINT => "greater than 1 bit",
-                    Datatype::ENUM { map } => "of up to 8 bits",
-                    Datatype::UINT => unreachable!("UINTs can be of any size."),
+                    Datatype::CSTR => "divisible by 8 bits",
+                    Datatype::UINT | Datatype::ENUM => {
+                        unreachable!(
+                            "UINTs and ENUMs can be of any nonzero size."
+                        )
+                    },
                 };
                 let data = data.to_string();
                 if let Some(t) = table {

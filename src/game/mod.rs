@@ -12,7 +12,7 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
-use nalgebra::{SMatrix, SVector};
+use nalgebra::SMatrix;
 
 use crate::{
     interface::{IOMode, SolutionMode},
@@ -322,12 +322,19 @@ where
     /// the state is not terminal, it is recommended that this function panics
     /// with a message indicating that an attempt was made to calculate the
     /// utility of a non-primitive state.
-    fn utility(&self, state: State) -> SVector<Utility, N>;
+    fn utility(&self, state: State) -> [Utility; N];
 
     /// Returns the player `i` whose turn it is at the given `state`. The player
     /// identifier `i` should never be greater than `N - 1`, where `N` is the
     /// number of players in the underlying game.
     fn turn(&self, state: State) -> Turn;
+
+    /// Returns the number of players in the underlying game. This should be at
+    /// least one higher than the maximum value returned by `turn`.
+    #[inline(always)]
+    fn players(&self) -> PlayerCount {
+        N
+    }
 }
 
 /// Indicates that the directed graph _G_ induced by the structure of the
