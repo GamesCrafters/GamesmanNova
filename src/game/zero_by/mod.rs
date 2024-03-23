@@ -14,7 +14,6 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
-use nalgebra::SVector;
 use states::*;
 
 use crate::game::error::GameError;
@@ -27,6 +26,8 @@ use crate::model::PlayerCount;
 use crate::model::Utility;
 use crate::model::{State, Turn};
 use crate::solver::strong;
+
+use super::util::unpack_turn;
 
 /* SUBMODULES */
 
@@ -191,12 +192,11 @@ implement! { for Session =>
 }
 
 impl Solvable<2> for Session {
-    fn utility(&self, state: State) -> SVector<Utility, 2> {
-        let (_, turn) = util::unpack_turn(state, 2);
-        let mut result = SVector::<Utility, 2>::zeros();
-        result.fill(-1);
-        result[turn] = 1;
-        result
+    fn utility(&self, state: State) -> [Utility; 2] {
+        let (_, turn) = unpack_turn(state, 2);
+        let mut payoffs = [-1; 2];
+        payoffs[turn] = 1;
+        payoffs
     }
 
     fn turn(&self, state: State) -> Turn {
@@ -205,12 +205,11 @@ impl Solvable<2> for Session {
 }
 
 impl Solvable<10> for Session {
-    fn utility(&self, state: State) -> SVector<Utility, 10> {
-        let (_, turn) = util::unpack_turn(state, 10);
-        let mut result = SVector::<Utility, 10>::zeros();
-        result.fill(-1);
-        result[turn] = 9;
-        result
+    fn utility(&self, state: State) -> [Utility; 10] {
+        let (_, turn) = unpack_turn(state, 10);
+        let mut payoffs = [-1; 10];
+        payoffs[turn] = 9;
+        payoffs
     }
 
     fn turn(&self, state: State) -> Turn {

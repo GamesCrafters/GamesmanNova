@@ -8,11 +8,12 @@
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
+use bitvec::{order::Msb0, slice::BitSlice, store::BitStore};
 
 use std::collections::HashMap;
 
 use crate::{
-    database::{object::schema::Schema, KVStore, Tabular},
+    database::{KVStore, Record, Schema, Tabular},
     model::State,
 };
 
@@ -28,12 +29,12 @@ impl Database<'_> {
     }
 }
 
-impl KVStore for Database<'_> {
-    fn put(&mut self, key: State, value: &[u8]) {
+impl<R: Record> KVStore<R> for Database<'_> {
+    fn put(&mut self, key: State, value: &R) {
         todo!()
     }
 
-    fn get(&self, key: State) -> Option<&[u8]> {
+    fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>> {
         todo!()
     }
 
