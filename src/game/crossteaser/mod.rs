@@ -20,7 +20,9 @@
 //! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
 
 use anyhow::{Context, Result};
+use std::collections::HashMap;
 
+use crate::collection;
 use crate::game::Bounded;
 use crate::game::Codec;
 use crate::game::Forward;
@@ -503,6 +505,202 @@ mod mov {
         } else {
             panic!("Invalid Orientation");
         }
+    }
+}
+*/
+
+/// Encodes the state of a single piece on the game board. It achieves this by
+/// storing a value from 0-5 for each of 3 faces. This allows us to determine
+/// the exact orientation out of 24 possible. We can think of each number from
+/// 0-5 as being one of the 6 possible colors for cross faces. The faces are
+/// arranged such that each pair of opposite faces always sum to 5. Example:
+///       1
+///       |
+///   3 - 0 - 2     (5 on back)
+///       |
+///       4
+/// All 24 orientations will be some rotation of this structure. The relative
+/// positions of faces does not change.
+struct Orientation {
+    front: u64,
+    top: u64,
+    right: u64,
+}
+
+/// Maps a "packed" orientation to a number from 0-23 which will be used by the 
+/// hash function.
+/// The format is front_top_right
+/// Each of these will be a value from 0-5, and have 3 bits allotted.
+const ORIENTATION_MAP: HashMap<u64, u64> = collection! {
+    0b000_001_010 => 0,
+    0b000_011_001 => 1,
+    0b000_001_011 => 2,
+    0b000_010_100 => 3,
+    0b001_101_010 => 4,
+    0b001_011_001 => 5,
+    0b001_000_001 => 6,
+    0b001_010_000 => 7,
+    0b010_001_101 => 8,
+    0b010_000_001 => 9,
+    0b010_100_000 => 10,
+    0b010_101_100 => 11,
+    0b011_001_000 => 12,
+    0b011_101_001 => 13,
+    0b011_100_101 => 14,
+    0b011_000_100 => 15,
+    0b100_000_010 => 16,
+    0b100_011_000 => 17,
+    0b100_101_011 => 18,
+    0b100_010_101 => 19,
+    0b101_001_011 => 20,
+    0b101_010_001 => 21,
+    0b101_100_010 => 22,
+    0b101_011_100 => 23,
+};
+
+/// Opposite of ORIENTATION_MAP:
+/// maps numbers 0-23 to the corresponding packed orientation
+const ORIENTATION_UNMAP: HashMap<u64, u64> = collection! {
+    0  => 0b000_001_010,
+    1  => 0b000_011_001,
+    2  => 0b000_001_011,
+    3  => 0b000_010_100,
+    4  => 0b001_101_010,
+    5  => 0b001_011_001,
+    6  => 0b001_000_001,
+    7  => 0b001_010_000,
+    8  => 0b010_001_101,
+    9  => 0b010_000_001,
+    10 => 0b010_100_000,
+    11 => 0b010_101_100,
+    12 => 0b011_001_000,
+    13 => 0b011_101_001,
+    14 => 0b011_100_101,
+    15 => 0b011_000_100,
+    16 => 0b100_000_010,
+    17 => 0b100_011_000,
+    18 => 0b100_101_011,
+    19 => 0b100_010_101,
+    20 => 0b101_001_011,
+    21 => 0b101_010_001,
+    22 => 0b101_100_010,
+    23 => 0b101_011_100,
+};
+
+/// Converts an Orientation struct into its corresponding orientation hash,
+/// which will be a number from 0-23
+/// Makes use of ORIENTATION_MAP for the conversion
+fn hash_orientation(o: &Orientation) -> u64 {
+    let mut packed: u64 = 0;
+    packed = (o.front << 6) | (o.top << 3) | o.right;
+    return ORIENTATION_MAP[&packed];
+}
+
+/// Converts an orientation hash into an Orientation struct
+/// Makes use of ORIENTATION_UNMAP for the conversion
+fn unhash_orientation(h: &u64) -> Orientation {
+    let packed: u64 = ORIENTATION_UNMAP[h];
+    const FACE_MASK: u64 = 0b111;
+    return Orientation {
+        front: packed >> 6 & FACE_MASK,
+        top: packed >> 3 & FACE_MASK,
+        right: packed & FACE_MASK,
+    }
+}
+
+/// Simple, inefficient hash function that converts a vector of piece
+/// orientations and an empty space represented by an integer into a 64 bit
+/// integer (State) which uniquely represents that state.
+fn hash(rep: &Vec<Orientation>, empty: u64) -> State {
+    const BIT_SHIFT: u64 = 3;
+    let mut s: State = empty;
+    let mut shift: u64 = BIT_SHIFT;
+    for o in rep {
+        s |= hash_orientation(o) << shift;
+        shift += BIT_SHIFT;
+    }
+    return s;
+}
+
+/// Reverse of hash(), extracts the orientation vector and empty space from a
+/// State.
+fn unhash(s: State) -> (Vec<Orientation>, u64) {
+    const BIT_SHIFT: u64 = 3;
+    const PIECES: u64 = 9;
+    const BITMASK: u64 = 0b111;
+    let mut s_tmp: u64 = s;
+    let mut curr: u64;
+    let empty: u64 = s & BITMASK;
+    s_tmp >>= BIT_SHIFT;
+    let mut rep: Vec<Orientation> = Vec::new();
+    for i in 0..PIECES {
+        curr = s_tmp & BITMASK;
+        rep.push(unhash_orientation(&curr));
+        s_tmp >>= BIT_SHIFT;
+    }
+    return (rep, empty);
+}
+
+/// Module which contains all transition helper functions
+/// There are 4 functions for rotating an individual piece which represents a
+/// shift in the given direction as defined by the structure of the crossteaser
+/// game board.
+/// There are 4 functions for shifting the entire board in a given direction,
+/// which makes use of the above single piece functions, but updates the
+/// relative position of pieces and the empty space on the game board.
+mod mov {
+    use crate::game::crossteaser::Orientation;
+
+    /// Transforms an individual piece orientation as if it was shifted right
+    fn right(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: o.right,
+            top: o.top,
+            right: 5 - o.front,
+        }
+    }
+
+    /// Transforms an individual piece orientation as if it was shifted left
+    fn left(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: 5 - o.right,
+            top: o.top,
+            right: o.front,
+        }
+    }
+
+    /// Transforms an individual piece orientation as if it was shifted up
+    fn up(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: 5 - o.top,
+            top: o.front,
+            right: o.right,
+        }
+    }
+
+    /// Transforms an individual piece orientation as if it was shifted down
+    fn down(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: o.top,
+            top: 5 - o.front,
+            right: o.right,
+        }
+    }
+
+    fn board_right() {
+        todo!()
+    }
+
+    fn board_left() {
+        todo!()
+    }
+
+    fn board_up() {
+        todo!()
+    }
+
+    fn board_down() {
+        todo!()
     }
 }
 
