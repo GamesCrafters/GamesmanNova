@@ -612,9 +612,9 @@ fn unhash_orientation(h: &u64) -> Orientation {
 /// orientations and an empty space represented by an integer into a 64 bit
 /// integer (State) which uniquely represents that state.
 fn hash(rep: &Vec<Orientation>, empty: u64) -> State {
-    const BIT_SHIFT: u64 = 3;
+    const BIT_SHIFT: u64 = 5;
     let mut s: State = empty;
-    let mut shift: u64 = BIT_SHIFT;
+    let mut shift: u64 = 3;
     for o in rep {
         s |= hash_orientation(o) << shift;
         shift += BIT_SHIFT;
@@ -625,18 +625,20 @@ fn hash(rep: &Vec<Orientation>, empty: u64) -> State {
 /// Reverse of hash(), extracts the orientation vector and empty space from a
 /// State.
 fn unhash(s: State) -> (Vec<Orientation>, u64) {
-    const BIT_SHIFT: u64 = 3;
-    const PIECES: u64 = 9;
-    const BITMASK: u64 = 0b111;
+    const PIECE_SHIFT: u64 = 5;
+    const EMPTY_SHIFT: u64 = 3;
+    const PIECES: u64 = 8;
+    const PIECE_MASK: u64 = 0b11111;
+    const EMPTY_MASK: u64 = 0b111;
     let mut s_tmp: u64 = s;
     let mut curr: u64;
-    let empty: u64 = s & BITMASK;
-    s_tmp >>= BIT_SHIFT;
+    let empty: u64 = s & EMPTY_MASK;
+    s_tmp >>= EMPTY_SHIFT;
     let mut rep: Vec<Orientation> = Vec::new();
     for i in 0..PIECES {
-        curr = s_tmp & BITMASK;
+        curr = s_tmp & PIECE_MASK;
         rep.push(unhash_orientation(&curr));
-        s_tmp >>= BIT_SHIFT;
+        s_tmp >>= PIECE_SHIFT;
     }
     return (rep, empty);
 }
