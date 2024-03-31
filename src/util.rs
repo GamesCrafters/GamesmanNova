@@ -150,10 +150,9 @@ impl Display for GameData<'_> {
 
 /// Syntax sugar. Implements multiple traits for a single concrete type. The
 /// traits implemented must be marker traits; in other words, they must have no
-/// behavior (no functions). You will usually want to use this for implementing
-/// all the solvers for a game ergonomically through their marker traits.
+/// behavior (no functions).
 ///
-/// Example usage:
+/// # Example
 ///
 /// ```no_run
 /// implement! { for Game =>
@@ -183,7 +182,7 @@ macro_rules! implement {
 /// Syntax sugar. Allows a "literal-like" declaration of collections like
 /// `HashSet`s, `HashMap`s, `Vec`s, etc.
 ///
-/// Example usage:
+/// # Example
 ///
 /// ```no_run
 /// let s: Vec<_> = collection![1, 2, 3];
@@ -210,7 +209,7 @@ macro_rules! collection {
 /// Syntax sugar. Allows for a declarative way of expressing attribute names,
 /// data types, and bit sizes for constructing database schemas.
 ///
-/// Example usage:
+/// # Example
 ///
 /// ```no_run
 /// let s1 = schema!("attribute1"; Datatype::CSTR; 16);
@@ -241,5 +240,32 @@ macro_rules! schema {
                 .add(Attribute::new($key, $dt, $value))?
             )*
             .build()
+    };
+}
+
+/// Syntax sugar. Allows for a declarative way of expressing extensive game
+/// state nodes.
+///
+/// # Example
+///
+/// ```no_run
+/// // A medial node with state hash 2 where it is Player 5's turn.
+/// let n1 = node!(2, 5);
+///
+/// // A terminal node with state hash 2 and 5-entry utility vector.
+/// let n2 = node!(2, [-1, -4, 5, 0, 3]);
+/// ```
+macro_rules! node {
+    ($hash:expr, [$($data:expr),*]) => {
+        Node {
+            hash: $hash,
+            data: Stage::Terminal(vec![$($data),*]),
+        }
+    };
+    ($hash:expr, $player:expr) => {
+        Node {
+            hash: $hash,
+            data: Stage::Medial($player),
+        }
     };
 }

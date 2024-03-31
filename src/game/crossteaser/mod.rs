@@ -21,14 +21,12 @@
 
 use anyhow::{Context, Result};
 
-use crate::game::Acyclic;
 use crate::game::Bounded;
 use crate::game::DTransition;
 use crate::game::Game;
 use crate::game::GameData;
 use crate::game::Legible;
 use crate::game::Solvable;
-use crate::implement;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
 use crate::model::State;
@@ -111,7 +109,7 @@ impl Game for Session {
     }
 }
 
-/* TRAVERSAL DECLARATIONS */
+/* TRAVERSAL IMPLEMENTATIONS */
 
 impl Bounded<State> for Session {
     fn start(&self) -> State {
@@ -133,7 +131,7 @@ impl DTransition<State> for Session {
     }
 }
 
-/* SUPPLEMENTAL DECLARATIONS */
+/* SUPPLEMENTAL IMPLEMENTATIONS */
 
 impl Legible<State> for Session {
     fn decode(&self, string: String) -> Result<State> {
@@ -145,11 +143,7 @@ impl Legible<State> for Session {
     }
 }
 
-/* SOLVING DECLARATIONS */
-
-implement! { for Session =>
-    Acyclic<1>
-}
+/* SOLVING IMPLEMENTATIONS */
 
 impl Solvable<1> for Session {
     fn utility(&self, state: State) -> [Utility; 1] {
