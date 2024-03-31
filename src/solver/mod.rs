@@ -73,5 +73,7 @@ pub mod algorithm {
 
 /* UTILITY MODULES */
 
-pub mod error;
-pub mod util;
+#[cfg(test)]
+mod test;
+mod error;
+mod util;

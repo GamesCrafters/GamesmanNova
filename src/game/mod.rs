@@ -21,6 +21,8 @@ use crate::{
 
 /* UTILITY MODULES */
 
+#[cfg(test)]
+mod test;
 mod error;
 mod util;
 

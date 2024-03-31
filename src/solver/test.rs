@@ -1,6 +1,7 @@
-//! # Database Test Module
+//! # Solver Test Module
 //!
-//! This module provides some unit tests for different types of solvers.
+//! This module provides some integration tests and sanity checks for different
+//! implementations of solving algorithms to ensure consistency and correctness.
 //!
 //! #### Authorship
 //!
