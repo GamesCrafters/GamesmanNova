@@ -16,14 +16,38 @@ use std::{error::Error, fmt};
 /// Wrapper for all solver-related errors that could happen during runtime. This
 /// pertains specifically to the elements of the `crate::solver` module.
 #[derive(Debug)]
-pub enum SolverError {}
+pub enum SolverError {
+    /// An error to indicate that the limitations of a record implementation
+    /// were exceeded during the execution of a solving algorithm by a consumer
+    /// game implementation.
+    RecordViolation { name: String, hint: String },
+
+    /// An error to indicate that the assumptions of a solving algorithm were
+    /// detectably violated during execution.
+    SolverViolation { name: String, hint: String },
+}
 
 impl Error for SolverError {}
 
 impl fmt::Display for SolverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            _ => todo!(),
+            Self::RecordViolation { name, hint } => {
+                write!(
+                    f,
+                    "A limitation set by the record implementation '{}' was \
+                    violated at runtime: {}",
+                    name, hint,
+                )
+            },
+            Self::SolverViolation { name, hint } => {
+                write!(
+                    f,
+                    "An assumption set by the solver '{}' was violated at \
+                    runtime: {}",
+                    name, hint,
+                )
+            },
         }
     }
 }

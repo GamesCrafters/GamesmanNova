@@ -25,7 +25,7 @@ use crate::interface::{IOMode, SolutionMode};
 use crate::model::PlayerCount;
 use crate::model::Utility;
 use crate::model::{State, Turn};
-use crate::solver::strong;
+use crate::solver::algorithm::strong;
 
 use super::util::unpack_turn;
 
