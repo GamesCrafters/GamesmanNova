@@ -299,3 +299,212 @@ impl RecordBuffer {
         length - REMOTENESS_SIZE / UTILITY_SIZE
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    // The maximum and minimum numeric values that can be represented with
+    // exactly UTILITY_SIZE bits in two's complement.
+    //
+    // Example if UTILITY_SIZE is 8:
+    //
+    // * `MAX_UTILITY = 0b01111111 = 127 = 2^(8 - 1) - 1`
+    // * `MIN_UTILITY = 0b10000000 = -128 =  -127 - 1`
+    //
+    // Useful: https://www.omnicalculator.com/math/twos-complement
+    const MAX_UTILITY: Utility = 2_i64.pow(UTILITY_SIZE as u32 - 1) - 1;
+    const MIN_UTILITY: Utility = -MAX_UTILITY - 1;
+
+    // The maximum numeric remoteness value that can be expressed with exactly
+    // REMOTENESS_SIZE bits in an unsigned integer.
+    const MAX_REMOTENESS: Remoteness = 2_u64.pow(REMOTENESS_SIZE as u32) - 1;
+
+    #[test]
+    fn initialize_with_valid_player_count() {
+        for i in 0..RecordBuffer::player_count(BUFFER_SIZE) {
+            assert!(RecordBuffer::new(i).is_ok())
+        }
+    }
+
+    #[test]
+    fn initialize_with_invalid_player_count() {
+        let max = RecordBuffer::player_count(BUFFER_SIZE);
+
+        assert!(RecordBuffer::new(max + 1).is_err());
+        assert!(RecordBuffer::new(max + 10).is_err());
+        assert!(RecordBuffer::new(max + 100).is_err());
+    }
+
+    #[test]
+    fn initialize_from_valid_buffer() {
+        let buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
+        for i in REMOTENESS_SIZE..BUFFER_SIZE {
+            assert!(RecordBuffer::from(&buf[0..i]).is_ok());
+        }
+    }
+
+    #[test]
+    fn initialize_from_invalid_buffer() {
+        let buf1 = bitarr!(u8, Msb0; 0; BUFFER_SIZE + 1);
+        let buf2 = bitarr!(u8, Msb0; 0; BUFFER_SIZE + 10);
+        let buf3 = bitarr!(u8, Msb0; 0; BUFFER_SIZE + 100);
+
+        assert!(RecordBuffer::from(&buf1).is_err());
+        assert!(RecordBuffer::from(&buf2).is_err());
+        assert!(RecordBuffer::from(&buf3).is_err());
+    }
+
+    #[test]
+    fn set_record_attributes() {
+        let mut r1 = RecordBuffer::new(7).unwrap();
+        let mut r2 = RecordBuffer::new(4).unwrap();
+        let mut r3 = RecordBuffer::new(0).unwrap();
+
+        let v1 = [-24; 7];
+        let v2 = [113; 4];
+        let v3: [Utility; 0] = [];
+
+        let v4 = [Utility::MAX; 7];
+        let v5 = [-Utility::MAX; 4];
+        let v6 = [1];
+
+        let good = Remoteness::MIN;
+        let bad = Remoteness::MAX;
+
+        assert!(r1.set_utility(v1).is_ok());
+        assert!(r2.set_utility(v2).is_ok());
+        assert!(r3.set_utility(v3).is_ok());
+
+        assert!(r1.set_utility(v4).is_err());
+        assert!(r2.set_utility(v5).is_err());
+        assert!(r3.set_utility(v6).is_err());
+
+        assert!(r1.set_remoteness(good).is_ok());
+        assert!(r2.set_remoteness(good).is_ok());
+        assert!(r3.set_remoteness(good).is_ok());
+
+        assert!(r1.set_remoteness(bad).is_err());
+        assert!(r2.set_remoteness(bad).is_err());
+        assert!(r3.set_remoteness(bad).is_err());
+    }
+
+    #[test]
+    fn data_is_valid_after_round_trip() {
+        let mut record = RecordBuffer::new(5).unwrap();
+        let payoffs = [10, -2, -8, 100, 0];
+        let remoteness = 790;
+
+        record
+            .set_utility(payoffs)
+            .unwrap();
+
+        record
+            .set_remoteness(remoteness)
+            .unwrap();
+
+        // Utilities unchanged after insert and fetch
+        for i in 0..5 {
+            let fetched_utility = record.get_utility(i).unwrap();
+            let actual_utility = payoffs[i];
+            assert_eq!(fetched_utility, actual_utility);
+        }
+
+        // Remoteness unchanged after insert and fetch
+        let fetched_remoteness = record.get_remoteness();
+        let actual_remoteness = remoteness;
+        assert_eq!(fetched_remoteness, actual_remoteness);
+
+        // Fetching utility entries of invalid players
+        assert!(record.get_utility(5).is_err());
+        assert!(record.get_utility(10).is_err());
+    }
+
+    #[test]
+    fn extreme_data_is_valid_after_round_trip() {
+        let mut record = RecordBuffer::new(6).unwrap();
+
+        let good = [
+            MAX_UTILITY,
+            MIN_UTILITY,
+            MAX_UTILITY - 1,
+            MIN_UTILITY + 1,
+            MAX_UTILITY - 1,
+        ];
+
+        let bad = [
+            MAX_UTILITY + 16,
+            MAX_UTILITY + 2,
+            MAX_UTILITY + 1,
+            MIN_UTILITY - 16,
+            MIN_UTILITY - 2,
+            MIN_UTILITY - 1,
+        ];
+
+        assert!(record.set_utility(good).is_ok());
+        assert!(record
+            .set_remoteness(MAX_REMOTENESS)
+            .is_ok());
+
+        for i in 0..6 {
+            let fetched_utility = record.get_utility(i).unwrap();
+            let actual_utility = good[i];
+            assert_eq!(fetched_utility, actual_utility);
+        }
+
+        assert_eq!(record.get_remoteness(), MAX_REMOTENESS);
+        assert!(record.set_utility(bad).is_err());
+    }
+
+    #[test]
+    fn record_operations_are_atomic() {
+        let mut record = RecordBuffer::new(6).unwrap();
+
+        let good_rem = MAX_REMOTENESS;
+        let bad_rem = MAX_REMOTENESS + 1;
+
+        let good_util = [
+            MAX_UTILITY,
+            MIN_UTILITY,
+            MAX_UTILITY - 1,
+            MIN_UTILITY + 1,
+            MAX_UTILITY - 1,
+        ];
+
+        let bad_util = [
+            MAX_UTILITY + 16,
+            MAX_UTILITY + 2,
+            MAX_UTILITY + 1,
+            MIN_UTILITY - 16,
+            MIN_UTILITY - 2,
+            MIN_UTILITY - 1,
+        ];
+
+        // Remoteness
+        assert!(record
+            .set_remoteness(good_rem)
+            .is_ok());
+
+        assert!(record
+            .set_remoteness(bad_rem)
+            .is_err());
+
+        assert_eq!(record.get_remoteness(), good_rem);
+
+        // Utility
+        assert!(record
+            .set_utility(good_util)
+            .is_ok());
+
+        assert!(record
+            .set_utility(bad_util)
+            .is_err());
+
+        for i in 0..6 {
+            let fetched_utility = record.get_utility(i).unwrap();
+            let actual_utility = good_util[i];
+            assert_eq!(fetched_utility, actual_utility);
+        }
+    }
+}
