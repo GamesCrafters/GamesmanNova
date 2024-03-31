@@ -7,8 +7,8 @@
 //!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
+use crate::database::Schema;
 use crate::solver::{record, RecordType};
-use crate::{database::Schema, model::Utility};
 
 /* BIT FIELDS */
 
@@ -73,16 +73,16 @@ mod tests {
 
     #[test]
     fn minimum_bits_for_positive_signed_integer() {
-        assert_eq!(min_sbits(0), 1);
         assert_eq!(min_sbits(0x0000_8000_2222_0001), 49);
         assert_eq!(min_sbits(0x0070_DEAD_0380_7DE0), 56);
         assert_eq!(min_sbits(0x0000_0000_F00B_1351), 33);
         assert_eq!(min_sbits(0x0000_0000_0000_0700), 12);
         assert_eq!(min_sbits(0x0000_0000_0000_0001), 2);
 
-        assert_eq!(min_sbits(-128), 8);
-        assert_eq!(min_sbits(-255), 9);
-        assert_eq!(min_sbits(-1000), 11);
         assert_eq!(min_sbits(-10000), 15);
+        assert_eq!(min_sbits(-1000), 11);
+        assert_eq!(min_sbits(-255), 9);
+        assert_eq!(min_sbits(-128), 8);
+        assert_eq!(min_sbits(0), 1);
     }
 }
