@@ -7,7 +7,8 @@
 //!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
-use crate::model::Utility;
+use crate::solver::{record, RecordType};
+use crate::{database::Schema, model::Utility};
 
 /* BIT FIELDS */
 
@@ -31,4 +32,26 @@ pub const fn min_sbits(utility: Utility) -> usize {
         res += 1;
     }
     res + 1
+}
+
+/* RECORD TYPE IMPLEMENTATIONS */
+
+impl Into<String> for RecordType {
+    fn into(self) -> String {
+        match self {
+            RecordType::MUR(players) => {
+                format!("Multi-Utility Remoteness ({} players)", players)
+            },
+        }
+    }
+}
+
+impl TryInto<Schema> for RecordType {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<Schema, Self::Error> {
+        match self {
+            RecordType::MUR(players) => record::mur::schema(players),
+        }
+    }
 }

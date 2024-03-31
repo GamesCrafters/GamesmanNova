@@ -14,6 +14,92 @@ use anyhow::Result;
 use crate::database::error::DatabaseError;
 use crate::database::Attribute;
 use crate::database::Datatype;
+use crate::database::Schema;
+use crate::database::SchemaBuilder;
+use crate::solver::RecordType;
+
+/* DEFINITIONS */
+
+/// Iterator over borrows of the attributes that form a database table schema.
+pub struct SchemaIterator<'a> {
+    schema: &'a Schema,
+    index: usize,
+}
+
+/* UTILITY IMPLEMENTATIONS */
+
+impl ToString for Datatype {
+    fn to_string(&self) -> String {
+        match self {
+            Datatype::DPFP => "Double-Precision Floating Point".to_string(),
+            Datatype::SPFP => "Single-Precision Floating Point".to_string(),
+            Datatype::CSTR => "C-Style ASCII String".to_string(),
+            Datatype::UINT => "Unsigned Integer".to_string(),
+            Datatype::SINT => "Signed Integer".to_string(),
+            Datatype::ENUM => "Enumeration".to_string(),
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a Schema {
+    type IntoIter = SchemaIterator<'a>;
+    type Item = &'a Attribute;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SchemaIterator {
+            schema: self,
+            index: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SchemaIterator<'a> {
+    type Item = &'a Attribute;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.index += 1;
+        self.schema
+            .attributes
+            .get(self.index - 1)
+    }
+}
+
+impl SchemaBuilder {
+    /// Returns a new instance of a `SchemaBuilder`, which can be used to
+    /// declaratively construct a new record `Schema`.
+    pub fn new() -> Self {
+        SchemaBuilder {
+            attributes: Vec::new(),
+            record: None,
+            size: 0,
+        }
+    }
+
+    /// Associates `attr` to the schema under construction. Returns an error
+    /// if adding `attr` to the schema would result in an invalid state.
+    pub fn add(mut self, attr: Attribute) -> Result<Self> {
+        check_attribute_validity(&self.attributes, &attr)?;
+        self.size += attr.size();
+        Ok(self)
+    }
+
+    /// Associates a known `record` type to the schema under construction.
+    pub fn of(mut self, record: RecordType) -> Self {
+        self.record = Some(record);
+        self
+    }
+
+    /// Constructs the schema using the current state of the `SchemaBuilder`.
+    pub fn build(self) -> Schema {
+        Schema {
+            attributes: self.attributes,
+            record: self.record,
+            size: self.size,
+        }
+    }
+}
+
+/* FUNCTIONS */
 
 /// Verifies that adding a `new` attribute to an `existing` set of attributes
 /// would not result in an invalid state for the schema who owns `existing`,
@@ -59,20 +145,5 @@ fn check_datatype_validity(new: &Attribute) -> Result<(), DatabaseError> {
         })
     } else {
         Ok(())
-    }
-}
-
-/* UTILITY IMPLEMENTATIONS */
-
-impl ToString for Datatype {
-    fn to_string(&self) -> String {
-        match self {
-            Datatype::DPFP => "Double-Precision Floating Point".to_string(),
-            Datatype::SPFP => "Single-Precision Floating Point".to_string(),
-            Datatype::CSTR => "C-Style ASCII String".to_string(),
-            Datatype::UINT => "Unsigned Integer".to_string(),
-            Datatype::SINT => "Signed Integer".to_string(),
-            Datatype::ENUM => "Enumeration".to_string(),
-        }
     }
 }
