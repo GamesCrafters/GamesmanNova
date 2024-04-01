@@ -15,10 +15,18 @@ use crate::database::error::DatabaseError;
 use crate::database::Attribute;
 use crate::database::Datatype;
 use crate::database::Schema;
-use crate::database::SchemaBuilder;
 use crate::solver::RecordType;
 
 /* DEFINITIONS */
+
+/// Builder pattern intermediary for constructing a schema declaratively out of
+/// provided attributes. This is here to help ensure schemas are not changed
+/// accidentally after being instantiated.
+pub struct SchemaBuilder {
+    attributes: Vec<Attribute>,
+    record: Option<RecordType>,
+    size: usize,
+}
 
 /// Iterator over borrows of the attributes that form a database table schema.
 pub struct SchemaIterator<'a> {
@@ -26,43 +34,7 @@ pub struct SchemaIterator<'a> {
     index: usize,
 }
 
-/* UTILITY IMPLEMENTATIONS */
-
-impl ToString for Datatype {
-    fn to_string(&self) -> String {
-        match self {
-            Datatype::DPFP => "Double-Precision Floating Point".to_string(),
-            Datatype::SPFP => "Single-Precision Floating Point".to_string(),
-            Datatype::CSTR => "C-Style ASCII String".to_string(),
-            Datatype::UINT => "Unsigned Integer".to_string(),
-            Datatype::SINT => "Signed Integer".to_string(),
-            Datatype::ENUM => "Enumeration".to_string(),
-        }
-    }
-}
-
-impl<'a> IntoIterator for &'a Schema {
-    type IntoIter = SchemaIterator<'a>;
-    type Item = &'a Attribute;
-
-    fn into_iter(self) -> Self::IntoIter {
-        SchemaIterator {
-            schema: self,
-            index: 0,
-        }
-    }
-}
-
-impl<'a> Iterator for SchemaIterator<'a> {
-    type Item = &'a Attribute;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.index += 1;
-        self.schema
-            .attributes
-            .get(self.index - 1)
-    }
-}
+/* BUILDER IMPLEMENTATION */
 
 impl SchemaBuilder {
     /// Returns a new instance of a `SchemaBuilder`, which can be used to
@@ -78,7 +50,7 @@ impl SchemaBuilder {
     /// Associates `attr` to the schema under construction. Returns an error
     /// if adding `attr` to the schema would result in an invalid state.
     pub fn add(mut self, attr: Attribute) -> Result<Self> {
-        check_attribute_validity(&self.attributes, &attr)?;
+        self.check_attribute_validity(&attr)?;
         self.size += attr.size();
         Ok(self)
     }
@@ -97,53 +69,97 @@ impl SchemaBuilder {
             size: self.size,
         }
     }
-}
 
-/* FUNCTIONS */
+    /* VERIFICATION METHODS */
 
-/// Verifies that adding a `new` attribute to an `existing` set of attributes
-/// would not result in an invalid state for the schema who owns `existing`,
-/// and that the added attribute does not break any datatype sizing rules.
-pub fn check_attribute_validity(
-    existing: &Vec<Attribute>,
-    new: &Attribute,
-) -> Result<(), DatabaseError> {
-    if new.name().is_empty() {
-        Err(DatabaseError::UnnamedAttribute { table: None })
-    } else if new.size() == 0 {
-        Err(DatabaseError::EmptyAttribute { table: None })
-    } else if existing
-        .iter()
-        .any(|a| a.name() == new.name())
-    {
-        Err(DatabaseError::RepeatedAttribute {
-            name: new.name().to_string(),
-            table: None,
-        })
-    } else {
-        check_datatype_validity(new)?;
-        Ok(())
+    /// Verifies that adding a `new` attribute to tje existing set of attributes
+    /// would not result in an invalid state for the schema under construction,
+    /// and that the added attribute does not break any datatype sizing rules.
+    fn check_attribute_validity(
+        &self,
+        new: &Attribute,
+    ) -> Result<(), DatabaseError> {
+        if new.name().is_empty() {
+            Err(DatabaseError::UnnamedAttribute { table: None })
+        } else if new.size() == 0 {
+            Err(DatabaseError::EmptyAttribute { table: None })
+        } else if self
+            .attributes
+            .iter()
+            .any(|a| a.name() == new.name())
+        {
+            Err(DatabaseError::RepeatedAttribute {
+                name: new.name().to_string(),
+                table: None,
+            })
+        } else {
+            Self::check_datatype_validity(new)?;
+            Ok(())
+        }
+    }
+
+    /// Verifies that the datatype in an attribute is coherent with its
+    /// indicated size, which is specific to each valid datatype.
+    fn check_datatype_validity(new: &Attribute) -> Result<(), DatabaseError> {
+        let s = new.size();
+        if match new.datatype() {
+            Datatype::SINT => s < 2,
+            Datatype::BOOL => s != 1,
+            Datatype::SPFP => s != 32,
+            Datatype::DPFP => s != 64,
+            Datatype::CSTR => s % 8 != 0,
+            Datatype::UINT | Datatype::ENUM => {
+                unreachable!("UINTs and ENUMs can be of any nonzero size.")
+            },
+        } {
+            Err(DatabaseError::InvalidSize {
+                size: new.size(),
+                name: new.name().to_string(),
+                data: new.datatype(),
+                table: None,
+            })
+        } else {
+            Ok(())
+        }
     }
 }
 
-fn check_datatype_validity(new: &Attribute) -> Result<(), DatabaseError> {
-    let s = new.size();
-    if match new.datatype() {
-        Datatype::SINT => s < 2,
-        Datatype::SPFP => s != 32,
-        Datatype::DPFP => s != 64,
-        Datatype::CSTR => s % 8 != 0,
-        Datatype::UINT | Datatype::ENUM => {
-            unreachable!("UINTs and ENUMs can be of any nonzero size.")
-        },
-    } {
-        Err(DatabaseError::InvalidSize {
-            size: new.size(),
-            name: new.name().to_string(),
-            data: new.datatype(),
-            table: None,
-        })
-    } else {
-        Ok(())
+/* UTILITY IMPLEMENTATIONS */
+
+impl ToString for Datatype {
+    fn to_string(&self) -> String {
+        match self {
+            Datatype::DPFP => "Double-Precision Floating Point".to_string(),
+            Datatype::SPFP => "Single-Precision Floating Point".to_string(),
+            Datatype::CSTR => "C-Style ASCII String".to_string(),
+            Datatype::UINT => "Unsigned Integer".to_string(),
+            Datatype::SINT => "Signed Integer".to_string(),
+            Datatype::ENUM => "Enumeration".to_string(),
+            Datatype::BOOL => "Boolean".to_string(),
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a Schema {
+    type IntoIter = SchemaIterator<'a>;
+
+    type Item = &'a Attribute;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SchemaIterator {
+            schema: self,
+            index: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SchemaIterator<'a> {
+    type Item = &'a Attribute;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.index += 1;
+        self.schema
+            .attributes
+            .get(self.index - 1)
     }
 }
