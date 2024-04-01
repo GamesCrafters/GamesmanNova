@@ -94,7 +94,7 @@ struct Orientation {
     right: u64,
 }
 
-/// Maps a "packed" orientation to a number from 0-23 which will be used by the 
+/// Maps a "packed" orientation to a number from 0-23 which will be used by the
 /// hash function.
 /// The format is front_top_right
 /// Each of these will be a value from 0-5, and have 3 bits allotted.
@@ -172,7 +172,7 @@ fn unhash_orientation(h: &u64) -> Orientation {
         front: packed >> 6 & FACE_MASK,
         top: packed >> 3 & FACE_MASK,
         right: packed & FACE_MASK,
-    }
+    };
 }
 
 /// Simple, inefficient hash function that converts a vector of piece
@@ -226,7 +226,7 @@ mod mov {
             front: o.right,
             top: o.top,
             right: 5 - o.front,
-        }
+        };
     }
 
     /// Transforms an individual piece orientation as if it was shifted left
@@ -235,7 +235,7 @@ mod mov {
             front: 5 - o.right,
             top: o.top,
             right: o.front,
-        }
+        };
     }
 
     /// Transforms an individual piece orientation as if it was shifted up
@@ -244,7 +244,7 @@ mod mov {
             front: 5 - o.top,
             top: o.front,
             right: o.right,
-        }
+        };
     }
 
     /// Transforms an individual piece orientation as if it was shifted down
@@ -253,7 +253,7 @@ mod mov {
             front: o.top,
             top: 5 - o.front,
             right: o.right,
-        }
+        };
     }
 
     fn board_right() {
