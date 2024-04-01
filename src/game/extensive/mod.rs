@@ -46,7 +46,7 @@ const STATE_PROTOCOL: &'static str = "A non-negative integer.";
 
 const VARIANT_DEFAULT: &'static str = "N/A";
 const VARIANT_PATTERN: &'static str = "N/A";
-const VARIANT_PROTOCOL: &'static str = 
+const VARIANT_PROTOCOL: &'static str =
 "This implementation has no variants, as it can represent any extensive game.";
 
 /* DEFINITIONS */
