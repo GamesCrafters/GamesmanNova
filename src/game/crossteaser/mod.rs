@@ -168,8 +168,7 @@ const ORIENTATION_UNMAP: HashMap<u64, u64> = collection! {
     23 => 0b101_011_100,
 };
 
-
-// Constant bitmask values that will be commonly used for hashing/unhashing 
+// Constant bitmask values that will be commonly used for hashing/unhashing
 // game states.
 const FACE_BITS: u64 = 3;
 const FACE_BITMASK: u64 = 0b111;
@@ -178,14 +177,12 @@ const EMPTY_BITMASK: u64 = 0b111;
 const PIECE_BITS: u64 = 5;
 const PIECE_BITMASK: u64 = 0b11111;
 
-
 /// Converts an Orientation struct into its corresponding orientation hash,
 /// which will be a number from 0-23
 /// Makes use of ORIENTATION_MAP for the conversion
 fn hash_orientation(o: &Orientation) -> u64 {
-    let packed: u64 = (o.front << (FACE_BITS * 2)) | 
-                      (o.top << FACE_BITS) | 
-                      o.right;
+    let packed: u64 =
+        (o.front << (FACE_BITS * 2)) | (o.top << FACE_BITS) | o.right;
     return ORIENTATION_MAP[&packed];
 }
 
@@ -204,13 +201,11 @@ impl UnhashedState {
     fn deep_copy(&self) -> UnhashedState {
         let mut new_pieces: Vec<Orientation> = Vec::new();
         for o in &self.pieces {
-            new_pieces.push(
-                Orientation {
-                    front: o.front,
-                    top: o.top,
-                    right: o.right,
-                }
-            );
+            new_pieces.push(Orientation {
+                front: o.front,
+                top: o.top,
+                right: o.right,
+            });
         }
         return UnhashedState {
             pieces: new_pieces,
