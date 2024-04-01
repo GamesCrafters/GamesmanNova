@@ -162,14 +162,10 @@ fn transition_history_error<G: Legible<State>>(
     .context("Invalid game history.")
 }
 
-/* TESTS */
-
 #[cfg(test)]
-mod test {
+mod tests {
 
     use super::*;
-
-    /* TURN ENCODING TESTS */
 
     #[test]
     fn pack_turn_correctness() {

@@ -21,13 +21,16 @@ use crate::{
 
 /* UTILITY MODULES */
 
+#[cfg(test)]
+mod test;
 mod error;
 mod util;
 
 /* IMPLEMENTED GAMES */
 
-pub mod zero_by;
 pub mod crossteaser;
+pub mod extensive;
+pub mod zero_by;
 
 /* DATA CONSTRUCTS */
 
@@ -367,17 +370,6 @@ where
     /// in a way that is equitable to improve efficiency.
     fn size(&self, partition: Partition) -> StateCount;
 }
-
-/* GAME STRUCTURE MARKERS */
-
-/// Indicates that the graph induced by the underlying game's states is acyclic.
-/// This intuitively means that no state will appear twice in a single session
-/// of game play. It is very practical for a game to exhibit this structure, as
-/// performing backwards induction is quite natural on acyclic graphs. Note that
-/// there is no behavior associated with this trait; it is used as a marker for
-/// providing blanket implementations from solvers which require games' state
-/// graphs to not have any cycles.
-pub trait Acyclic<const N: PlayerCount> {}
 
 /* UTILITY INTERFACES */
 

@@ -16,6 +16,8 @@ use crate::{model::State, solver::RecordType};
 
 /* UTILITY MODULES */
 
+#[cfg(test)]
+mod test;
 mod error;
 mod util;
 

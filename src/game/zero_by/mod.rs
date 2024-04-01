@@ -17,17 +17,15 @@ use anyhow::{Context, Result};
 use states::*;
 
 use crate::game::error::GameError;
+use crate::game::util::unpack_turn;
 use crate::game::zero_by::variants::*;
-use crate::game::{util, Acyclic, Bounded, Legible};
+use crate::game::{util, Bounded, Legible};
 use crate::game::{DTransition, Game, GameData, Solvable};
-use crate::implement;
 use crate::interface::{IOMode, SolutionMode};
 use crate::model::PlayerCount;
 use crate::model::Utility;
 use crate::model::{State, Turn};
 use crate::solver::algorithm::strong;
-
-use super::util::unpack_turn;
 
 /* SUBMODULES */
 
@@ -113,7 +111,7 @@ impl Game for Session {
     }
 }
 
-/* TRAVERSAL DECLARATIONS */
+/* TRAVERSAL IMPLEMENTATIONS */
 
 impl Bounded<State> for Session {
     fn start(&self) -> State {
@@ -171,7 +169,7 @@ impl DTransition<State> for Session {
     }
 }
 
-/* SUPPLEMENTAL DECLARATIONS */
+/* SUPPLEMENTAL IMPLEMENTATIONS */
 
 impl Legible<State> for Session {
     fn decode(&self, string: String) -> Result<State> {
@@ -184,12 +182,7 @@ impl Legible<State> for Session {
     }
 }
 
-/* SOLVING DECLARATIONS */
-
-implement! { for Session =>
-    Acyclic<2>,
-    Acyclic<10>
-}
+/* SOLVING IMPLEMENTATIONS */
 
 impl Solvable<2> for Session {
     fn utility(&self, state: State) -> [Utility; 2] {
