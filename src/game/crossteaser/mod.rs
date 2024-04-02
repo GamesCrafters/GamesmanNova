@@ -25,9 +25,9 @@ use crate::game::Bounded;
 use crate::game::DTransition;
 use crate::game::Game;
 use crate::game::GameData;
+use crate::game::GeneralSum;
 use crate::game::Legible;
 use crate::game::Playable;
-use crate::game::GeneralSum;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
 use crate::model::State;
@@ -157,4 +157,3 @@ impl GeneralSum<1> for Session {
         todo!()
     }
 }
-

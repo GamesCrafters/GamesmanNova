@@ -17,7 +17,9 @@ use nalgebra::SMatrix;
 
 use crate::{
     interface::{IOMode, SolutionMode},
-    model::{Partition, PlayerCount, State, StateCount, Turn, Utility, SimpleUtility},
+    model::{
+        Partition, PlayerCount, SimpleUtility, State, StateCount, Turn, Utility,
+    },
 };
 
 /* UTILITY MODULES */
@@ -305,7 +307,7 @@ pub trait STransition<S, const F: usize> {
 /* SOLVING INTERFACES */
 
 /// The semantics of the word "playable" here just refers to being able to have
-/// a fixed number of players, and determine whose turn is next at a particular state. 
+/// a fixed number of players, and determine whose turn is next at a particular state.
 /// The nature of the underlying game, and the utility interface then decides the
 /// specific kinds of "solving" that we can do.
 pub trait Playable<const N: PlayerCount>
@@ -367,25 +369,21 @@ where
 /// information, but we can always assign some utility to different players at
 /// different game states regardless of this fact).
 
-
 // Indicates that the game is general-sum
-pub trait GeneralSum<const N: PlayerCount>
-{
+pub trait GeneralSum<const N: PlayerCount> {
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, it is recommended that this function panics
     /// with a message indicating that an attempt was made to calculate the
     /// utility of a non-primitive state.
     fn utility(&self, state: State) -> [Utility; N];
-
 }
 
 // Indicates that the game is "simple-sum," meaning the only possible outcomes are:
 // - One player wins, the rest of the players lose
 // - All players tie
 // - All players draw
-pub trait SimpleSum<const N: PlayerCount> 
-{
+pub trait SimpleSum<const N: PlayerCount> {
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, it is recommended that this function panics
@@ -412,8 +410,7 @@ pub trait Acyclic<const N: PlayerCount> {}
 /// would ideally be factored into the game outcomes via a `utility` function in the utility
 /// interfaces. This is useful in instances when a social analysis on specific situations
 /// needs to be made without modifying existing logic.
-pub trait External<const N: PlayerCount>
-{
+pub trait External<const N: PlayerCount> {
     /// Returns an NxN matrix `M`, where the entry `M[i][j]` equals the utility
     /// obtained by player `i` for each unit of utility included in imputations
     /// of player `j`. This is somewhat akin to an economic externality.

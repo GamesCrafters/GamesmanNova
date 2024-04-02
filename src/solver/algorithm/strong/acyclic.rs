@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, STransition, Playable, GeneralSum};
+use crate::game::{Bounded, DTransition, GeneralSum, Playable, STransition};
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, Remoteness, State, Utility};
 use crate::solver::record::mur::RecordBuffer;
@@ -33,7 +33,11 @@ where
 
 pub fn static_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: STransition<State, MAX_TRANSITIONS> + Bounded<State> + Playable<N> + GeneralSum<N>,{
+    G: STransition<State, MAX_TRANSITIONS>
+        + Bounded<State>
+        + Playable<N>
+        + GeneralSum<N>,
+{
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
     static_backward_induction(&mut db, game)
@@ -138,7 +142,10 @@ fn static_backward_induction<const N: PlayerCount, D, G>(
 ) -> Result<()>
 where
     D: KVStore<RecordBuffer>,
-    G: STransition<State, MAX_TRANSITIONS> + Bounded<State> + Playable<N> + GeneralSum<N>,
+    G: STransition<State, MAX_TRANSITIONS>
+        + Bounded<State>
+        + Playable<N>
+        + GeneralSum<N>,
 {
     let mut stack = Vec::new();
     stack.push(game.start());

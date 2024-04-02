@@ -28,7 +28,7 @@ pub type Turn = usize;
 /// values are net losses. The metric over abstract utility is subjective.
 pub type Utility = i64;
 
-// A measure of the outcome of the game for simple-sum games. 
+// A measure of the outcome of the game for simple-sum games.
 pub enum SimpleUtility {
     WIN,
     LOSE,

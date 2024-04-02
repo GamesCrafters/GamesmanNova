@@ -20,7 +20,7 @@ use crate::game::error::GameError;
 use crate::game::util::unpack_turn;
 use crate::game::zero_by::variants::*;
 use crate::game::{util, Bounded, Legible};
-use crate::game::{DTransition, Game, GameData, Playable, GeneralSum};
+use crate::game::{DTransition, Game, GameData, GeneralSum, Playable};
 use crate::interface::{IOMode, SolutionMode};
 use crate::model::PlayerCount;
 use crate::model::Utility;
@@ -199,7 +199,6 @@ impl GeneralSum<2> for Session {
     }
 }
 
-
 impl Playable<10> for Session {
     fn turn(&self, state: State) -> Turn {
         util::unpack_turn(state, 10).1
@@ -213,5 +212,4 @@ impl GeneralSum<10> for Session {
         payoffs[turn] = 9;
         payoffs
     }
-
 }
