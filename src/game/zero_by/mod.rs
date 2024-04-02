@@ -20,7 +20,7 @@ use crate::game::error::GameError;
 use crate::game::util::unpack_turn;
 use crate::game::zero_by::variants::*;
 use crate::game::{util, Bounded, Legible};
-use crate::game::{DTransition, Game, GameData, Solvable};
+use crate::game::{DTransition, Game, GameData, Playable, GeneralSum};
 use crate::interface::{IOMode, SolutionMode};
 use crate::model::PlayerCount;
 use crate::model::Utility;
@@ -184,20 +184,29 @@ impl Legible<State> for Session {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl Solvable<2> for Session {
+impl Playable<2> for Session {
+    fn turn(&self, state: State) -> Turn {
+        util::unpack_turn(state, 2).1
+    }
+}
+
+impl GeneralSum<2> for Session {
     fn utility(&self, state: State) -> [Utility; 2] {
         let (_, turn) = unpack_turn(state, 2);
         let mut payoffs = [-1; 2];
         payoffs[turn] = 1;
         payoffs
     }
+}
 
+
+impl Playable<10> for Session {
     fn turn(&self, state: State) -> Turn {
-        util::unpack_turn(state, 2).1
+        util::unpack_turn(state, 10).1
     }
 }
 
-impl Solvable<10> for Session {
+impl GeneralSum<10> for Session {
     fn utility(&self, state: State) -> [Utility; 10] {
         let (_, turn) = unpack_turn(state, 10);
         let mut payoffs = [-1; 10];
@@ -205,7 +214,4 @@ impl Solvable<10> for Session {
         payoffs
     }
 
-    fn turn(&self, state: State) -> Turn {
-        util::unpack_turn(state, 10).1
-    }
 }

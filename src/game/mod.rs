@@ -10,13 +10,14 @@
 //! #### Authorship
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
+//! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
 use anyhow::Result;
 use nalgebra::SMatrix;
 
 use crate::{
     interface::{IOMode, SolutionMode},
-    model::{Partition, PlayerCount, State, StateCount, Turn, Utility},
+    model::{Partition, PlayerCount, State, StateCount, Turn, Utility, SimpleUtility},
 };
 
 /* UTILITY MODULES */
@@ -303,30 +304,14 @@ pub trait STransition<S, const F: usize> {
 
 /* SOLVING INTERFACES */
 
-/// Indicates that an economic game object can have utility associated with
-/// players at some of its states. Naturally, this means we can make statements
-/// about their utility at other states in the game based on its structure. The
-/// kind of statements we can make is not decided by the implementation of this
-/// interface; it is decided by the nature of the underlying game (e.g., a
-/// deterministic game might be able to be strongly solved if it is of complete
-/// information, but we can always assign some utility to different players at
-/// different game states regardless of this fact).
-///
-/// The semantics of the word "solvable" here just refer to being able to have
-/// information about the utility of a game state from the utility of another,
-/// due to the above reasons. The nature of the underlying game then decides the
+/// The semantics of the word "playable" here just refers to being able to have
+/// a fixed number of players, and determine whose turn is next at a particular state. 
+/// The nature of the underlying game, and the utility interface then decides the
 /// specific kinds of "solving" that we can do.
-pub trait Solvable<const N: PlayerCount>
+pub trait Playable<const N: PlayerCount>
 where
     Self: Game,
 {
-    /// If `state` is terminal, returns the utility vector associated with that
-    /// state, where `utility[i]` is the utility of the state for player `i`. If
-    /// the state is not terminal, it is recommended that this function panics
-    /// with a message indicating that an attempt was made to calculate the
-    /// utility of a non-primitive state.
-    fn utility(&self, state: State) -> [Utility; N];
-
     /// Returns the player `i` whose turn it is at the given `state`. The player
     /// identifier `i` should never be greater than `N - 1`, where `N` is the
     /// number of players in the underlying game.
@@ -356,7 +341,7 @@ where
 /// the original game can be interpreted as being composed of different games.
 pub trait Composite<const N: PlayerCount>
 where
-    Self: Solvable<N>,
+    Self: Playable<N>,
 {
     /// Returns a unique identifier for the partition that `state` is an element
     /// of within the game variant specified by `self`. The notion of ordering
@@ -373,14 +358,61 @@ where
 
 /* UTILITY INTERFACES */
 
+/// Indicates that an economic game object can have utility associated with
+/// players at some of its states. Naturally, this means we can make statements
+/// about their utility at other states in the game based on its structure. The
+/// kind of statements we can make is not decided by the implementation of this
+/// interface; it is decided by the nature of the underlying game (e.g., a
+/// deterministic game might be able to be strongly solved if it is of complete
+/// information, but we can always assign some utility to different players at
+/// different game states regardless of this fact).
+
+
+// Indicates that the game is general-sum
+pub trait GeneralSum<const N: PlayerCount>
+{
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal, it is recommended that this function panics
+    /// with a message indicating that an attempt was made to calculate the
+    /// utility of a non-primitive state.
+    fn utility(&self, state: State) -> [Utility; N];
+
+}
+
+// Indicates that the game is "simple-sum," meaning the only possible outcomes are:
+// - One player wins, the rest of the players lose
+// - All players tie
+// - All players draw
+pub trait SimpleSum<const N: PlayerCount> 
+{
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal, it is recommended that this function panics
+    /// with a message indicating that an attempt was made to calculate the
+    /// utility of a non-primitive state.
+    fn utility(&self, state: State) -> [SimpleUtility; N];
+}
+
+/* GAME STRUCTURE MARKERS */
+
+/// Indicates that the graph induced by the underlying game's states is acyclic.
+/// This intuitively means that no state will appear twice in a single session
+/// of game play. It is very practical for a game to exhibit this structure, as
+/// performing backwards induction is quite natural on acyclic graphs. Note that
+/// there is no behavior associated with this trait; it is used as a marker for
+/// providing blanket implementations from solvers which require games' state
+/// graphs to not have any cycles.
+pub trait Acyclic<const N: PlayerCount> {}
+
+/* UTILITY INTERFACES */
+
 /// Indicates that it is possible for players to gain utility from the utility
 /// of other players. This is purely utilitarian, as this additional utility
-/// would ideally be factored into the game outcomes via `Solvable::utility`.
-/// This is useful in instances when a social analysis on specific situations
+/// would ideally be factored into the game outcomes via a `utility` function in the utility
+/// interfaces. This is useful in instances when a social analysis on specific situations
 /// needs to be made without modifying existing logic.
 pub trait External<const N: PlayerCount>
-where
-    Self: Solvable<N>,
 {
     /// Returns an NxN matrix `M`, where the entry `M[i][j]` equals the utility
     /// obtained by player `i` for each unit of utility included in imputations

@@ -16,7 +16,7 @@ use crate::game::DTransition;
 use crate::game::Game;
 use crate::game::Legible;
 use crate::game::STransition;
-use crate::game::Solvable;
+use crate::game::Playable;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
 use crate::model::PlayerCount;
@@ -28,6 +28,8 @@ use crate::solver::MAX_TRANSITIONS;
 /* RE-EXPORTS */
 
 pub use builder::SessionBuilder;
+
+use super::GeneralSum;
 
 /* SUBMODULES */
 
@@ -150,12 +152,14 @@ impl Legible<State> for Session<'_> {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl<const N: PlayerCount> Solvable<N> for Session<'_> {
-    fn utility(&self, state: State) -> [Utility; N] {
+impl<const N: PlayerCount> Playable<N> for Session<'_> {
+    fn turn(&self, state: State) -> Turn {
         todo!()
     }
+}
 
-    fn turn(&self, state: State) -> Turn {
+impl<const N: PlayerCount> GeneralSum<N> for Session<'_> {
+    fn utility(&self, state: State) -> [Utility; N] {
         todo!()
     }
 }
