@@ -7,3 +7,9 @@
 //! #### Authorship
 //!
 //! - Max Fierro, 3/31/2024 (maxfierro@berkeley.edu)
+
+/* MOCK STATE ENCODING */
+
+pub const STATE_DEFAULT: &'static str = "N/A";
+pub const STATE_PATTERN: &'static str = r"^\d+$";
+pub const STATE_PROTOCOL: &'static str = "A non-negative integer.";

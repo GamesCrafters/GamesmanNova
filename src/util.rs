@@ -255,6 +255,7 @@ macro_rules! schema {
 /// // A terminal node with state hash 2 and 5-entry utility vector.
 /// let n2 = node!(2, [-1, -4, 5, 0, 3]);
 /// ```
+#[macro_export]
 macro_rules! node {
     ($hash:expr, [$($data:expr),*]) => {
         Node {

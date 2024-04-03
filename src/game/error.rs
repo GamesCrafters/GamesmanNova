@@ -48,6 +48,10 @@ pub enum GameError {
         game_name: &'static str,
         hint: String,
     },
+
+    /// An error to indicate that a game-building rule within the abstract
+    /// extensive mock game implementation was violated during construction.
+    MockBuilderViolation { hint: String },
 }
 
 impl Error for GameError {}
@@ -87,6 +91,7 @@ impl fmt::Display for GameError {
                     hint, game_name
                 )
             },
+            Self::MockBuilderViolation { hint } => write!(f, "{}", hint),
         }
     }
 }

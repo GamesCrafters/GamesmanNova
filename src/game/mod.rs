@@ -29,7 +29,7 @@ mod util;
 /* IMPLEMENTED GAMES */
 
 pub mod crossteaser;
-pub mod extensive;
+pub mod mock;
 pub mod zero_by;
 
 /* DATA CONSTRUCTS */

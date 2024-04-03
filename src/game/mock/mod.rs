@@ -1,4 +1,4 @@
-//! Artificial Game Module
+//! Mock Extensive Game Module
 //!
 //! This module provides a way to represent extensive-form games by declaring
 //! the game via a graph, assigning special conditions to nodes, and exposing it
@@ -27,6 +27,7 @@ use crate::solver::MAX_TRANSITIONS;
 
 /* RE-EXPORTS */
 
+pub use builder::Node;
 pub use builder::SessionBuilder;
 
 /* SUBMODULES */
@@ -36,13 +37,9 @@ mod builder;
 
 /* GAME DATA */
 
-const NAME: &'static str = "extensive";
+const NAME: &'static str = "mock";
 const AUTHORS: &'static str = "Max Fierro <maxfierro@berkeley.edu>";
 const ABOUT: &'static str = "PLACEHOLDER";
-
-const STATE_DEFAULT: &'static str = "N/A";
-const STATE_PATTERN: &'static str = r"^\d+$";
-const STATE_PROTOCOL: &'static str = "A non-negative integer.";
 
 const VARIANT_DEFAULT: &'static str = "N/A";
 const VARIANT_PATTERN: &'static str = "N/A";
@@ -58,14 +55,6 @@ pub struct Session<'a> {
     players: PlayerCount,
     start: NodeIndex,
     game: Graph<&'a Node, ()>,
-}
-
-/// Encodes a unique state or position in a game, which may be able to be
-/// transitioned into other states. Contains all information necessary for
-/// solving the represented game (no additional bookkeeping needed).
-pub struct Node {
-    pub hash: State,
-    pub data: Stage,
 }
 
 /// Indicates whether a game state node is terminal (there are no outgoing moves
