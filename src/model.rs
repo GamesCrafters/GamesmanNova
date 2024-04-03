@@ -28,14 +28,6 @@ pub type Turn = usize;
 /// values are net losses. The metric over abstract utility is subjective.
 pub type Utility = i64;
 
-// A measure of the outcome of the game for simple-sum games.
-pub enum SimpleUtility {
-    WIN,
-    LOSE,
-    DRAW,
-    TIE,
-}
-
 /// Indicates the "depth of draw" which a drawing position corresponds to. For
 /// more information, see [this whitepaper](TODO). This value should be 0 for
 /// non-drawing positions.

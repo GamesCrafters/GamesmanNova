@@ -37,6 +37,9 @@ impl Into<String> for RecordType {
             RecordType::MUR(players) => {
                 format!("Multi-Utility Remoteness ({} players)", players)
             },
+            RecordType::SUR(players) => {
+                format!("Simple-Utility Remoteness ({}  players)", players)
+            }
         }
     }
 }
@@ -47,6 +50,7 @@ impl TryInto<Schema> for RecordType {
     fn try_into(self) -> Result<Schema, Self::Error> {
         match self {
             RecordType::MUR(players) => record::mur::schema(players),
+            RecordType::SUR(players) => record::sur::schema(players),
         }
     }
 }

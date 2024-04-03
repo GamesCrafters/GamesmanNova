@@ -18,8 +18,9 @@ use nalgebra::SMatrix;
 use crate::{
     interface::{IOMode, SolutionMode},
     model::{
-        Partition, PlayerCount, SimpleUtility, State, StateCount, Turn, Utility,
+        Partition, PlayerCount, State, StateCount, Turn, Utility,
     },
+    solver::SimpleUtility,
 };
 
 /* UTILITY MODULES */
@@ -380,9 +381,7 @@ pub trait GeneralSum<const N: PlayerCount> {
 }
 
 // Indicates that the game is "simple-sum," meaning the only possible outcomes are:
-// - One player wins, the rest of the players lose
-// - All players tie
-// - All players draw
+// Win, Lose, Tie, and Draw for each player
 pub trait SimpleSum<const N: PlayerCount> {
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If

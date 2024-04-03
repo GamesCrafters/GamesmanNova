@@ -9,10 +9,13 @@
 //! #### Authorship
 //!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
+//! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
 
 /* CONSTANTS */
 
 use crate::model::PlayerCount;
+use crate::solver::error::SolverError::RecordViolation;
+use anyhow::Result;
 
 /// Describes the maximum number of states that are one move away from any state
 /// within a game. Used to allocate statically-sized arrays on the stack for
@@ -29,6 +32,36 @@ pub const MAX_TRANSITIONS: usize = 128;
 pub enum RecordType {
     /// Multi-Utility Remoteness record for a specific number of players.
     MUR(PlayerCount),
+    SUR(PlayerCount),
+}
+
+// An enum of outcomes for simple games, where the only possible outcomes are win, lose, tie,
+// and draw
+#[derive(Clone, Copy)]
+pub enum SimpleUtility {
+    WIN = 0,
+    LOSE = 1,
+    DRAW = 2,
+    TIE = 3,
+}
+
+impl SimpleUtility {
+    pub fn from_u64(val: u64) -> Result<SimpleUtility> {
+        match val {
+            val if val == SimpleUtility::WIN as u64 => Ok(SimpleUtility::WIN), 
+            val if val == SimpleUtility::LOSE as u64 => Ok(SimpleUtility::LOSE), 
+            val if val == SimpleUtility::DRAW as u64 => Ok(SimpleUtility::DRAW),
+            val if val == SimpleUtility::TIE as u64 => Ok(SimpleUtility::TIE),
+            _ => Err(RecordViolation {
+                name: "SimpleUtility".to_string(),
+                hint: format!(
+                    "SimpleUtility values can only be represented by an integer \
+                    from 0b00 to 0b11 inclusive, but there was an attempt to  \
+                    decode a utility value from the integer {}.", val
+                )
+            })?
+        }
+    }
 }
 
 /// Implementations of records that can be used by solving algorithms to store
@@ -36,6 +69,7 @@ pub enum RecordType {
 /// a database system.
 pub mod record {
     pub mod mur;
+    pub mod sur;
 }
 
 /* SOLVER MODULES */
@@ -70,8 +104,6 @@ pub mod algorithm {
         pub mod cyclic;
     }
 }
-
-/* UTILITY MODULES */
 
 #[cfg(test)]
 mod test;
