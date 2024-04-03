@@ -22,7 +22,7 @@ use crate::model::{PlayerCount, State};
 /* DEFINITIONS */
 
 /// Used to identify whether the current player count is final.
-type Final = bool;
+type Finalized = bool;
 
 /// Used to identify which state decided the current player count.
 type Decider = State;
@@ -55,7 +55,7 @@ type Decider = State;
 /// ```
 pub struct SessionBuilder<'a> {
     inserted: HashMap<State, NodeIndex>,
-    players: (PlayerCount, Decider, Final),
+    players: (PlayerCount, Decider, Finalized),
     start: Option<NodeIndex>,
     game: Graph<&'a Node, ()>,
     name: &'static str,
