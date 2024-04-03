@@ -55,6 +55,7 @@ pub struct Session<'a> {
     players: PlayerCount,
     start: NodeIndex,
     game: Graph<&'a Node, ()>,
+    name: &'static str,
 }
 
 /// Indicates whether a game state node is terminal (there are no outgoing moves

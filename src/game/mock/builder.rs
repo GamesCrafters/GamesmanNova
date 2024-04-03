@@ -14,12 +14,18 @@ use petgraph::{graph::NodeIndex, Graph};
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::game::error::GameError::MockBuilderViolation;
+use crate::game::error::GameError::MockViolation;
 use crate::game::mock::Session;
 use crate::game::mock::Stage;
 use crate::model::{PlayerCount, State};
 
 /* DEFINITIONS */
+
+/// Used to identify whether the current player count is final.
+type Final = bool;
+
+/// Used to identify which state decided the current player count.
+type Decider = State;
 
 /// Builder pattern for creating a graph game by progressively adding nodes and
 /// edges and specifying a start node. `Node`s are unique by their `hash` field
@@ -33,23 +39,26 @@ use crate::model::{PlayerCount, State};
 /// let s1 = Node { 1, Stage::Medial(1) };
 /// let s2 = Node { 2, Stage::Terminal(vec![1, -1]) };
 ///
-/// // Macro node initialization
+/// // Macro node initialization (equivalent)
 /// let s0 = node!(0, 0);
 /// let s1 = node!(1, 1);
 /// let s2 = node!(2, [1, -1]);
 ///
-/// let session = SessionBuilder::new(2)?
+/// let session = SessionBuilder::new("example")
 ///     .edge(&s0, &s1)?
 ///     .edge(&s0, &s2)?
 ///     .edge(&s1, &s2)?
-///     .start(&s0)
+///     .start(&s0)?
 ///     .build()?;
+///
+/// assert_eq!(session.players, 2);
 /// ```
 pub struct SessionBuilder<'a> {
     inserted: HashMap<State, NodeIndex>,
-    players: PlayerCount,
+    players: (PlayerCount, Decider, Final),
     start: Option<NodeIndex>,
     game: Graph<&'a Node, ()>,
+    name: &'static str,
 }
 
 /// Encodes a unique state or position in a game, which may be able to be
@@ -64,29 +73,49 @@ pub struct Node {
 
 impl<'a> SessionBuilder<'a> {
     /// Initialize a builder struct for a graph game with an empty graph, no
-    /// starting state, and a number of `players` (failing if it is 0).
-    pub fn new(players: PlayerCount) -> Result<Self> {
-        if players < 1 {
-            Err(MockBuilderViolation {
-                hint: "Games with 0 players are not allowed.".into(),
-            })?
-        } else {
-            Ok(SessionBuilder {
-                inserted: HashMap::new(),
-                players,
-                start: None,
-                game: Graph::new(),
-            })
+    /// starting state, and a given `name` that will be eventually used for
+    /// the constructed game session's `id`.
+    pub fn new(name: &'static str) -> Self {
+        SessionBuilder {
+            inserted: HashMap::new(),
+            players: (0, 0, false),
+            start: None,
+            game: Graph::new(),
+            name,
         }
     }
 
     /// Insert an edge into the game graph under construction. If either of the
     /// nodes contains a previously inserted `hash` belonging to another node,
     /// the existing node will be used for the edge, and the additional fields
-    /// in the new node will be ignored. Fails if `from` is a terminal node, or
-    /// if a terminal node with a utility vector of incoherent size is added.
+    /// in the new node will be ignored (unless they would cause failure).
+    ///
+    /// # Player count inference
+    ///
+    /// The player count of the game will be updated according to the turn or
+    /// utility information in `from` and `to`. This is done such that on any
+    /// successful call to build, the player count will be the number of utility
+    /// entries in all successfully added terminal nodes.
+    ///
+    /// # Failure
+    ///
+    /// Fails if `from` is a terminal node, if a terminal node with a utility
+    /// vector of incoherent size is added, or if a medial node with incoherent
+    /// turn information is added.
     pub fn edge(mut self, from: &'a Node, to: &'a Node) -> Result<Self> {
-        self.check_edge_addition(from, to)?;
+        if let Stage::Terminal(_) = from.data {
+            Err(MockViolation {
+                hint: format!(
+                    "There was an attempt to add a terminal node with hash {} \
+                    on the outgoing side of an edge during the construction of \
+                    the game '{}'.",
+                    from.hash, self.name,
+                ),
+            })?
+        }
+
+        self.update_player_count(from)?;
+        self.update_player_count(to)?;
 
         let i = *self
             .inserted
@@ -103,96 +132,118 @@ impl<'a> SessionBuilder<'a> {
     }
 
     /// Indicate that `node` is the starting state for the game being built. The
-    /// indicated `node` must have already been added to the builder as part of
-    /// an edge (failing otherwise).
+    /// indicated `node` (or a node with an identical hash) must have already
+    /// been added to the game. Fails if there is no such existing node.
     pub fn start(mut self, node: &Node) -> Result<Self> {
         if let Some(&index) = self.inserted.get(&node.hash) {
             self.start = Some(index);
             Ok(self)
         } else {
-            Err(MockBuilderViolation {
+            Err(MockViolation {
                 hint: format!(
-                    "There is no existing node with hash {} in the game.",
-                    node.hash,
+                    "There was an attempt to set the start state of mock game \
+                    '{}' to {}, but there is no existing node with that hash.",
+                    self.name, node.hash,
                 ),
             })?
         }
     }
 
-    /// Instantiate a `Session` encoding the constructed game graph. Fails if
-    /// the number of players is set to 0, if no starting state was specified,
-    /// the specified starting state does not correspond to any node `hash`,
-    /// there exist non-terminal nodes with no outgoing edges, or no terminal
-    /// nodes are reachable from the starting state (assuming it is valid).
+    /// Instantiate a `Session` encoding the constructed game graph. Fails if no
+    /// starting state was specified, the specified starting state does not
+    /// correspond to any node `hash`, there exist non-terminal nodes with no
+    /// outgoing edges, or no terminal nodes are reachable from the starting
+    /// state (assuming it is valid).
     pub fn build(self) -> Result<Session<'a>> {
-        let index = self.check_starting_state()?;
-        self.check_terminal_state(index)?;
-        self.check_outgoing_edges(index)?;
-
+        let start = self.check_starting_state()?;
+        self.check_terminal_state(start)?;
+        self.check_outgoing_edges(start)?;
+        let (players, _, _) = self.players;
         Ok(Session {
-            players: self.players,
-            start: index,
+            players,
+            start,
             game: self.game,
+            name: self.name,
         })
     }
 
-    /* VALIDATION METHODS */
+    /* HELPER METHODS */
 
-    /// Fails if adding an edge between the nodes `from` and `to` would result
-    /// in an invalid state for the game under construction.
-    fn check_edge_addition(&self, from: &Node, to: &Node) -> Result<()> {
-        match &from.data {
-            Stage::Terminal(_) => Err(MockBuilderViolation {
-                hint: format!(
-                    "The terminal node with hash {} was used on the outgoing \
-                    side of an edge.",
-                    from.hash
-                ),
-            })?,
-            Stage::Medial(turn) => {
-                if turn >= &self.players {
-                    Err(MockBuilderViolation {
-                        hint: format!(
-                            "The medial node with hash {} has a turn of {} but \
-                            the game under construction is {}-player.",
-                            from.hash,
-                            turn,
-                            self.players
-                        ),
-                    })?
-                }
-            },
-        };
-
-        match &to.data {
+    /// Infers and updates the player count of the game under construction based
+    /// on the turn information or number of utility entries of `new`. Fails if
+    /// adding `new` to the game would result in an invalid state.
+    fn update_player_count(&mut self, new: &Node) -> Result<()> {
+        let (old_count, decider, finalized) = self.players;
+        let new_count = match &new.data {
             Stage::Terminal(vector) => {
-                if vector.len() != self.players {
-                    Err(MockBuilderViolation {
+                let result = vector.len();
+                if result == 0 {
+                    Err(MockViolation {
                         hint: format!(
-                            "The terminal node with hash {} has a utility \
-                            vector with {} entries, but the game under \
-                            construction is {}-player.",
-                            to.hash,
-                            vector.len(),
-                            self.players
+                            "While constructing the game '{}', there was an \
+                            attempt to add a terminal node with hash '{}' \
+                            containing no utility entries. Games with no \
+                            players are not allowed.",
+                            self.name, new.hash,
                         ),
                     })?
-                }
+                };
+                result
             },
-            Stage::Medial(turn) => {
-                if turn >= &self.players {
-                    Err(MockBuilderViolation {
-                        hint: format!(
-                            "The medial node with hash {} has a turn of {} but \
-                            the game under construction is {}-player.",
-                            to.hash,
-                            turn,
-                            self.players
-                        ),
-                    })?
-                }
-            },
+            Stage::Medial(turn) => turn + 1,
         };
+
+        if finalized {
+            if new.terminal() && old_count != new_count {
+                Err(MockViolation {
+                    hint: format!(
+                        "While constructing the game '{}', a terminal node \
+                        with hash {} was added containing {} utility entries, \
+                        but then a new one with hash {} was added with {} \
+                        entries. Utility entries must be consistent across all \
+                        terminal nodes.",
+                        self.name, decider, old_count, new.hash, new_count,
+                    ),
+                })?
+            } else if new.medial() && new_count > old_count {
+                Err(MockViolation {
+                    hint: format!(
+                        "While constructing the game '{}', a terminal node \
+                        with hash {} was added containing {} utility entries, \
+                        but then a new medial node with hash {} was added with \
+                        a 0-indexed turn of {}, which is incompatible.",
+                        self.name,
+                        decider,
+                        old_count,
+                        new.hash,
+                        new_count - 1,
+                    ),
+                })?
+            }
+        } else {
+            if new.terminal() && new_count < old_count {
+                Err(MockViolation {
+                    hint: format!(
+                        "While constructing the game '{}', a medial node with \
+                        hash {} was added with a 0-indexed turn of {}, but \
+                        then a new terminal node with hash {} was added with \
+                        {} entries. All turn indicators must be able to index \
+                        terminal nodes' utility entries.",
+                        self.name,
+                        decider,
+                        old_count - 1,
+                        new.hash,
+                        new_count,
+                    ),
+                })?
+            }
+        }
+
+        if new.terminal() {
+            self.players = (new_count, new.hash, true);
+        } else if new.medial() && new_count > old_count {
+            self.players = (new_count, new.hash, false);
+        }
 
         Ok(())
     }
@@ -203,14 +254,18 @@ impl<'a> SessionBuilder<'a> {
         if let Some(index) = self.start {
             Ok(index)
         } else {
-            Err(MockBuilderViolation {
-                hint: "No starting state was specified for the game.".into(),
+            Err(MockViolation {
+                hint: format!(
+                    "No starting node was specified for the game '{}'.",
+                    self.name,
+                ),
             })?
         }
     }
 
     /// Fails if there does not exist a traversable path between `start` and any
-    /// node marked as terminal in the game graph.
+    /// node marked as terminal in the game graph. Executes DFS from `start`
+    /// until a terminal node is found.
     fn check_terminal_state(&self, start: NodeIndex) -> Result<()> {
         let mut seen = HashSet::new();
         let mut stack = Vec::new();
@@ -232,10 +287,11 @@ impl<'a> SessionBuilder<'a> {
             }
         }
 
-        Err(MockBuilderViolation {
+        Err(MockViolation {
             hint: format!(
-                "No terminal state is reachable from starting state {}.",
-                self.game[start].hash
+                "No terminal node is reachable from the starting node with \
+                hash {} in the game '{}'.",
+                self.game[start].hash, self.name
             ),
         })?
     }
@@ -250,11 +306,11 @@ impl<'a> SessionBuilder<'a> {
                 self.game[i].medial() && self.game.neighbors(i).count() == 0
             })
         {
-            Err(MockBuilderViolation {
+            Err(MockViolation {
                 hint: format!(
                     "The medial state {} has no outgoing edges, which would \
-                    represent a contradiction.",
-                    self.game[index].hash
+                    present a contradiction in the game '{}'.",
+                    self.game[index].hash, self.name
                 ),
             })?
         } else {
@@ -294,20 +350,17 @@ mod tests {
     use crate::node;
 
     #[test]
-    fn cannot_initialize_with_no_players() {
-        assert!(SessionBuilder::new(0).is_err())
-    }
+    fn cannot_add_incorrect_utility_entries() -> Result<()> {
+        let m1 = node!(0, 0);
+        let t1 = node!(1, [1, 2]);
+        let t2 = node!(2, [3, 2, 1]);
 
-    #[test]
-    fn cannot_add_incorrect_utility_entries() {
-        let m = node!(0, 0);
-        let t = node!(0, [1, 2, 3]);
+        let game = SessionBuilder::new("bad utility")
+            .edge(&m1, &t1)?
+            .edge(&m1, &t2);
 
-        let game = SessionBuilder::new(2)
-            .unwrap()
-            .edge(&m, &t);
-
-        assert!(game.is_err())
+        assert!(game.is_err());
+        Ok(())
     }
 
     #[test]
@@ -316,36 +369,32 @@ mod tests {
         let m1 = node!(0, 0);
         let m2 = node!(1, 1);
 
-        let tn = node!(3, [1, 2, 3, 4]);
+        let t1 = node!(3, [1, 2, 3, 4]);
 
-        SessionBuilder::new(4).unwrap()
-            .edge(&tn, &m1).unwrap() // Panic
+        SessionBuilder::new("edge from terminal node")
+            .edge(&t1, &m1).unwrap() // Panic
             .edge(&m1, &m2).unwrap()
-            .edge(&tn, &m2).unwrap() // Panic
+            .edge(&t1, &m2).unwrap() // Panic
             .edge(&m2, &m1).unwrap()
-            .edge(&tn, &m1).unwrap() // Panic
-            .edge(&m2, &tn).unwrap()
-            .edge(&tn, &m2).unwrap() // Panic
+            .edge(&t1, &m1).unwrap() // Panic
+            .edge(&m2, &t1).unwrap()
+            .edge(&t1, &m2).unwrap() // Panic
             .edge(&m1, &m2).unwrap();
     }
 
     #[test]
-    fn cannot_build_graph_with_no_starting_state() {
+    fn cannot_build_graph_with_no_starting_state() -> Result<()> {
         let m1 = node!(0, 0);
         let t1 = node!(1, [1, 2]);
 
-        let game1 = SessionBuilder::new(2)
-            .unwrap()
-            .edge(&m1, &t1)
-            .unwrap()
-            .build();
-
-        let game2 = SessionBuilder::new(1)
-            .unwrap()
+        let game1 = SessionBuilder::new("no starting state 1").build();
+        let game2 = SessionBuilder::new("no starting state 2")
+            .edge(&m1, &t1)?
             .build();
 
         assert!(game1.is_err());
         assert!(game2.is_err());
+        Ok(())
     }
 
     #[test]
@@ -357,7 +406,7 @@ mod tests {
 
         let end = node!(4, [1, 2, 3]);
 
-        let game = SessionBuilder::new(3)?
+        let game = SessionBuilder::new("no end")
             .edge(&a, &b)?
             .edge(&c, &d)?
             .edge(&d, &end)?
@@ -376,10 +425,9 @@ mod tests {
         let d = node!(3, 1);
 
         let trap = node!(4, 0);
-
         let end = node!(5, [1, 2, 3]);
 
-        let game = SessionBuilder::new(3)?
+        let game = SessionBuilder::new("trap game")
             .edge(&a, &b)?
             .edge(&b, &c)?
             .edge(&c, &d)?
@@ -404,7 +452,7 @@ mod tests {
         let t1 = node!(6, [1, 2]);
         let t2 = node!(7, [2, 1]);
 
-        SessionBuilder::new(2)?
+        let game = SessionBuilder::new("acyclic")
             .edge(&a, &b)?
             .edge(&b, &c)?
             .edge(&a, &c)?
@@ -417,6 +465,8 @@ mod tests {
             .start(&a)?
             .build()?;
 
+        assert_eq!(game.players, 2);
+
         Ok(())
     }
 
@@ -425,14 +475,14 @@ mod tests {
         let a = node!(0, 0);
         let b = node!(1, 1);
         let c = node!(2, 0);
-        let d = node!(3, 1);
+        let d = node!(3, 3);
         let e = node!(4, 0);
         let f = node!(5, 1);
 
-        let t1 = node!(6, [1, 2]);
-        let t2 = node!(7, [2, 1]);
+        let t1 = node!(6, [1, 2, -1, 4]);
+        let t2 = node!(7, [2, 1, 9, -6]);
 
-        SessionBuilder::new(2)?
+        let game = SessionBuilder::new("cyclic")
             .edge(&a, &b)?
             .edge(&b, &c)?
             .edge(&c, &a)?
@@ -444,6 +494,8 @@ mod tests {
             .edge(&f, &t2)?
             .start(&a)?
             .build()?;
+
+        assert_eq!(game.players, 4);
 
         Ok(())
     }
