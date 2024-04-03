@@ -349,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn cannot_build_game_with_no_accessible_end() {
+    fn cannot_build_game_with_no_accessible_end() -> Result<()> {
         let a = node!(0, 2);
         let b = node!(1, 1);
         let c = node!(2, 0);
@@ -357,23 +357,19 @@ mod tests {
 
         let end = node!(4, [1, 2, 3]);
 
-        let game = SessionBuilder::new(3)
-            .unwrap()
-            .edge(&a, &b)
-            .unwrap()
-            .edge(&c, &d)
-            .unwrap()
-            .edge(&d, &end)
-            .unwrap()
-            .start(&a)
-            .unwrap()
+        let game = SessionBuilder::new(3)?
+            .edge(&a, &b)?
+            .edge(&c, &d)?
+            .edge(&d, &end)?
+            .start(&a)?
             .build();
 
         assert!(game.is_err());
+        Ok(())
     }
 
     #[test]
-    fn cannot_build_game_with_medial_traps() {
+    fn cannot_build_game_with_medial_traps() -> Result<()> {
         let a = node!(0, 0);
         let b = node!(1, 1);
         let c = node!(2, 2);
@@ -383,23 +379,17 @@ mod tests {
 
         let end = node!(5, [1, 2, 3]);
 
-        let game = SessionBuilder::new(3)
-            .unwrap()
-            .edge(&a, &b)
-            .unwrap()
-            .edge(&b, &c)
-            .unwrap()
-            .edge(&c, &d)
-            .unwrap()
-            .edge(&d, &end)
-            .unwrap()
-            .edge(&b, &trap)
-            .unwrap()
-            .start(&a)
-            .unwrap()
+        let game = SessionBuilder::new(3)?
+            .edge(&a, &b)?
+            .edge(&b, &c)?
+            .edge(&c, &d)?
+            .edge(&d, &end)?
+            .edge(&b, &trap)?
+            .start(&a)?
             .build();
 
         assert!(game.is_err());
+        Ok(())
     }
 
     #[test]
