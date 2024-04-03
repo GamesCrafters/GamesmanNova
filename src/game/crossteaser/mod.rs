@@ -95,6 +95,15 @@ struct Orientation {
     right: u64,
 }
 
+/// Unhashed representation of a game state
+/// It is simply a vector of (# pieces) Orientations
+/// and an integer representing the location of the free space
+struct UnhashedState {
+    pieces: Vec<Orientation>,
+    free: u64,
+}
+
+/// Maps a "packed" orientation to a number from 0-23 which will be used by the
 /// Maps a "packed" orientation to a number from 0-23 which will be used by the
 /// hash function.
 /// The format is front_top_right
@@ -155,6 +164,8 @@ const ORIENTATION_UNMAP: HashMap<u64, u64> = collection! {
     23 => 0b101_011_100,
 };
 
+// Constant bitmask values that will be commonly used for hashing/unhashing
+// game states.
 const FACE_BITS: u64 = 3;
 const FACE_BITMASK: u64 = 0b111;
 const EMPTY_BITS: u64 = 3;
@@ -166,8 +177,8 @@ const PIECE_BITMASK: u64 = 0b11111;
 /// which will be a number from 0-23
 /// Makes use of ORIENTATION_MAP for the conversion
 fn hash_orientation(o: &Orientation) -> u64 {
-    let mut packed: u64 = 0;
-    packed = (o.front << (FACE_BITS * 2)) | (o.top << FACE_BITS) | o.right;
+    let packed: u64 =
+        (o.front << (FACE_BITS * 2)) | (o.top << FACE_BITS) | o.right;
     return ORIENTATION_MAP[&packed];
 }
 
@@ -182,9 +193,28 @@ fn unhash_orientation(h: &u64) -> Orientation {
     };
 }
 
+impl UnhashedState {
+    fn deep_copy(&self) -> UnhashedState {
+        let mut new_pieces: Vec<Orientation> = Vec::new();
+        for o in &self.pieces {
+            new_pieces.push(Orientation {
+                front: o.front,
+                top: o.top,
+                right: o.right,
+            });
+        }
+        return UnhashedState {
+            pieces: new_pieces,
+            free: self.free,
+        };
+    }
+}
+
 impl Session {
+    /// Returns the total number of game pieces in the current game variant
+    /// based on Session
     fn get_pieces(&self) -> u64 {
-        return self.length + self.width - self.free;
+        return self.length * self.width - self.free;
     }
 
     /// Simple, inefficient hash function that converts a vector of piece
@@ -200,9 +230,9 @@ impl Session {
         return s;
     }
 
-    /// Reverse of hash(), extracts the orientation vector and empty space from a
-    /// State.
-    fn unhash(&self, s: State) -> (Vec<Orientation>, u64) {
+    /// Reverse of hash(), extracts the orientation vector and empty space from
+    /// a State.
+    fn unhash(&self, s: State) -> UnhashedState {
         let num_pieces: u64 = self.get_pieces();
         let mut s_tmp: u64 = s;
         let mut curr: u64;
@@ -214,7 +244,50 @@ impl Session {
             rep.push(unhash_orientation(&curr));
             s_tmp >>= PIECE_BITS;
         }
-        return (rep, empty);
+        return UnhashedState {
+            pieces: rep,
+            free: empty,
+        };
+    }
+
+    fn board_right(&self, s: UnhashedState) -> UnhashedState {
+        let mut new_state = s.deep_copy();
+        if s.free % self.width != 0 {
+            let to_move: usize = s.free as usize - 1;
+            new_state.pieces[to_move] = mov::right(&new_state.pieces[to_move]);
+            new_state.free = to_move as u64;
+        }
+        return new_state;
+    }
+
+    fn board_left(&self, s: UnhashedState) -> UnhashedState {
+        let mut new_state = s.deep_copy();
+        if s.free % self.width != self.width - 1 {
+            let to_move: usize = s.free as usize + 1;
+            new_state.pieces[to_move] = mov::left(&new_state.pieces[to_move]);
+            new_state.free = to_move as u64;
+        }
+        return new_state;
+    }
+
+    fn board_up(&self, s: UnhashedState) -> UnhashedState {
+        let mut new_state = s.deep_copy();
+        if s.free / self.width != self.length - 1 {
+            let to_move: usize = (s.free + self.width) as usize;
+            new_state.pieces[to_move] = mov::up(&new_state.pieces[to_move]);
+            new_state.free = to_move as u64;
+        }
+        return new_state;
+    }
+
+    fn board_down(&self, s: UnhashedState) -> UnhashedState {
+        let mut new_state = s.deep_copy();
+        if s.free / self.width != 0 {
+            let to_move: usize = (s.free - self.width) as usize;
+            new_state.pieces[to_move] = mov::down(&new_state.pieces[to_move]);
+            new_state.free = to_move as u64;
+        }
+        return new_state;
     }
 }
 
@@ -229,7 +302,7 @@ mod mov {
     use crate::game::crossteaser::Orientation;
 
     /// Transforms an individual piece orientation as if it was shifted right
-    fn right(o: &Orientation) -> Orientation {
+    pub fn right(o: &Orientation) -> Orientation {
         return Orientation {
             front: o.right,
             top: o.top,
@@ -238,7 +311,7 @@ mod mov {
     }
 
     /// Transforms an individual piece orientation as if it was shifted left
-    fn left(o: &Orientation) -> Orientation {
+    pub fn left(o: &Orientation) -> Orientation {
         return Orientation {
             front: 5 - o.right,
             top: o.top,
@@ -247,7 +320,7 @@ mod mov {
     }
 
     /// Transforms an individual piece orientation as if it was shifted up
-    fn up(o: &Orientation) -> Orientation {
+    pub fn up(o: &Orientation) -> Orientation {
         return Orientation {
             front: 5 - o.top,
             top: o.front,
@@ -256,33 +329,19 @@ mod mov {
     }
 
     /// Transforms an individual piece orientation as if it was shifted down
-    fn down(o: &Orientation) -> Orientation {
+    pub fn down(o: &Orientation) -> Orientation {
         return Orientation {
             front: o.top,
             top: 5 - o.front,
             right: o.right,
         };
     }
-
-    fn board_right() {
-        todo!()
-    }
-
-    fn board_left() {
-        todo!()
-    }
-
-    fn board_up() {
-        todo!()
-    }
-
-    fn board_down() {
-        todo!()
-    }
 }
 
 /// Represents an instance of a Crossteaser game session, which is specific to
 /// a valid variant of the game.
+/// length is number of rows
+/// width is number of columns
 pub struct Session {
     variant: String,
     length: u64,
