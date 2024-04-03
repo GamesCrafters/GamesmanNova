@@ -37,11 +37,11 @@ pub mod zero_by;
 /// Contains useful data about a game, intended to provide users of the program
 /// information they can use to understand the output of solving algorithms,
 /// in addition to specifying game variants.
-pub struct GameData<'a> {
+pub struct GameData {
     /* INSTANCE */
     /// The variant string used to initialize the `Game` instance which returned
     /// this `GameData` object from its `info` associated method.
-    pub variant: &'a String,
+    pub variant: String,
 
     /* GENERAL */
     /// Known name for the game. This should return a string that can be used as

@@ -8,12 +8,19 @@
 //!
 //! - Max Fierro 3/31/2024 (maxfierro@berkeley.edu)
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
+use std::collections::HashMap;
+use std::ops::Index;
+
+use crate::game::error::GameError::MockViolation;
+use crate::game::util;
 use crate::game::Bounded;
 use crate::game::DTransition;
 use crate::game::Game;
+use crate::game::GameData;
 use crate::game::Legible;
 use crate::game::STransition;
 use crate::game::Solvable;
@@ -52,6 +59,7 @@ const VARIANT_PROTOCOL: &'static str =
 /// constructed using `SessionBuilder`. Due to this, variants in this game are
 /// meaningless, since `SessionBuilder` can achieve any game structure.
 pub struct Session<'a> {
+    indices: HashMap<State, NodeIndex>,
     players: PlayerCount,
     start: NodeIndex,
     game: Graph<&'a Node, ()>,
@@ -70,63 +78,56 @@ pub enum Stage {
 /* GAME IMPLEMENTATION */
 
 impl Game for Session<'_> {
-    fn initialize(variant: Option<String>) -> Result<Self>
+    fn initialize(_variant: Option<String>) -> Result<Self>
     where
         Self: Sized,
     {
-        todo!()
+        Err(MockViolation {
+            hint:
+                "Conventional initialization is not supported for mock games."
+                    .into(),
+        })?
     }
 
     fn id(&self) -> String {
-        todo!()
+        self.name.into()
     }
 
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
-        todo!()
+        let state = util::verify_history_dynamic(self, history)
+            .context("Malformed game state encoding.")?;
+
+        self.get_node(state);
+
+        Ok(())
     }
 
-    fn info(&self) -> super::GameData {
-        todo!()
+    fn info(&self) -> GameData {
+        GameData {
+            variant: VARIANT_DEFAULT.into(),
+            name: NAME,
+            authors: AUTHORS,
+            about: ABOUT,
+
+            variant_protocol: VARIANT_PROTOCOL,
+            variant_pattern: VARIANT_PATTERN,
+            variant_default: VARIANT_DEFAULT,
+
+            state_protocol: state::STATE_PROTOCOL,
+            state_pattern: state::STATE_PATTERN,
+            state_default: state::STATE_DEFAULT,
+        }
     }
 
-    fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
-        todo!()
-    }
-}
-
-/* TRAVERSAL IMPLEMENTATIONS */
-
-impl Bounded<State> for Session<'_> {
-    fn start(&self) -> State {
-        todo!()
-    }
-
-    fn end(&self, state: State) -> bool {
-        todo!()
-    }
-}
-
-impl DTransition<State> for Session<'_> {
-    fn prograde(&self, state: State) -> Vec<State> {
-        todo!()
-    }
-
-    fn retrograde(&self, state: State) -> Vec<State> {
-        todo!()
-    }
-}
-
-impl STransition<State, MAX_TRANSITIONS> for Session<'_> {
-    fn prograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
-        todo!()
-    }
-
-    fn retrograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
-        todo!()
+    fn solve(&self, _mode: IOMode, _method: SolutionMode) -> Result<()> {
+        Err(MockViolation {
+            hint: "Conventional solving is not supported for mock games."
+                .into(),
+        })?
     }
 }
 
-/* SUPPLEMENTAL IMPLEMENTATIONS */
+/* STATE CODEC IMPLEMENTATION */
 
 impl Legible<State> for Session<'_> {
     fn decode(&self, string: String) -> Result<State> {
@@ -138,14 +139,121 @@ impl Legible<State> for Session<'_> {
     }
 }
 
-/* SOLVING IMPLEMENTATIONS */
+/* TRAVERSAL IMPLEMENTATIONS */
 
-impl<const N: PlayerCount> Solvable<N> for Session<'_> {
-    fn utility(&self, state: State) -> [Utility; N] {
-        todo!()
+impl Bounded<State> for Session<'_> {
+    fn start(&self) -> State {
+        self.game[self.start].hash
     }
 
-    fn turn(&self, state: State) -> Turn {
-        todo!()
+    fn end(&self, state: State) -> bool {
+        match self.get_node(state).data {
+            Stage::Terminal(_) => true,
+            Stage::Medial(_) => false,
+        }
+    }
+}
+
+impl DTransition<State> for Session<'_> {
+    fn prograde(&self, state: State) -> Vec<State> {
+        self.get_adjacent(state, Direction::Outgoing)
+    }
+
+    fn retrograde(&self, state: State) -> Vec<State> {
+        self.get_adjacent(state, Direction::Incoming)
+    }
+}
+
+impl STransition<State, MAX_TRANSITIONS> for Session<'_> {
+    fn prograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
+        let adjacent = self
+            .get_adjacent(state, Direction::Outgoing)
+            .iter()
+            .map(|&h| Some(h))
+            .collect::<Vec<Option<State>>>();
+
+        if adjacent.len() > MAX_TRANSITIONS {
+            panic!("Exceeded maximum transition count.")
+        }
+
+        let mut result = [None; MAX_TRANSITIONS];
+        result.copy_from_slice(&adjacent[..MAX_TRANSITIONS]);
+        result
+    }
+
+    fn retrograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
+        let adjacent = self
+            .get_adjacent(state, Direction::Incoming)
+            .iter()
+            .map(|&h| Some(h))
+            .collect::<Vec<Option<State>>>();
+
+        if adjacent.len() > MAX_TRANSITIONS {
+            panic!("Exceeded maximum transition count.")
+        }
+
+        let mut result = [None; MAX_TRANSITIONS];
+        result.copy_from_slice(&adjacent[..MAX_TRANSITIONS]);
+        result
+    }
+}
+
+/* SOLVING IMPLEMENTATIONS */
+
+/// Implements the `Solvable<N>` trait for different player counts.
+macro_rules! solvable_for {
+    ($($N:expr),*) => {
+        $(impl Solvable<$N> for Session<'_> {
+            fn utility(&self, state: State) -> [Utility; $N] {
+                let from = match &self.get_node(state).data {
+                    Stage::Terminal(vector) => vector,
+                    Stage::Medial(_) => panic!(
+                        "Attempted to get utility of medial node."
+                    ),
+                };
+
+                let mut result = [0; $N];
+                result.copy_from_slice(&from[..$N]);
+                result
+            }
+
+            fn turn(&self, state: State) -> Turn {
+                match self.get_node(state).data {
+                    Stage::Medial(turn) => turn,
+                    Stage::Terminal(_) => panic!(
+                        "Attempted to get turn of terminal node."
+                    ),
+                }
+            }
+        })*
+    };
+}
+
+solvable_for![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+/* HELPER IMPLEMENTATIONS */
+
+impl Index<State> for Session<'_> {
+    type Output = NodeIndex;
+
+    fn index(&self, index: State) -> &Self::Output {
+        self.indices.get(&index).unwrap()
+    }
+}
+
+impl Session<'_> {
+    /// Return the states adjacent to `state`, where `dir` specifies whether
+    /// they should be connected by incoming or outgoing edges.
+    fn get_adjacent(&self, state: State, dir: Direction) -> Vec<State> {
+        self.game
+            .neighbors_directed(self[state], dir)
+            .map(|n| self.game[n].hash)
+            .collect()
+    }
+
+    /// Returns a reference to the game node with `state`, or panics if there is
+    /// no such node.
+    fn get_node(&self, state: State) -> &Node {
+        self.game[self[state]]
     }
 }

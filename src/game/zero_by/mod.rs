@@ -74,7 +74,7 @@ impl Game for Session {
 
     fn info(&self) -> GameData {
         GameData {
-            variant: &self.variant,
+            variant: self.variant.clone(),
 
             name: NAME,
             authors: AUTHORS,

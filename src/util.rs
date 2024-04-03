@@ -85,7 +85,7 @@ pub fn print_game_info(game: GameModule, format: OutputMode) -> Result<()> {
 
 /* IMPLEMENTATIONS */
 
-impl GameData<'_> {
+impl GameData {
     fn print(&self, format: OutputMode) {
         match format {
             OutputMode::Extra => {
@@ -125,7 +125,7 @@ impl GameData<'_> {
     }
 }
 
-impl Display for GameData<'_> {
+impl Display for GameData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

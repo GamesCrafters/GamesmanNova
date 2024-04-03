@@ -9,6 +9,7 @@
 //! - Max Fierro, 4/31/2024
 
 use anyhow::Result;
+use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::HashMap;
@@ -160,6 +161,7 @@ impl<'a> SessionBuilder<'a> {
         self.check_outgoing_edges(start)?;
         let (players, _, _) = self.players;
         Ok(Session {
+            indices: self.inserted,
             players,
             start,
             game: self.game,
@@ -280,7 +282,7 @@ impl<'a> SessionBuilder<'a> {
                 } else {
                     stack.extend(
                         self.game
-                            .neighbors(index)
+                            .neighbors_directed(index, Direction::Outgoing)
                             .filter(|n| !seen.contains(n)),
                     );
                 }
@@ -303,7 +305,12 @@ impl<'a> SessionBuilder<'a> {
             .game
             .node_indices()
             .find(|&i| {
-                self.game[i].medial() && self.game.neighbors(i).count() == 0
+                self.game[i].medial()
+                    && self
+                        .game
+                        .neighbors_directed(i, Direction::Outgoing)
+                        .count()
+                        .eq(&0)
             })
         {
             Err(MockViolation {
