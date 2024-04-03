@@ -380,6 +380,9 @@ pub trait GeneralSum<const N: PlayerCount> {
     fn utility(&self, state: State) -> [Utility; N];
 }
 
+// Indicates that the game is zero-sum
+pub trait ZeroSum<const N: PlayerCount> {}
+
 // Indicates that the game is "simple-sum," meaning the only possible outcomes are:
 // Win, Lose, Tie, and Draw for each player
 pub trait SimpleSum<const N: PlayerCount> {
