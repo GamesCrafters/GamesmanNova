@@ -103,6 +103,7 @@ struct UnhashedState {
 }
 
 /// Maps a "packed" orientation to a number from 0-23 which will be used by the
+/// Maps a "packed" orientation to a number from 0-23 which will be used by the
 /// hash function.
 /// The format is front_top_right
 /// Each of these will be a value from 0-5, and have 3 bits allotted.
