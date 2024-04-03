@@ -352,12 +352,45 @@ mod tests {
     #[test]
     fn cannot_add_incorrect_utility_entries() -> Result<()> {
         let m1 = node!(0, 0);
-        let t1 = node!(1, [1, 2]);
-        let t2 = node!(2, [3, 2, 1]);
+        let m2 = node!(1, 2);
+        let m3 = node!(2, 0);
 
-        let game = SessionBuilder::new("bad utility")
+        let t1 = node!(3, [1, 2]);
+        let t2 = node!(4, [3, 2, 1]);
+        let t3 = node!(5, []);
+
+        let game = SessionBuilder::new("bad utility 1")
             .edge(&m1, &t1)?
             .edge(&m1, &t2);
+
+        assert!(game.is_err());
+
+        let game = SessionBuilder::new("bad utility 2")
+            .edge(&m1, &m2)?
+            .edge(&m2, &t1);
+
+        assert!(game.is_err());
+
+        let game = SessionBuilder::new("bad utility 3")
+            .edge(&m1, &m3)?
+            .edge(&m3, &t3);
+
+        assert!(game.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn cannot_add_incorrect_turn_information() -> Result<()> {
+        let m1 = node!(0, 0);
+        let m2 = node!(1, 2);
+        let t1 = node!(2, [1, -2]);
+        let t2 = node!(3, [-1, 2]);
+
+        let game = SessionBuilder::new("bad turn")
+            .edge(&m1, &t1)?
+            .edge(&m1, &t2)?
+            .edge(&m1, &m2);
 
         assert!(game.is_err());
         Ok(())
