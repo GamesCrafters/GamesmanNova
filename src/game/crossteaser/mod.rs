@@ -18,6 +18,7 @@
 //!
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Cindy Xu, 11/28/2023
+//! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
 
 use anyhow::{Context, Result};
 
@@ -47,33 +48,6 @@ const ABOUT: &str = "PLACEHOLDER";
 
 /* GAME IMPLEMENTATION */
 
-/// Encodes the state of a piece in the game board. For reference, a cube has
-/// six faces (up, down, etc.), and a cube with face A on top can be oriented
-/// in one of four ways (north, south, etc.).
-/*
-enum Face {
-    Up(Orientation),
-    Down(Orientation),
-    Left(Orientation),
-    Right(Orientation),
-    Front(Orientation),
-    Back(Orientation),
-    None,
-}
-*/
-
-/// Encodes the orientation information about each piece in the game. Since each
-/// piece is cube-like, it is not enough to just have a face, since a cube with
-/// its "Front" face up could still be oriented in one of four ways.
-/*
-enum Orientation {
-    North,
-    East,
-    South,
-    West,
-}
-*/
-
 /// Encodes the state of a single piece on the game board. It achieves this by
 /// storing a value from 0-5 for each of 3 faces. This allows us to determine
 /// the exact orientation out of 24 possible. We can think of each number from
@@ -100,36 +74,34 @@ struct UnhashedState {
     free: u64,
 }
 
-struct Test {}
-
-/// Maps a number from 0-23 to a "packed" 9-bit orientation
+/// Maps a number (index) from 0-23 to a "packed" 9-bit orientation
 /// The format of the packed orientation is front_top_right
 /// Each of these will be a value from 0-5, and have 3 bits allotted.
 const ORIENTATION_MAP: [u64; 24] = [
+    0b000_010_100,
+    0b000_100_011,
     0b000_001_010,
     0b000_011_001,
-    0b000_100_011,
-    0b000_010_100,
+    0b001_010_000,
+    0b001_000_001,
     0b001_101_010,
     0b001_011_001,
-    0b001_000_001,
-    0b001_010_000,
-    0b010_001_101,
-    0b010_000_001,
     0b010_100_000,
+    0b010_000_001,
     0b010_101_100,
+    0b010_001_101,
+    0b011_000_100,
+    0b011_100_101,
     0b011_001_000,
     0b011_101_001,
-    0b011_100_101,
-    0b011_000_100,
     0b100_000_010,
+    0b100_010_101,
     0b100_011_000,
     0b100_101_011,
-    0b100_010_101,
-    0b101_001_011,
-    0b101_010_001,
     0b101_100_010,
+    0b101_010_001,
     0b101_011_100,
+    0b101_001_011,
 ];
 
 // Constant bitmask values that will be commonly used for hashing/unhashing
@@ -143,9 +115,12 @@ const PIECE_BITMASK: u64 = 0b11111;
 
 /// Converts an Orientation struct into its corresponding orientation hash,
 /// which will be a number from 0-23
-/// Makes use of ORIENTATION_MAP for the conversion
+/// Uses patterns in the binary representations of an orientation to generate
+/// a unique & minimal hash
+/// ~1.85x faster than indexing into an array like unhash_orientation()
+/// Maybe I can figure out an efficient reverse function at some point :)
 fn hash_orientation(o: &Orientation) -> u64 {
-    return (o.front << 2) | ((o.top & 0b1) << 1) | (o.right & 0b1);
+    return (o.front << 2) | ((o.top & 1) << 1) | (o.right & 1);
 }
 
 /// Converts an orientation hash into an Orientation struct
@@ -216,6 +191,9 @@ impl Session {
         };
     }
 
+    /// Adjusts the entire board with a "right" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::right()
     fn board_right(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != 0 {
@@ -226,6 +204,9 @@ impl Session {
         return new_state;
     }
 
+    /// Adjusts the entire board with a "left" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::left()
     fn board_left(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != self.width - 1 {
@@ -236,6 +217,9 @@ impl Session {
         return new_state;
     }
 
+    /// Adjusts the entire board with a "up" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::up()
     fn board_up(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free / self.width != self.length - 1 {
@@ -246,6 +230,9 @@ impl Session {
         return new_state;
     }
 
+    /// Adjusts the entire board with a "down" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::down()
     fn board_down(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free / self.width != 0 {
@@ -261,9 +248,6 @@ impl Session {
 /// There are 4 functions for rotating an individual piece which represents a
 /// shift in the given direction as defined by the structure of the crossteaser
 /// game board.
-/// There are 4 functions for shifting the entire board in a given direction,
-/// which makes use of the above single piece functions, but updates the
-/// relative position of pieces and the empty space on the game board.
 mod mov {
     use crate::game::crossteaser::Orientation;
 
@@ -363,7 +347,7 @@ impl DTransition<State> for Session {
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
-        todo!()
+        return self.prograde(state);
     }
 }
 
@@ -375,18 +359,38 @@ impl Legible<State> for Session {
     }
 
     fn encode(&self, state: State) -> String {
-        todo!()
+        let s: UnhashedState = self.unhash(state);
+        let mut v: Vec<Vec<String>> = Vec::new();
+        for _i in 0..self.length {
+            v.push(Vec::new());
+        }
+        let mut out: String = String::new();
+        let mut row: usize;
+        for (i, o) in s.pieces.iter().enumerate() {
+            row = i / self.width as usize;
+            if i as u64 == s.free {
+                v[row].push("E".to_string());
+            } else {
+                v[row].push(hash_orientation(&o).to_string());
+            }
+        }
+        for i in 0..self.length {
+            out.push('|');
+            out.push_str(&v[i as usize].join(" "));
+        }
+        out.push('|');
+        return out;
     }
 }
 
 /* SOLVING IMPLEMENTATIONS */
 
 impl Solvable<1> for Session {
-    fn utility(&self, state: State) -> [Utility; 1] {
-        todo!()
+    fn utility(&self, _state: State) -> [Utility; 1] {
+        return [0];
     }
 
-    fn turn(&self, state: crate::model::State) -> crate::model::Turn {
-        todo!()
+    fn turn(&self, _state: crate::model::State) -> crate::model::Turn {
+        return 0;
     }
 }
