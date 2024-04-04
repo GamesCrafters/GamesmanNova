@@ -20,9 +20,7 @@
 //! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
 
 use anyhow::{Context, Result};
-use std::collections::HashMap;
 
-use crate::collection;
 use crate::game::Bounded;
 use crate::game::Codec;
 use crate::game::Forward;
@@ -535,65 +533,43 @@ struct UnhashedState {
     free: u64,
 }
 
-/// Maps a "packed" orientation to a number from 0-23 which will be used by the
-/// hash function.
-/// The format is front_top_right
-/// Each of these will be a value from 0-5, and have 3 bits allotted.
-const ORIENTATION_MAP: HashMap<u64, u64> = collection! {
-    0b000_001_010 => 0,
-    0b000_011_001 => 1,
-    0b000_001_011 => 2,
-    0b000_010_100 => 3,
-    0b001_101_010 => 4,
-    0b001_011_001 => 5,
-    0b001_000_001 => 6,
-    0b001_010_000 => 7,
-    0b010_001_101 => 8,
-    0b010_000_001 => 9,
-    0b010_100_000 => 10,
-    0b010_101_100 => 11,
-    0b011_001_000 => 12,
-    0b011_101_001 => 13,
-    0b011_100_101 => 14,
-    0b011_000_100 => 15,
-    0b100_000_010 => 16,
-    0b100_011_000 => 17,
-    0b100_101_011 => 18,
-    0b100_010_101 => 19,
-    0b101_001_011 => 20,
-    0b101_010_001 => 21,
-    0b101_100_010 => 22,
-    0b101_011_100 => 23,
-};
+struct Test {}
 
-/// Opposite of ORIENTATION_MAP:
-/// maps numbers 0-23 to the corresponding packed orientation
-const ORIENTATION_UNMAP: HashMap<u64, u64> = collection! {
-    0  => 0b000_001_010,
-    1  => 0b000_011_001,
-    2  => 0b000_001_011,
-    3  => 0b000_010_100,
-    4  => 0b001_101_010,
-    5  => 0b001_011_001,
-    6  => 0b001_000_001,
-    7  => 0b001_010_000,
-    8  => 0b010_001_101,
-    9  => 0b010_000_001,
-    10 => 0b010_100_000,
-    11 => 0b010_101_100,
-    12 => 0b011_001_000,
-    13 => 0b011_101_001,
-    14 => 0b011_100_101,
-    15 => 0b011_000_100,
-    16 => 0b100_000_010,
-    17 => 0b100_011_000,
-    18 => 0b100_101_011,
-    19 => 0b100_010_101,
-    20 => 0b101_001_011,
-    21 => 0b101_010_001,
-    22 => 0b101_100_010,
-    23 => 0b101_011_100,
-};
+
+/// Maps a number from 0-23 to a "packed" 9-bit orientation
+/// The format of the packed orientation is front_top_right
+/// Each of these will be a value from 0-5, and have 3 bits allotted.
+const ORIENTATION_MAP: [u64; 24] = [
+    0b000_001_010,
+    0b000_011_001,
+    0b000_100_011,
+    0b000_010_100,
+
+    0b001_101_010,
+    0b001_011_001,
+    0b001_000_001,
+    0b001_010_000,
+
+    0b010_001_101,
+    0b010_000_001,
+    0b010_100_000,
+    0b010_101_100,
+
+    0b011_001_000,
+    0b011_101_001,
+    0b011_100_101,
+    0b011_000_100,
+
+    0b100_000_010,
+    0b100_011_000,
+    0b100_101_011,
+    0b100_010_101,
+
+    0b101_001_011,
+    0b101_010_001,
+    0b101_100_010,
+    0b101_011_100,
+];
 
 // Constant bitmask values that will be commonly used for hashing/unhashing
 // game states.
@@ -608,15 +584,13 @@ const PIECE_BITMASK: u64 = 0b11111;
 /// which will be a number from 0-23
 /// Makes use of ORIENTATION_MAP for the conversion
 fn hash_orientation(o: &Orientation) -> u64 {
-    let packed: u64 =
-        (o.front << (FACE_BITS * 2)) | (o.top << FACE_BITS) | o.right;
-    return ORIENTATION_MAP[&packed];
+    return (o.front << 2) | ((o.top & 0b1) << 1) | (o.right & 0b1);
 }
 
 /// Converts an orientation hash into an Orientation struct
 /// Makes use of ORIENTATION_UNMAP for the conversion
-fn unhash_orientation(h: &u64) -> Orientation {
-    let packed: u64 = ORIENTATION_UNMAP[h];
+fn unhash_orientation(h: u64) -> Orientation {
+    let packed: u64 = ORIENTATION_MAP[h as usize];
     return Orientation {
         front: packed >> (FACE_BITS * 2) & FACE_BITMASK,
         top: packed >> FACE_BITS & FACE_BITMASK,
@@ -672,7 +646,7 @@ impl Session {
         let mut rep: Vec<Orientation> = Vec::new();
         for i in 0..num_pieces {
             curr = s_tmp & PIECE_BITMASK;
-            rep.push(unhash_orientation(&curr));
+            rep.push(unhash_orientation(curr));
             s_tmp >>= PIECE_BITS;
         }
         return UnhashedState {
