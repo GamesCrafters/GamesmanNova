@@ -102,7 +102,6 @@ struct UnhashedState {
 
 struct Test {}
 
-
 /// Maps a number from 0-23 to a "packed" 9-bit orientation
 /// The format of the packed orientation is front_top_right
 /// Each of these will be a value from 0-5, and have 3 bits allotted.
@@ -111,27 +110,22 @@ const ORIENTATION_MAP: [u64; 24] = [
     0b000_011_001,
     0b000_100_011,
     0b000_010_100,
-
     0b001_101_010,
     0b001_011_001,
     0b001_000_001,
     0b001_010_000,
-
     0b010_001_101,
     0b010_000_001,
     0b010_100_000,
     0b010_101_100,
-
     0b011_001_000,
     0b011_101_001,
     0b011_100_101,
     0b011_000_100,
-
     0b100_000_010,
     0b100_011_000,
     0b100_101_011,
     0b100_010_101,
-
     0b101_001_011,
     0b101_010_001,
     0b101_100_010,
