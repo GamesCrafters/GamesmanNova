@@ -18,6 +18,7 @@
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Cindy Xu, 11/28/2023
 //! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
+//! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
 
 use anyhow::{Context, Result};
 
@@ -533,36 +534,34 @@ struct UnhashedState {
     free: u64,
 }
 
-struct Test {}
-
-/// Maps a number from 0-23 to a "packed" 9-bit orientation
+/// Maps a number (index) from 0-23 to a "packed" 9-bit orientation
 /// The format of the packed orientation is front_top_right
 /// Each of these will be a value from 0-5, and have 3 bits allotted.
 const ORIENTATION_MAP: [u64; 24] = [
+    0b000_010_100,
+    0b000_100_011,
     0b000_001_010,
     0b000_011_001,
-    0b000_100_011,
-    0b000_010_100,
+    0b001_010_000,
+    0b001_000_001,
     0b001_101_010,
     0b001_011_001,
-    0b001_000_001,
-    0b001_010_000,
-    0b010_001_101,
-    0b010_000_001,
     0b010_100_000,
+    0b010_000_001,
     0b010_101_100,
+    0b010_001_101,
+    0b011_000_100,
+    0b011_100_101,
     0b011_001_000,
     0b011_101_001,
-    0b011_100_101,
-    0b011_000_100,
     0b100_000_010,
+    0b100_010_101,
     0b100_011_000,
     0b100_101_011,
-    0b100_010_101,
-    0b101_001_011,
-    0b101_010_001,
     0b101_100_010,
+    0b101_010_001,
     0b101_011_100,
+    0b101_001_011,
 ];
 
 // Constant bitmask values that will be commonly used for hashing/unhashing
@@ -576,9 +575,12 @@ const PIECE_BITMASK: u64 = 0b11111;
 
 /// Converts an Orientation struct into its corresponding orientation hash,
 /// which will be a number from 0-23
-/// Makes use of ORIENTATION_MAP for the conversion
+/// Uses patterns in the binary representations of an orientation to generate
+/// a unique & minimal hash
+/// ~1.85x faster than indexing into an array like unhash_orientation()
+/// Maybe I can figure out an efficient reverse function at some point :)
 fn hash_orientation(o: &Orientation) -> u64 {
-    return (o.front << 2) | ((o.top & 0b1) << 1) | (o.right & 0b1);
+    return (o.front << 2) | ((o.top & 1) << 1) | (o.right & 1);
 }
 
 /// Converts an orientation hash into an Orientation struct
@@ -649,6 +651,9 @@ impl Session {
         };
     }
 
+    /// Adjusts the entire board with a "right" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::right()
     fn board_right(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != 0 {
@@ -659,6 +664,9 @@ impl Session {
         return new_state;
     }
 
+    /// Adjusts the entire board with a "left" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::left()
     fn board_left(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != self.width - 1 {
@@ -669,6 +677,9 @@ impl Session {
         return new_state;
     }
 
+    /// Adjusts the entire board with a "up" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::up()
     fn board_up(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free / self.width != self.length - 1 {
@@ -679,6 +690,9 @@ impl Session {
         return new_state;
     }
 
+    /// Adjusts the entire board with a "down" move
+    /// Adjusts empty space accordingly
+    /// Makes use of mov::down()
     fn board_down(&self, s: UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free / self.width != 0 {
@@ -694,9 +708,6 @@ impl Session {
 /// There are 4 functions for rotating an individual piece which represents a
 /// shift in the given direction as defined by the structure of the crossteaser
 /// game board.
-/// There are 4 functions for shifting the entire board in a given direction,
-/// which makes use of the above single piece functions, but updates the
-/// relative position of pieces and the empty space on the game board.
 mod mov {
     use crate::game::crossteaser::Orientation;
 
