@@ -414,8 +414,17 @@ where
     }
 }
 
-// Indicates that a "game" is a puzzle with simple outcomes; this implies that it is 1-player and the only possible
-// outcomes for the puzzle are Win, Lose, and Draw. 
+// Indicates that a "game" is a puzzle with simple outcomes; this implies that it is 1-player and
+// the only possible
+// outcomes for the puzzle are Win, Lose, and Draw. Note that Tie outcomes are not allowed,
+// and implementations of this trait should not return Ties as you cannot "tie" in a puzzle.
+// A Wining position is one where there exists a sequence of moves that will lead to the puzzle being
+// fully solved.
+// A Losing position is one where any sequence of moves will always take you to a primitive position 
+// where the puzzle is unsolved.
+// A Draw position is one where is no way to reach a winning state, but it is possible to keep
+// playing forever without reaching a losing position.
+// possible to keep playing forever.
 pub trait ClassicPuzzle
 where
     Self: SimpleSum<1>
