@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, GeneralSum, Playable, STransition};
+use crate::game::{Bounded, DTransition, GeneralSum, Extensive, STransition};
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, Remoteness, State, Utility};
 use crate::solver::record::mur::RecordBuffer;
@@ -20,7 +20,7 @@ use crate::solver::{RecordType, MAX_TRANSITIONS};
 
 pub fn dynamic_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + Playable<N> + GeneralSum<N>,
+    G: DTransition<State> + Bounded<State> + GeneralSum<N>,
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -35,7 +35,6 @@ pub fn static_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
     G: STransition<State, MAX_TRANSITIONS>
         + Bounded<State>
-        + Playable<N>
         + GeneralSum<N>,
 {
     let mut db = volatile_database(game)
@@ -52,7 +51,7 @@ where
 /// to that table before returning the database handle.
 fn volatile_database<const N: usize, G>(game: &G) -> Result<volatile::Database>
 where
-    G: Playable<N>,
+    G: Extensive<N>,
 {
     let id = game.id();
     let db = volatile::Database::initialize();
@@ -80,7 +79,7 @@ fn dynamic_backward_induction<const N: PlayerCount, D, G>(
 ) -> Result<()>
 where
     D: KVStore<RecordBuffer>,
-    G: DTransition<State> + Bounded<State> + Playable<N> + GeneralSum<N>,
+    G: DTransition<State> + Bounded<State> + GeneralSum<N>,
 {
     let mut stack = Vec::new();
     stack.push(game.start());
@@ -144,7 +143,6 @@ where
     D: KVStore<RecordBuffer>,
     G: STransition<State, MAX_TRANSITIONS>
         + Bounded<State>
-        + Playable<N>
         + GeneralSum<N>,
 {
     let mut stack = Vec::new();

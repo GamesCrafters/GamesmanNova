@@ -27,7 +27,7 @@ use crate::game::Game;
 use crate::game::GameData;
 use crate::game::GeneralSum;
 use crate::game::Legible;
-use crate::game::Playable;
+use crate::game::Extensive;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
 use crate::model::State;
@@ -146,7 +146,7 @@ impl Legible<State> for Session {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl Playable<1> for Session {
+impl Extensive<1> for Session {
     fn turn(&self, state: crate::model::State) -> crate::model::Turn {
         todo!()
     }

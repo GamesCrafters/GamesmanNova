@@ -307,11 +307,12 @@ pub trait STransition<S, const F: usize> {
 
 /* SOLVING INTERFACES */
 
-/// The semantics of the word "playable" here just refers to being able to have
-/// a fixed number of players, and determine whose turn is next at a particular state.
+/// Indicates that a game has an extensive-form representation
+/// This refers to being able to have a fixed number of players, and determine whose
+/// turn is next at a particular state.
 /// The nature of the underlying game, and the utility interface then decides the
 /// specific kinds of "solving" that we can do.
-pub trait Playable<const N: PlayerCount>
+pub trait Extensive<const N: PlayerCount>
 where
     Self: Game,
 {
@@ -344,7 +345,7 @@ where
 /// the original game can be interpreted as being composed of different games.
 pub trait Composite<const N: PlayerCount>
 where
-    Self: Playable<N>,
+    Self: Extensive<N>,
 {
     /// Returns a unique identifier for the partition that `state` is an element
     /// of within the game variant specified by `self`. The notion of ordering
@@ -371,7 +372,10 @@ where
 /// different game states regardless of this fact).
 
 // Indicates that the game is general-sum
-pub trait GeneralSum<const N: PlayerCount> {
+pub trait GeneralSum<const N: PlayerCount> 
+where
+    Self: Extensive<N>
+{
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, it is recommended that this function panics
@@ -380,18 +384,59 @@ pub trait GeneralSum<const N: PlayerCount> {
     fn utility(&self, state: State) -> [Utility; N];
 }
 
-// Indicates that the game is zero-sum
-pub trait ZeroSum<const N: PlayerCount> {}
-
 // Indicates that the game is "simple-sum," meaning the only possible outcomes are:
 // Win, Lose, Tie, and Draw for each player
-pub trait SimpleSum<const N: PlayerCount> {
+pub trait SimpleSum<const N: PlayerCount> 
+where
+    Self: Extensive<N>
+{
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, it is recommended that this function panics
     /// with a message indicating that an attempt was made to calculate the
     /// utility of a non-primitive state.
     fn utility(&self, state: State) -> [SimpleUtility; N];
+}
+
+// Indicates that a game is 2-player, simple-sum, and zero-sum; this restricts the possible
+// utilities for a position to [Win, Lose], [Lose, Win], [Tie, Tie], and [Draw, Draw]. The name
+// "classic" is used as an attribution to the original Gamecrafters' GamesmanClassic system which is designed to solve
+// this specific type of game.
+pub trait ClassicGame
+where
+    Self: SimpleSum<2>
+{
+    // Default implemntation for extracting utility from a position; because the game is zero-sum,
+    // we can always determine both players' utility given the utility of only one player. This
+    // returns the utility of the player whose turn it is at that state.
+    fn utility(&self, state: State) -> SimpleUtility {
+        SimpleSum::utility(self, state)[self.turn(state)]
+    }
+}
+
+// Indicates that a "game" is a puzzle with simple outcomes; this implies that it is 1-player and the only possible
+// outcomes for the puzzle are Win, Lose, and Draw. 
+pub trait ClassicPuzzle
+where
+    Self: SimpleSum<1>
+{
+    // Default implementation for extracting utility from a position; because this is a puzzle,
+    // there is only one utility value for a position, as the puzzle is "one-player."
+    fn utility(&self, state: State) -> SimpleUtility {
+        SimpleSum::utility(self, state)[0]
+    }
+}
+
+// Indicates that a "game" is a puzzle where different states can have different utility values 
+pub trait GeneralPuzzle
+where 
+    Self: GeneralSum<1>
+{
+    // Default implementation for extracting utility from a position; because this is a puzzle,
+    // there is only one utility value for a position, as the puzzle is "one-player."
+    fn utility(&self, state: State) -> Utility {
+        GeneralSum::utility(self, state)[0]
+    }
 }
 
 /* GAME STRUCTURE MARKERS */

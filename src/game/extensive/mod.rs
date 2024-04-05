@@ -15,7 +15,7 @@ use crate::game::Bounded;
 use crate::game::DTransition;
 use crate::game::Game;
 use crate::game::Legible;
-use crate::game::Playable;
+use crate::game::Extensive;
 use crate::game::STransition;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
@@ -152,7 +152,7 @@ impl Legible<State> for Session<'_> {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl<const N: PlayerCount> Playable<N> for Session<'_> {
+impl<const N: PlayerCount> Extensive<N> for Session<'_> {
     fn turn(&self, state: State) -> Turn {
         todo!()
     }
