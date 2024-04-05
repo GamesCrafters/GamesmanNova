@@ -448,6 +448,16 @@ where
     }
 }
 
+// Indicates that a game is combinatorial; this differs from ClassicGame in that the possible
+// utility values are further restricted to Win or Lose. 
+
+pub trait Combinatorial
+where
+    Self: ClassicGame
+{
+    
+}
+
 /* GAME STRUCTURE MARKERS */
 
 /// Indicates that the graph induced by the underlying game's states is acyclic.
