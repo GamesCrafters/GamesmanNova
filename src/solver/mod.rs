@@ -32,7 +32,10 @@ pub const MAX_TRANSITIONS: usize = 128;
 pub enum RecordType {
     /// Multi-Utility Remoteness record for a specific number of players.
     MUR(PlayerCount),
+    // Simple-Utility Remoteness record for a specific number of players.
     SUR(PlayerCount),
+    // Remoteness record (no utilities)
+    REMOTE,
 }
 
 // An enum of outcomes for simple games, where the only possible outcomes are win, lose, tie,
@@ -70,6 +73,7 @@ impl SimpleUtility {
 pub mod record {
     pub mod mur;
     pub mod sur;
+    pub mod remote;
 }
 
 /* SOLVER MODULES */

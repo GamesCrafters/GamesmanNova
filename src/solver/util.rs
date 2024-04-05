@@ -39,6 +39,9 @@ impl Into<String> for RecordType {
             },
             RecordType::SUR(players) => {
                 format!("Simple-Utility Remoteness ({}  players)", players)
+            },
+            RecordType::REMOTE => {
+                format!("Remoteness (no utility)")
             }
         }
     }
@@ -51,6 +54,7 @@ impl TryInto<Schema> for RecordType {
         match self {
             RecordType::MUR(players) => record::mur::schema(players),
             RecordType::SUR(players) => record::sur::schema(players),
+            RecordType::REMOTE => record::remote::schema()
         }
     }
 }
