@@ -12,9 +12,6 @@ use anyhow::{Context, Result};
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
-use std::collections::HashMap;
-use std::ops::Index;
-
 use crate::game::error::GameError::MockViolation;
 use crate::game::util;
 use crate::game::Bounded;
@@ -34,7 +31,6 @@ use crate::solver::MAX_TRANSITIONS;
 
 /* RE-EXPORTS */
 
-pub use builder::Node;
 pub use builder::SessionBuilder;
 
 /* SUBMODULES */
@@ -59,7 +55,6 @@ const VARIANT_PROTOCOL: &'static str =
 /// constructed using `SessionBuilder`. Due to this, variants in this game are
 /// meaningless, since `SessionBuilder` can achieve any game structure.
 pub struct Session<'a> {
-    indices: HashMap<State, NodeIndex>,
     players: PlayerCount,
     start: NodeIndex,
     game: Graph<&'a Node, ()>,
@@ -70,7 +65,8 @@ pub struct Session<'a> {
 /// or edges) or medial (it is possible to transition out of it). Nodes in the
 /// terminal stage have an associated utility vector, and medial nodes have a
 /// turn encoding whose player's action is pending.
-pub enum Stage {
+#[derive(Debug)]
+pub enum Node {
     Terminal(Vec<Utility>),
     Medial(Turn),
 }
@@ -143,13 +139,13 @@ impl Legible<State> for Session<'_> {
 
 impl Bounded<State> for Session<'_> {
     fn start(&self) -> State {
-        self.game[self.start].hash
+        self.start.index() as State
     }
 
     fn end(&self, state: State) -> bool {
-        match self.get_node(state).data {
-            Stage::Terminal(_) => true,
-            Stage::Medial(_) => false,
+        match self.get_node(state) {
+            Node::Terminal(_) => true,
+            Node::Medial(_) => false,
         }
     }
 }
@@ -205,9 +201,9 @@ macro_rules! solvable_for {
     ($($N:expr),*) => {
         $(impl Solvable<$N> for Session<'_> {
             fn utility(&self, state: State) -> [Utility; $N] {
-                let from = match &self.get_node(state).data {
-                    Stage::Terminal(vector) => vector,
-                    Stage::Medial(_) => panic!(
+                let from = match &self.get_node(state) {
+                    Node::Terminal(vector) => vector,
+                    Node::Medial(_) => panic!(
                         "Attempted to get utility of medial node."
                     ),
                 };
@@ -218,9 +214,9 @@ macro_rules! solvable_for {
             }
 
             fn turn(&self, state: State) -> Turn {
-                match self.get_node(state).data {
-                    Stage::Medial(turn) => turn,
-                    Stage::Terminal(_) => panic!(
+                match self.get_node(state) {
+                    Node::Medial(turn) => *turn,
+                    Node::Terminal(_) => panic!(
                         "Attempted to get turn of terminal node."
                     ),
                 }
@@ -233,27 +229,19 @@ solvable_for![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /* HELPER IMPLEMENTATIONS */
 
-impl Index<State> for Session<'_> {
-    type Output = NodeIndex;
-
-    fn index(&self, index: State) -> &Self::Output {
-        self.indices.get(&index).unwrap()
-    }
-}
-
 impl Session<'_> {
     /// Return the states adjacent to `state`, where `dir` specifies whether
     /// they should be connected by incoming or outgoing edges.
     fn get_adjacent(&self, state: State, dir: Direction) -> Vec<State> {
         self.game
-            .neighbors_directed(self[state], dir)
-            .map(|n| self.game[n].hash)
+            .neighbors_directed(NodeIndex::from(state as u32), dir)
+            .map(|n| n.index() as State)
             .collect()
     }
 
     /// Returns a reference to the game node with `state`, or panics if there is
     /// no such node.
     fn get_node(&self, state: State) -> &Node {
-        self.game[self[state]]
+        self.game[NodeIndex::from(state as u32)]
     }
 }

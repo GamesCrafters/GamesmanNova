@@ -257,16 +257,10 @@ macro_rules! schema {
 /// ```
 #[macro_export]
 macro_rules! node {
-    ($hash:expr, [$($data:expr),*]) => {
-        Node {
-            hash: $hash,
-            data: Stage::Terminal(vec![$($data),*]),
-        }
+    ([$($data:expr),*]) => {
+        Node::Terminal(vec![$($data),*])
     };
-    ($hash:expr, $player:expr) => {
-        Node {
-            hash: $hash,
-            data: Stage::Medial($player),
-        }
+    ($player:expr) => {
+        Node::Medial($player)
     };
 }
