@@ -76,7 +76,9 @@ impl<'a> SessionBuilder<'a> {
         }
     }
 
-    ///
+    /// Create a new directed edge between nodes `from` and `to`. Fails if
+    /// `from` is a terminal node, or if either `from` or `to` imply a player
+    /// count that is incompatible with existing nodes.
     pub fn edge(mut self, from: &'a Node, to: &'a Node) -> Result<Self> {
         if let Node::Terminal(_) = from {
             Err(MockViolation {
