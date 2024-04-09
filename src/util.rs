@@ -249,18 +249,21 @@ macro_rules! schema {
 /// # Example
 ///
 /// ```no_run
-/// // A medial node with state hash 2 where it is Player 5's turn.
-/// let n1 = node!(2, 5);
+/// // A medial node where it is Player 5's turn.
+/// let n1 = node!(5);
 ///
-/// // A terminal node with state hash 2 and 5-entry utility vector.
-/// let n2 = node!(2, [-1, -4, 5, 0, 3]);
+/// // A terminal node with a 5-entry utility vector.
+/// let n2 = node![-1, -4, 5, 0, 3];
+///
+/// // A terminal node with a single utility entry.
+/// let n3 = node![4,];
 /// ```
 #[macro_export]
 macro_rules! node {
-    ([$($data:expr),*]) => {
-        Node::Terminal(vec![$($data),*])
+    ($val:expr) => {
+        Node::Medial($val)
     };
-    ($player:expr) => {
-        Node::Medial($player)
+    ($($u:expr),+ $(,)?) => {
+        Node::Terminal(vec![$($u),*])
     };
 }
