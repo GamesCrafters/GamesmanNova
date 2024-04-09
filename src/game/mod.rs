@@ -308,10 +308,10 @@ pub trait STransition<S, const F: usize> {
 /* SOLVING INTERFACES */
 
 /// Indicates that a game has an extensive-form representation
-/// This refers to being able to have a fixed number of players, and determine whose
-/// turn is next at a particular state.
-/// The nature of the underlying game, and the utility interface then decides the
-/// specific kinds of "solving" that we can do.
+/// This refers to being able to have a fixed number of players, and determine
+/// whose turn is next at a particular state. The nature of the underlying game,
+/// and the utility interface then decides the specific kinds of "solving" that 
+/// we can do.
 pub trait Extensive<const N: PlayerCount>
 where
     Self: Game,
@@ -332,12 +332,11 @@ where
 /// Indicates that the directed graph _G_ induced by the structure of the
 /// underlying game can be partitioned into partitions which themselves induce a
 /// directed acyclic graph. Note that this does not necessarily mean that all
-/// partitions will be strongly connected components of _G_.
-///
-/// This is useful because it allows the identification of which partitions of
-/// states can be analyzed concurrently if the analysis of some states depends
-/// on first analyzing all other "downstream" states, which is the case for all
-/// forms of backwards induction.
+/// partitions will be strongly connected components of _G_. This is useful
+/// because it allows the identification of which partitions of states can be
+/// analyzed concurrently if the analysis of some states depends on first
+/// analyzing all other "downstream" states, which is the case for all forms of
+/// backwards induction.
 ///
 /// The semantics of the word "composite" here come from the fact that you can
 /// essentially "forget" about all traversed states once you transition into a
@@ -384,8 +383,8 @@ where
     fn utility(&self, state: State) -> [Utility; N];
 }
 
-// Indicates that the game is "simple-sum," meaning the only possible outcomes are:
-// Win, Lose, Tie, and Draw for each player
+// Indicates that the game is "simple-sum," meaning the only possible outcomes
+// are: Win, Lose, Tie, and Draw for each player
 pub trait SimpleSum<const N: PlayerCount> 
 where
     Self: Extensive<N>
@@ -398,58 +397,62 @@ where
     fn utility(&self, state: State) -> [SimpleUtility; N];
 }
 
-// Indicates that a game is 2-player, simple-sum, and zero-sum; this restricts the possible
-// utilities for a position to [Win, Lose], [Lose, Win], [Tie, Tie], and [Draw, Draw]. The name
-// "classic" is used as an attribution to the original Gamecrafters' GamesmanClassic system which is designed to solve
-// this specific type of game.
+// Indicates that a game is 2-player, simple-sum, and zero-sum; this restricts
+// the possible utilities for a position to [Win, Lose], [Lose, Win], [Tie,
+// Tie], and [Draw, Draw]. The name "classic" is used as an attribution to the
+// original Gamecrafters' GamesmanClassic system which is designed to solve this
+// specific type of game.
 pub trait ClassicGame
 where
     Self: SimpleSum<2>
 {
-    // Default implemntation for extracting utility from a position; because the game is zero-sum,
-    // we can always determine both players' utility given the utility of only one player. This
-    // returns the utility of the player whose turn it is at that state.
+    // Default implemntation for extracting utility from a position; because the
+    // game is zero-sum, we can always determine both players' utility given the
+    // utility of only one player. This returns the utility of the player whose
+    // turn it is at that state.
     fn utility(&self, state: State) -> SimpleUtility {
         SimpleSum::utility(self, state)[self.turn(state)]
     }
 }
 
-// Indicates that a "game" is a puzzle with simple outcomes; this implies that it is 1-player and
-// the only possible
-// outcomes for the puzzle are Win, Lose, and Draw. Note that Tie outcomes are not allowed,
-// and implementations of this trait should not return Ties as you cannot "tie" in a puzzle.
-// A Wining position is one where there exists a sequence of moves that will lead to the puzzle being
-// fully solved.
-// A Losing position is one where any sequence of moves will always take you to a primitive position 
-// where the puzzle is unsolved.
-// A Draw position is one where is no way to reach a winning state, but it is possible to keep
-// playing forever without reaching a losing position.
-// possible to keep playing forever.
+// Indicates that a "game" is a puzzle with simple outcomes; this implies that
+// it is 1-player and the only possible outcomes for the puzzle are Win, Lose,
+// and Draw. Note that Tie outcomes are not allowed, and implementations of this
+// trait should not return Ties as you cannot "tie" in a puzzle. A Wining
+// position is one where there exists a sequence of moves that will lead to the
+// puzzle being fully solved. A Losing position is one where any sequence of
+// moves will always take you to a primitive position where the puzzle is
+// unsolved. A Draw position is one where is no way to reach a winning state,
+// but it is possible to keep playing forever without reaching a losing
+// position.
 pub trait ClassicPuzzle
 where
     Self: SimpleSum<1>
 {
-    // Default implementation for extracting utility from a position; because this is a puzzle,
-    // there is only one utility value for a position, as the puzzle is "one-player."
+    // Default implementation for extracting utility from a position; because
+    // this is a puzzle, there is only one utility value for a position, as the
+    // puzzle is "one-player."
     fn utility(&self, state: State) -> SimpleUtility {
         SimpleSum::utility(self, state)[0]
     }
 }
 
-// Indicates that a "game" is a puzzle where different states can have different utility values 
+// Indicates that a "game" is a puzzle where different states can have different
+// utility values 
 pub trait GeneralPuzzle
 where 
     Self: GeneralSum<1>
 {
-    // Default implementation for extracting utility from a position; because this is a puzzle,
-    // there is only one utility value for a position, as the puzzle is "one-player."
+    // Default implementation for extracting utility from a position; because
+    // this is a puzzle, there is only one utility value for a position, as the
+    // puzzle is "one-player."
     fn utility(&self, state: State) -> Utility {
         GeneralSum::utility(self, state)[0]
     }
 }
 
-// Indicates that a game is combinatorial; this differs from ClassicGame in that the possible
-// utility values are further restricted to Win or Lose. 
+// Indicates that a game is combinatorial; this differs from ClassicGame in than
+// the possible utility values are further restricted to Win or Lose. 
 
 pub trait Combinatorial
 where
@@ -473,9 +476,9 @@ pub trait Acyclic<const N: PlayerCount> {}
 
 /// Indicates that it is possible for players to gain utility from the utility
 /// of other players. This is purely utilitarian, as this additional utility
-/// would ideally be factored into the game outcomes via a `utility` function in the utility
-/// interfaces. This is useful in instances when a social analysis on specific situations
-/// needs to be made without modifying existing logic.
+/// would ideally be factored into the game outcomes via a `utility` function in
+/// the utility interfaces. This is useful in instances when a social analysis
+/// on specific situations needs to be made without modifying existing logic.
 pub trait External<const N: PlayerCount> {
     /// Returns an NxN matrix `M`, where the entry `M[i][j]` equals the utility
     /// obtained by player `i` for each unit of utility included in imputations
