@@ -9,10 +9,15 @@
 //!
 //! - Max Fierro 3/31/2024 (maxfierro@berkeley.edu)
 
+use anyhow::{Context, Result};
+use petgraph::dot::{Config, Dot};
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::HashMap;
+use std::fmt::{Debug, Display};
+use std::io::{self, Read, Write};
+use std::process::{Command, Stdio};
 
 use crate::game::Bounded;
 use crate::game::DTransition;
@@ -77,6 +82,32 @@ impl<'a> Session<'a> {
         } else {
             None
         }
+    }
+
+    /// Sends an SVG of the game graph to STDOUT. Requires an installation of
+    /// graphviz 'dot', failing if the 'dot' command is not in the user PATH.
+    pub fn image(&self) -> Result<()> {
+        let mut dot = Command::new("dot")
+            .arg("-Tsvg")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .context("Failed to execute 'dot' command.")?;
+
+        if let Some(mut stdin) = dot.stdin.take() {
+            let graph = format!("{}", self);
+            stdin.write_all(graph.as_bytes())?;
+        }
+
+        if let Some(stdout) = dot.stdout.take() {
+            let mut reader = io::BufReader::new(stdout);
+            let mut output = String::new();
+            reader.read_to_string(&mut output)?;
+            print!("{}", output);
+        }
+
+        dot.wait()?;
+        Ok(())
     }
 
     /* HELPER METHODS */
@@ -153,6 +184,42 @@ impl Bounded<State> for Session<'_> {
             Node::Terminal(_) => true,
             Node::Medial(_) => false,
         }
+    }
+}
+
+impl Display for Session<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}",
+            Dot::with_attr_getters(
+                &self.game,
+                &[Config::EdgeNoLabel, Config::NodeNoLabel],
+                &|_, _| String::new(),
+                &|_, n| {
+                    let (_, node) = n;
+                    let mut attrs = String::new();
+                    match node {
+                        Node::Medial(turn) => {
+                            attrs += &format!("label=P{} ", turn);
+                            attrs += "style=filled  ";
+                            if self.start() == self.state(node).unwrap() {
+                                attrs += "shape=doublecircle ";
+                                attrs += "fillcolor=navajowhite3 ";
+                            } else {
+                                attrs += "shape=circle ";
+                                attrs += "fillcolor=lightsteelblue ";
+                            }
+                        },
+                        Node::Terminal(util) => {
+                            attrs += &format!("label=\"{:?}\" ", util);
+                            attrs += "shape=plain ";
+                        },
+                    }
+                    attrs
+                }
+            )
+        )
     }
 }
 
