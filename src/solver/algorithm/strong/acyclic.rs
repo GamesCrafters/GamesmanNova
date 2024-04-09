@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, STransition, Solvable};
+use crate::game::{Bounded, DTransition, Game, STransition, Solvable};
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, Remoteness, State, Utility};
 use crate::solver::record::mur::RecordBuffer;
@@ -20,7 +20,7 @@ use crate::solver::{RecordType, MAX_TRANSITIONS};
 
 pub fn dynamic_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + Solvable<N>,
+    G: Game + DTransition<State> + Bounded<State> + Solvable<N>,
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -33,7 +33,10 @@ where
 
 pub fn static_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: STransition<State, MAX_TRANSITIONS> + Bounded<State> + Solvable<N>,
+    G: Game
+        + STransition<State, MAX_TRANSITIONS>
+        + Bounded<State>
+        + Solvable<N>,
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -49,7 +52,7 @@ where
 /// to that table before returning the database handle.
 fn volatile_database<const N: usize, G>(game: &G) -> Result<volatile::Database>
 where
-    G: Solvable<N>,
+    G: Game + Solvable<N>,
 {
     let id = game.id();
     let db = volatile::Database::initialize();

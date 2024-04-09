@@ -1,28 +1,22 @@
 //! Mock Extensive Game Module
 //!
 //! This module provides a way to represent extensive-form games by declaring
-//! the game via a graph, assigning special conditions to nodes, and exposing it
-//! to multiple solving interfaces for convenience.
+//! the game via a graph and assigning special conditions to nodes. This makes
+//! creating example games a matter of simply declaring them and wrapping them
+//! in any necessary external interface implementations.
 //!
 //! #### Authorship
 //!
 //! - Max Fierro 3/31/2024 (maxfierro@berkeley.edu)
 
-use anyhow::{Context, Result};
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
-use crate::game::error::GameError::MockViolation;
-use crate::game::util;
+use std::collections::HashMap;
+
 use crate::game::Bounded;
 use crate::game::DTransition;
-use crate::game::Game;
-use crate::game::GameData;
-use crate::game::Legible;
 use crate::game::STransition;
-use crate::game::Solvable;
-use crate::interface::IOMode;
-use crate::interface::SolutionMode;
 use crate::model::PlayerCount;
 use crate::model::State;
 use crate::model::Turn;
@@ -35,26 +29,15 @@ pub use builder::SessionBuilder;
 
 /* SUBMODULES */
 
-mod state;
+mod example;
 mod builder;
-
-/* GAME DATA */
-
-const NAME: &'static str = "mock";
-const AUTHORS: &'static str = "Max Fierro <maxfierro@berkeley.edu>";
-const ABOUT: &'static str = "PLACEHOLDER";
-
-const VARIANT_DEFAULT: &'static str = "N/A";
-const VARIANT_PATTERN: &'static str = "N/A";
-const VARIANT_PROTOCOL: &'static str =
-"This implementation has no variants, as it can represent any extensive game.";
 
 /* DEFINITIONS */
 
 /// Represents an initialized session of an abstract graph game. This can be
-/// constructed using `SessionBuilder`. Due to this, variants in this game are
-/// meaningless, since `SessionBuilder` can achieve any game structure.
+/// constructed using `SessionBuilder`.
 pub struct Session<'a> {
+    inserted: HashMap<*const Node, NodeIndex>,
     players: PlayerCount,
     start: NodeIndex,
     game: Graph<&'a Node, ()>,
@@ -71,99 +54,65 @@ pub enum Node {
     Medial(Turn),
 }
 
-/* GAME IMPLEMENTATION */
+/* IMPLEMENTATION */
 
-impl Game for Session<'_> {
-    fn initialize(_variant: Option<String>) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        Err(MockViolation {
-            hint:
-                "Conventional initialization is not supported for mock games."
-                    .into(),
-        })?
+impl<'a> Session<'a> {
+    /// Return a name or identifier corresponding to this game.
+    pub fn name(&self) -> &'a str {
+        self.name
     }
 
-    fn id(&self) -> String {
-        self.name.into()
+    /// Return the number of players in this game.
+    pub fn players(&self) -> PlayerCount {
+        self.players
     }
 
-    fn forward(&mut self, history: Vec<String>) -> Result<()> {
-        let state = util::verify_history_dynamic(self, history)
-            .context("Malformed game state encoding.")?;
-
-        self.get_node(state);
-
-        Ok(())
-    }
-
-    fn info(&self) -> GameData {
-        GameData {
-            variant: VARIANT_DEFAULT.into(),
-            name: NAME,
-            authors: AUTHORS,
-            about: ABOUT,
-
-            variant_protocol: VARIANT_PROTOCOL,
-            variant_pattern: VARIANT_PATTERN,
-            variant_default: VARIANT_DEFAULT,
-
-            state_protocol: state::STATE_PROTOCOL,
-            state_pattern: state::STATE_PATTERN,
-            state_default: state::STATE_DEFAULT,
+    /// Return the state hash being internally used for `node`.
+    pub fn state(&self, node: &Node) -> Option<State> {
+        if let Some(index) = self
+            .inserted
+            .get(&(node as *const Node))
+        {
+            Some(index.index() as State)
+        } else {
+            None
         }
     }
 
-    fn solve(&self, _mode: IOMode, _method: SolutionMode) -> Result<()> {
-        Err(MockViolation {
-            hint: "Conventional solving is not supported for mock games."
-                .into(),
-        })?
+    /* HELPER METHODS */
+
+    /// Return the states adjacent to `state`, where `dir` specifies whether
+    /// they should be connected by incoming or outgoing edges.
+    fn transition(&self, state: State, dir: Direction) -> Vec<State> {
+        self.game
+            .neighbors_directed(NodeIndex::from(state as u32), dir)
+            .map(|n| n.index() as State)
+            .collect()
+    }
+
+    /// Returns a reference to the game node with `state`, or panics if there is
+    /// no such node.
+    fn node(&self, state: State) -> &Node {
+        self.game[NodeIndex::from(state as u32)]
     }
 }
 
-/* STATE CODEC IMPLEMENTATION */
-
-impl Legible<State> for Session<'_> {
-    fn decode(&self, string: String) -> Result<State> {
-        todo!()
-    }
-
-    fn encode(&self, state: State) -> String {
-        todo!()
-    }
-}
-
-/* TRAVERSAL IMPLEMENTATIONS */
-
-impl Bounded<State> for Session<'_> {
-    fn start(&self) -> State {
-        self.start.index() as State
-    }
-
-    fn end(&self, state: State) -> bool {
-        match self.get_node(state) {
-            Node::Terminal(_) => true,
-            Node::Medial(_) => false,
-        }
-    }
-}
+/* UTILITY IMPLEMENTATIONS */
 
 impl DTransition<State> for Session<'_> {
     fn prograde(&self, state: State) -> Vec<State> {
-        self.get_adjacent(state, Direction::Outgoing)
+        self.transition(state, Direction::Outgoing)
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
-        self.get_adjacent(state, Direction::Incoming)
+        self.transition(state, Direction::Incoming)
     }
 }
 
 impl STransition<State, MAX_TRANSITIONS> for Session<'_> {
     fn prograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
         let adjacent = self
-            .get_adjacent(state, Direction::Outgoing)
+            .transition(state, Direction::Outgoing)
             .iter()
             .map(|&h| Some(h))
             .collect::<Vec<Option<State>>>();
@@ -179,7 +128,7 @@ impl STransition<State, MAX_TRANSITIONS> for Session<'_> {
 
     fn retrograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
         let adjacent = self
-            .get_adjacent(state, Direction::Incoming)
+            .transition(state, Direction::Incoming)
             .iter()
             .map(|&h| Some(h))
             .collect::<Vec<Option<State>>>();
@@ -194,54 +143,170 @@ impl STransition<State, MAX_TRANSITIONS> for Session<'_> {
     }
 }
 
-/* SOLVING IMPLEMENTATIONS */
-
-/// Implements the `Solvable<N>` trait for different player counts.
-macro_rules! solvable_for {
-    ($($N:expr),*) => {
-        $(impl Solvable<$N> for Session<'_> {
-            fn utility(&self, state: State) -> [Utility; $N] {
-                let from = match &self.get_node(state) {
-                    Node::Terminal(vector) => vector,
-                    Node::Medial(_) => panic!(
-                        "Attempted to get utility of medial node."
-                    ),
-                };
-
-                let mut result = [0; $N];
-                result.copy_from_slice(&from[..$N]);
-                result
-            }
-
-            fn turn(&self, state: State) -> Turn {
-                match self.get_node(state) {
-                    Node::Medial(turn) => *turn,
-                    Node::Terminal(_) => panic!(
-                        "Attempted to get turn of terminal node."
-                    ),
-                }
-            }
-        })*
-    };
-}
-
-solvable_for![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-/* HELPER IMPLEMENTATIONS */
-
-impl Session<'_> {
-    /// Return the states adjacent to `state`, where `dir` specifies whether
-    /// they should be connected by incoming or outgoing edges.
-    fn get_adjacent(&self, state: State, dir: Direction) -> Vec<State> {
-        self.game
-            .neighbors_directed(NodeIndex::from(state as u32), dir)
-            .map(|n| n.index() as State)
-            .collect()
+impl Bounded<State> for Session<'_> {
+    fn start(&self) -> State {
+        self.start.index() as State
     }
 
-    /// Returns a reference to the game node with `state`, or panics if there is
-    /// no such node.
-    fn get_node(&self, state: State) -> &Node {
-        self.game[NodeIndex::from(state as u32)]
+    fn end(&self, state: State) -> bool {
+        match self.node(state) {
+            Node::Terminal(_) => true,
+            Node::Medial(_) => false,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::node;
+    use anyhow::Result;
+
+    #[test]
+    fn get_unique_node_states() -> Result<()> {
+        let s1 = node!(0);
+        let s2 = node!(1);
+        let s3 = node!(2);
+        let s4 = node!(1);
+        let s5 = node!(0);
+
+        let t1 = node![1, 2, 3];
+        let t2 = node![3, 2, 1];
+
+        let g = SessionBuilder::new("sample")
+            .edge(&s1, &s2)?
+            .edge(&s2, &s3)?
+            .edge(&s3, &s4)?
+            .edge(&s4, &s5)?
+            .edge(&s4, &t1)?
+            .edge(&s5, &t2)?
+            .start(&s1)?
+            .build()?;
+
+        let states = vec![
+            g.state(&s1),
+            g.state(&s2),
+            g.state(&s3),
+            g.state(&s4),
+            g.state(&s5),
+            g.state(&t1),
+            g.state(&t2),
+        ];
+
+        let contains_none = states.iter().any(Option::is_none);
+        assert!(!contains_none);
+
+        let states: Vec<State> = states
+            .iter()
+            .map(|s| s.unwrap())
+            .collect();
+
+        let repeats = states.iter().any(|&i| {
+            states[(1 + i as usize)..]
+                .iter()
+                .any(|&j| i == j)
+        });
+
+        assert!(!repeats);
+        Ok(())
+    }
+
+    #[test]
+    fn verify_start_and_end_states() -> Result<()> {
+        let s1 = node!(0);
+        let s2 = node!(1);
+        let s3 = node!(2);
+
+        let t1 = node![1, 2, 3];
+        let t2 = node![3, 2, 1];
+
+        let g = SessionBuilder::new("sample")
+            .edge(&s1, &s2)?
+            .edge(&s2, &s3)?
+            .edge(&s2, &t1)?
+            .edge(&s3, &t2)?
+            .start(&s1)?
+            .build()?;
+
+        let start = g.state(&s1).unwrap();
+        let end1 = g.state(&t1).unwrap();
+        let end2 = g.state(&t2).unwrap();
+
+        assert_eq!(g.start(), start);
+        assert!(g.end(end1));
+        assert!(g.end(end2));
+        Ok(())
+    }
+
+    #[test]
+    fn verify_state_transition() -> Result<()> {
+        let s1 = node!(0);
+        let s2 = node!(1);
+        let s3 = node!(2);
+
+        let t1 = node![1, 2, 3];
+        let t2 = node![3, 2, 1];
+
+        let g = SessionBuilder::new("sample")
+            .edge(&s1, &s2)?
+            .edge(&s1, &s3)?
+            .edge(&s2, &t1)?
+            .edge(&s3, &t2)?
+            .start(&s1)?
+            .build()?;
+
+        let s1_state = g.state(&s1).unwrap();
+        let s2_state = g.state(&s2).unwrap();
+        let s3_state = g.state(&s3).unwrap();
+
+        let t1_state = g.state(&t1).unwrap();
+        let t2_state = g.state(&t2).unwrap();
+
+        let s1_pro = g.transition(s1_state, Direction::Outgoing);
+        let s2_pro = g.transition(s2_state, Direction::Outgoing);
+        let t2_ret = g.transition(t2_state, Direction::Incoming);
+
+        assert!(s1_pro.len() == 2);
+        assert!(s2_pro.len() == 1);
+        assert!(t2_ret.len() == 1);
+
+        assert!(s1_pro.contains(&s3_state));
+        assert!(s1_pro.contains(&s2_state));
+
+        assert!(s2_pro.contains(&t1_state));
+        assert!(t2_ret.contains(&s3_state));
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_game_name() -> Result<()> {
+        let s1 = node!(0);
+        let s2 = node!(1);
+        let t1 = node![-1, 2];
+        let g = SessionBuilder::new("gaming")
+            .edge(&s1, &s2)?
+            .edge(&s2, &t1)?
+            .start(&s1)?
+            .build()?;
+
+        assert_eq!(g.name(), "gaming");
+        Ok(())
+    }
+
+    #[test]
+    fn get_player_count() -> Result<()> {
+        let s1 = node!(0);
+        let s2 = node!(5);
+        let t1 = node![1, -2, 3, -4, 5, -6, 7];
+        let g = SessionBuilder::new("7 player game")
+            .edge(&s1, &s2)?
+            .edge(&s2, &t1)?
+            .start(&s1)?
+            .build()?;
+
+        assert_eq!(g.players(), 7);
+        Ok(())
     }
 }

@@ -11,10 +11,12 @@ use anyhow::{Context, Result};
 
 use crate::{
     game::error::GameError,
-    game::{DTransition, Legible, STransition},
+    game::{Codec, DTransition, STransition},
     model::{PlayerCount, State, Turn},
     solver::MAX_TRANSITIONS,
 };
+
+use super::{Bounded, Game};
 
 /* TURN ENCODING */
 
@@ -68,7 +70,7 @@ pub fn verify_history_dynamic<G>(
     history: Vec<String>,
 ) -> Result<State>
 where
-    G: Legible<State> + DTransition<State>,
+    G: Game + Codec<State> + Bounded<State> + DTransition<State>,
 {
     if let Some(s) = history.first() {
         let mut prev = game.decode(s.clone())?;
@@ -98,7 +100,10 @@ where
 /// transition function, with a reminder of the current game variant.
 pub fn verify_history_static<G>(game: &G, history: Vec<String>) -> Result<State>
 where
-    G: Legible<State> + STransition<State, MAX_TRANSITIONS>,
+    G: Game
+        + Codec<State>
+        + Bounded<State>
+        + STransition<State, MAX_TRANSITIONS>,
 {
     if let Some(s) = history.first() {
         let mut prev = game.decode(s.clone())?;
@@ -120,7 +125,10 @@ where
     }
 }
 
-fn empty_history_error<G: Legible<State>>(game: &G) -> Result<State> {
+fn empty_history_error<G>(game: &G) -> Result<State>
+where
+    G: Game + Codec<State>,
+{
     Err(GameError::InvalidHistory {
         game_name: game.info().name,
         hint: format!("State history must contain at least one state."),
@@ -128,10 +136,10 @@ fn empty_history_error<G: Legible<State>>(game: &G) -> Result<State> {
     .context("Invalid game history.")
 }
 
-fn start_history_error<G: Legible<State>>(
-    game: &G,
-    start: State,
-) -> Result<State> {
+fn start_history_error<G>(game: &G, start: State) -> Result<State>
+where
+    G: Game + Codec<State>,
+{
     Err(GameError::InvalidHistory {
         game_name: game.info().name,
         hint: format!(
@@ -144,11 +152,14 @@ fn start_history_error<G: Legible<State>>(
     .context("Invalid game history.")
 }
 
-fn transition_history_error<G: Legible<State>>(
+fn transition_history_error<G>(
     game: &G,
     prev: State,
     next: State,
-) -> Result<State> {
+) -> Result<State>
+where
+    G: Game + Codec<State>,
+{
     Err(GameError::InvalidHistory {
         game_name: game.info().name,
         hint: format!(

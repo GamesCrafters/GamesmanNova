@@ -6,7 +6,7 @@
 //!
 //! #### Authorship
 //!
-//! - Max Fierro, 4/31/2024
+//! - Max Fierro, 3/31/2024
 
 use anyhow::Result;
 use petgraph::Direction;
@@ -141,6 +141,7 @@ impl<'a> SessionBuilder<'a> {
         self.check_outgoing_edges(start)?;
         let (players, _) = self.players;
         Ok(Session {
+            inserted: self.inserted,
             players,
             start,
             game: self.game,
@@ -274,12 +275,6 @@ impl<'a> SessionBuilder<'a> {
     /// Fails if there exists a node marked as medial in the game graph which
     /// does not have any outgoing edges.
     fn check_outgoing_edges(&self, start: NodeIndex) -> Result<()> {
-        println!(
-            "{:?}",
-            self.game
-                .node_indices()
-                .collect::<Vec<NodeIndex>>()
-        );
         if self.game.node_indices().any(|i| {
             self.game[i].medial()
                 && self
@@ -337,9 +332,9 @@ mod tests {
         let m2 = node!(2);
         let m3 = node!(0);
 
-        let t1 = node!([1, 2]);
-        let t2 = node!([3, 2, 1]);
-        let t3 = node!([]);
+        let t1 = node![1, 2];
+        let t2 = node![3, 2, 1];
+        let t3 = Node::Terminal(vec![]);
 
         let game = SessionBuilder::new("bad utility 1")
             .edge(&m1, &t1)?
@@ -366,8 +361,8 @@ mod tests {
     fn cannot_add_incorrect_turn_information() -> Result<()> {
         let m1 = node!(0);
         let m2 = node!(2);
-        let t1 = node!([1, -2]);
-        let t2 = node!([-1, 2]);
+        let t1 = node![1, -2];
+        let t2 = node![-1, 2];
 
         let game = SessionBuilder::new("bad turn")
             .edge(&m1, &t1)?
@@ -384,7 +379,7 @@ mod tests {
         let m1 = node!(0);
         let m2 = node!(1);
 
-        let t1 = node!([1, 2, 3, 4]);
+        let t1 = node![1, 2, 3, 4];
 
         SessionBuilder::new("edge from terminal node")
             .edge(&t1, &m1).unwrap() // Panic
@@ -400,7 +395,7 @@ mod tests {
     #[test]
     fn cannot_build_graph_with_no_starting_state() -> Result<()> {
         let m1 = node!(0);
-        let t1 = node!([1, 2]);
+        let t1 = node![1, 2];
 
         let game1 = SessionBuilder::new("no starting state 1").build();
         let game2 = SessionBuilder::new("no starting state 2")
@@ -419,7 +414,7 @@ mod tests {
         let c = node!(0);
         let d = node!(1);
 
-        let end = node!([1, 2, 3]);
+        let end = node![1, 2, 3];
 
         let game = SessionBuilder::new("no end")
             .edge(&a, &b)?
@@ -440,7 +435,7 @@ mod tests {
         let d = node!(1);
 
         let trap = node!(0);
-        let end = node!([1, 2, 3]);
+        let end = node![1, 2, 3];
 
         let game = SessionBuilder::new("trap game")
             .edge(&a, &b)?
@@ -464,8 +459,8 @@ mod tests {
         let e = node!(0);
         let f = node!(1);
 
-        let t1 = node!([1, 2]);
-        let t2 = node!([2, 1]);
+        let t1 = node![1, 2];
+        let t2 = node![2, 1];
 
         let game = SessionBuilder::new("acyclic")
             .edge(&a, &b)?
@@ -494,8 +489,8 @@ mod tests {
         let e = node!(0);
         let f = node!(1);
 
-        let t1 = node!([1, 2, -1, 4]);
-        let t2 = node!([2, 1, 9, -6]);
+        let t1 = node![1, 2, -1, 4];
+        let t2 = node![2, 1, 9, -6];
 
         let game = SessionBuilder::new("cyclic")
             .edge(&a, &b)?
