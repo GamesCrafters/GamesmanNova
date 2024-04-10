@@ -29,7 +29,7 @@ jobs:
       with:
         toolchain: stable
     - name: Test
-      run: cargo test --verbose
+      run: TEST_SETTING=0 cargo test --verbose
 
   # Push formatting commit even if compilation/testing fails. This does not
   # push a commit if no formatting is required.

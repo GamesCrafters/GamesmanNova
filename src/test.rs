@@ -12,9 +12,11 @@ use strum_macros::Display;
 
 use std::{env, fs, path};
 
-/* DATA RESOURCES DIRECTORY */
+/* CONSTANTS */
 
 const DATA_DIRECTORY: &str = "data";
+
+/* DEFINITIONS */
 
 /// Specifies directories for different kinds of data generated for development
 /// purposes, which should not be distributed.
@@ -24,7 +26,33 @@ pub enum TestData {
     Visuals,
 }
 
+/// Specifies the level of side effects to generate during testing. This
+/// corresponds to the `TEST_SETTING` environment variable.
+pub enum TestSetting {
+    Correctness,
+    Development,
+}
+
 /* UTILITY FUNCTIONS */
+
+/// Returns the testing side effects setting as obtained from the `TEST_SETTING`
+/// environment variable.
+pub fn test_setting() -> Result<TestSetting> {
+    if let Ok(setting) = env::var("TEST_SETTING") {
+        match &setting[..] {
+            "0" => Ok(TestSetting::Correctness),
+            "1" => Ok(TestSetting::Development),
+            _ => Err(anyhow! {
+                format!(
+                    "TEST_SETTING assignment '{}' not recognized.",
+                    setting
+                )
+            }),
+        }
+    } else {
+        Ok(TestSetting::Development)
+    }
+}
 
 /// Returns a PathBuf corresponding to the correct subdirectory for storing
 /// development `data`, creating it in the process if it does not exist.
