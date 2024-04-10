@@ -16,6 +16,7 @@
 use crate::model::PlayerCount;
 use crate::solver::error::SolverError::RecordViolation;
 use anyhow::Result;
+use std::fmt::Display;
 
 /// Describes the maximum number of states that are one move away from any state
 /// within a game. Used to allocate statically-sized arrays on the stack for
@@ -97,6 +98,7 @@ pub mod algorithm {
     pub mod strong {
         pub mod acyclic;
         pub mod cyclic;
+        pub mod puzzle;
     }
 
     /// Solving algorithms for deterministic complete-information games that
