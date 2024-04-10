@@ -1,20 +1,19 @@
-//! Mock Extensive Game Builder Pattern Module
+//! Mock Extensive Test Game Builder Pattern Module
 //!
 //! This module provides an implementation of a declarative builder pattern for
 //! an extensive-form game `Session`, which allows the construction of a graph
 //! of nodes representing game states.
 //!
 //! #### Authorship
-//!
-//! - Max Fierro, 3/31/2024
+//! - Max Fierro, 3/31/2024 (maxfierro@gmail.com)
 
+use anyhow::anyhow;
 use anyhow::Result;
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::{HashMap, HashSet};
 
-use crate::game::error::GameError::MockViolation;
 use crate::game::mock::Node;
 use crate::game::mock::Session;
 use crate::model::PlayerCount;
@@ -81,8 +80,8 @@ impl<'a> SessionBuilder<'a> {
     /// count that is incompatible with existing nodes.
     pub fn edge(mut self, from: &'a Node, to: &'a Node) -> Result<Self> {
         if let Node::Terminal(_) = from {
-            Err(MockViolation {
-                hint: format!(
+            Err(anyhow! {
+                format!(
                     "There was an attempt to add a terminal node on the \
                     outgoing side of an edge during the construction of the \
                     game '{}'.",
@@ -120,8 +119,8 @@ impl<'a> SessionBuilder<'a> {
             self.start = Some(index);
             Ok(self)
         } else {
-            Err(MockViolation {
-                hint: format!(
+            Err(anyhow! {
+                format!(
                     "There was an attempt to set the start state of mock game \
                     '{}', but the indicated start node has not been added to \
                     the game yet.",
@@ -160,8 +159,8 @@ impl<'a> SessionBuilder<'a> {
             Node::Terminal(vector) => {
                 let result = vector.len();
                 if result == 0 {
-                    Err(MockViolation {
-                        hint: format!(
+                    Err(anyhow! {
+                        format!(
                             "While constructing the game '{}', there was an \
                             attempt to add a terminal node with containing no \
                             utility entries. Games with no players are not \
@@ -177,8 +176,8 @@ impl<'a> SessionBuilder<'a> {
 
         if finalized {
             if new.terminal() && old_count != new_count {
-                Err(MockViolation {
-                    hint: format!(
+                Err(anyhow! {
+                    format!(
                         "While constructing the game '{}', a terminal node was \
                         added containing {} utility entries, but then a new \
                         one was added with {} entries. Utility entries must be \
@@ -187,8 +186,8 @@ impl<'a> SessionBuilder<'a> {
                     ),
                 })?
             } else if new.medial() && new_count > old_count {
-                Err(MockViolation {
-                    hint: format!(
+                Err(anyhow! {
+                    format!(
                         "While constructing the game '{}', a terminal node was \
                         added containing {} utility entries, but then a new \
                         medial node was added with a 0-indexed turn of {}, \
@@ -201,8 +200,8 @@ impl<'a> SessionBuilder<'a> {
             }
         } else {
             if new.terminal() && new_count < old_count {
-                Err(MockViolation {
-                    hint: format!(
+                Err(anyhow! {
+                    format!(
                         "While constructing the game '{}', a medial node was \
                         added with a 0-indexed turn of {}, but then a new \
                         terminal node was added with {} entries. All turn \
@@ -230,8 +229,8 @@ impl<'a> SessionBuilder<'a> {
         if let Some(index) = self.start {
             Ok(index)
         } else {
-            Err(MockViolation {
-                hint: format!(
+            Err(anyhow! {
+                format!(
                     "No starting node was specified for the game '{}'.",
                     self.name,
                 ),
@@ -263,8 +262,8 @@ impl<'a> SessionBuilder<'a> {
             }
         }
 
-        Err(MockViolation {
-            hint: format!(
+        Err(anyhow! {
+            format!(
                 "No terminal node is reachable from the node marked as the \
                 start in the game '{}'.",
                 self.name
@@ -283,8 +282,8 @@ impl<'a> SessionBuilder<'a> {
                     .count()
                     .eq(&0)
         }) {
-            Err(MockViolation {
-                hint: format!(
+            Err(anyhow! {
+                format!(
                     "There exists a medial state with no outgoing edges in the \
                     constructed game '{}', which is a contradiction.",
                     self.name
@@ -325,6 +324,10 @@ mod tests {
 
     use super::*;
     use crate::node;
+
+    /// Used for storing generated visualizations of the mock games being used
+    /// for testing purposes in this module under their own subdirectory.
+    const MODULE_NAME: &str = "mock-builder-tests";
 
     #[test]
     fn cannot_add_incorrect_utility_entries() -> Result<()> {
@@ -475,6 +478,7 @@ mod tests {
             .start(&a)?
             .build()?;
 
+        game.visualize(MODULE_NAME)?;
         assert_eq!(game.players, 2);
 
         Ok(())
@@ -505,6 +509,7 @@ mod tests {
             .start(&a)?
             .build()?;
 
+        game.visualize(MODULE_NAME)?;
         assert_eq!(game.players, 4);
 
         Ok(())

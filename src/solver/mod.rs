@@ -7,7 +7,6 @@
 //! of that word.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 /* CONSTANTS */

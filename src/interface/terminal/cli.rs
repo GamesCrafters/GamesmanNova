@@ -6,7 +6,6 @@
 //! [this](https://clig.dev/) great guide.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use clap::{Args, Parser, Subcommand};

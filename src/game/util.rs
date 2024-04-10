@@ -4,7 +4,6 @@
 //! more than a single game.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};

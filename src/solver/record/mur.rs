@@ -5,7 +5,6 @@
 //! associated with a particular game state.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 3/30/2024 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};

@@ -8,7 +8,6 @@
 //! * It must have states which can be efficiently represented
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
@@ -22,14 +21,17 @@ use crate::{
 /* UTILITY MODULES */
 
 #[cfg(test)]
+pub mod mock;
+
+#[cfg(test)]
 mod test;
+
 mod error;
 mod util;
 
 /* IMPLEMENTED GAMES */
 
 pub mod crossteaser;
-pub mod mock;
 pub mod zero_by;
 
 /* DATA CONSTRUCTS */

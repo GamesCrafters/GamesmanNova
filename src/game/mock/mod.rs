@@ -1,4 +1,4 @@
-//! Mock Extensive Game Module
+//! Mock Extensive Test Game Module
 //!
 //! This module provides a way to represent extensive-form games by declaring
 //! the game via a graph and assigning special conditions to nodes. This makes
@@ -6,7 +6,6 @@
 //! in any necessary external interface implementations.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro 3/31/2024 (maxfierro@berkeley.edu)
 
 use petgraph::Direction;
@@ -54,7 +53,7 @@ pub enum Node {
     Medial(Turn),
 }
 
-/* IMPLEMENTATION */
+/* API IMPLEMENTATION */
 
 impl<'a> Session<'a> {
     /// Return a name or identifier corresponding to this game.
@@ -79,8 +78,15 @@ impl<'a> Session<'a> {
         }
     }
 
-    /* HELPER METHODS */
+    /// Return an immutable borrow of the graph underlying the game.
+    pub fn graph(&self) -> &Graph<&Node, ()> {
+        &self.game
+    }
+}
 
+/* PRIVATE IMPLEMENTATION */
+
+impl<'a> Session<'a> {
     /// Return the states adjacent to `state`, where `dir` specifies whether
     /// they should be connected by incoming or outgoing edges.
     fn transition(&self, state: State, dir: Direction) -> Vec<State> {
@@ -163,6 +169,10 @@ mod tests {
     use crate::node;
     use anyhow::Result;
 
+    /// Used for storing generated visualizations of the mock games being used
+    /// for testing purposes in this module under their own subdirectory.
+    const MODULE_NAME: &str = "mock-core-tests";
+
     #[test]
     fn get_unique_node_states() -> Result<()> {
         let s1 = node!(0);
@@ -174,7 +184,7 @@ mod tests {
         let t1 = node![1, 2, 3];
         let t2 = node![3, 2, 1];
 
-        let g = SessionBuilder::new("sample")
+        let g = SessionBuilder::new("sample1")
             .edge(&s1, &s2)?
             .edge(&s2, &s3)?
             .edge(&s3, &s4)?
@@ -184,6 +194,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         let states = vec![
             g.state(&s1),
             g.state(&s2),
@@ -221,7 +232,7 @@ mod tests {
         let t1 = node![1, 2, 3];
         let t2 = node![3, 2, 1];
 
-        let g = SessionBuilder::new("sample")
+        let g = SessionBuilder::new("sample2")
             .edge(&s1, &s2)?
             .edge(&s2, &s3)?
             .edge(&s2, &t1)?
@@ -229,6 +240,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         let start = g.state(&s1).unwrap();
         let end1 = g.state(&t1).unwrap();
         let end2 = g.state(&t2).unwrap();
@@ -248,7 +260,7 @@ mod tests {
         let t1 = node![1, 2, 3];
         let t2 = node![3, 2, 1];
 
-        let g = SessionBuilder::new("sample")
+        let g = SessionBuilder::new("sample3")
             .edge(&s1, &s2)?
             .edge(&s1, &s3)?
             .edge(&s2, &t1)?
@@ -256,6 +268,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         let s1_state = g.state(&s1).unwrap();
         let s2_state = g.state(&s2).unwrap();
         let s3_state = g.state(&s3).unwrap();
@@ -285,13 +298,14 @@ mod tests {
         let s1 = node!(0);
         let s2 = node!(1);
         let t1 = node![-1, 2];
-        let g = SessionBuilder::new("gaming")
+        let g = SessionBuilder::new("interesting name")
             .edge(&s1, &s2)?
             .edge(&s2, &t1)?
             .start(&s1)?
             .build()?;
 
-        assert_eq!(g.name(), "gaming");
+        g.visualize(MODULE_NAME)?;
+        assert_eq!(g.name(), "interesting name");
         Ok(())
     }
 
@@ -306,6 +320,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         assert_eq!(g.players(), 7);
         Ok(())
     }

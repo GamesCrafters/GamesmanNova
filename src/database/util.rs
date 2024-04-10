@@ -6,7 +6,6 @@
 //! leaving this for cases where their functionality intersects.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use anyhow::Result;

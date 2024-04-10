@@ -5,5 +5,4 @@
 //! which partially ensure compatibility with a game variant.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 3/7/2023 (maxfierro@berkeley.edu)

@@ -1,10 +1,9 @@
-//! # Utilities Module
+//! # General Utilities Module
 //!
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
