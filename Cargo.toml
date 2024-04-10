@@ -8,7 +8,7 @@ repository = "https://github.com/GamesCrafters/GamesmanNova"
 keywords = ["game", "solver", "strong-solver", "research"]
 edition = "2021"
 readme = "README.md"
-exclude = ["/.github", "/data"]
+exclude = ["/.github", "/dev"]
 
 [[bin]]
 path = "src/main.rs"
