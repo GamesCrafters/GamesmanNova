@@ -5,9 +5,10 @@
 //!
 //! #### Authorship
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
+//! - Implementation: Casey Stanford, 4/10/2024 (cqstanford@berkeley.edu)
 
 use anyhow::Result;
-use bitvec::{order::Msb0, slice::BitSlice, store::BitStore};
+use bitvec::{prelude::*, order::Msb0, slice::BitSlice, store::BitStore};
 
 use std::collections::HashMap;
 
@@ -20,10 +21,10 @@ use crate::{
 //TODO: efficient version: have a huge Vec chunk of memory, and HashMap just stores indexes in that memory chunk
 
 pub struct Database {
-    memory: HashMap<State, Vec<u8>>,
+    memory: HashMap<State, BitVec<u8, Msb0>>,
 }
 
-impl Database<'_> {
+impl Database {
     pub fn initialize() -> Self {
         Self {
             memory: HashMap::new(),
@@ -32,9 +33,10 @@ impl Database<'_> {
 }
 
 
-impl KVStore for Database {
-    fn put(&mut self, key: State, value: &[u8]) {
-        let new = Vec::from(value).clone();
+
+impl<R:Record> KVStore<R> for Database {
+    fn put(&mut self, key: State, value: &R) {
+        let new = BitVec::from(value.raw()).clone();
         self.memory.insert(key, new);
     }
 
@@ -54,7 +56,7 @@ impl KVStore for Database {
 
 
 
-impl Tabular for Database<'_> {
+impl Tabular for Database {
     fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
         todo!()
     }
@@ -65,5 +67,40 @@ impl Tabular for Database<'_> {
 
     fn delete_table(&self, id: &str) -> Result<()> {
         todo!()
+    }
+}
+
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    pub struct Rec {
+        value: BitVec<u8, Msb0>,
+    }
+
+    impl Rec {
+        pub fn initialize(val: BitVec<u8, Msb0>) -> Self {
+            Self {
+                value: val.clone(),
+            }
+        }
+    }
+
+    impl Record for Rec {
+        fn raw(&self) -> &BitSlice<u8, Msb0> {
+            return &self.value[..];
+        }
+    }
+
+    #[test]
+    fn put_data_and_get_it() {
+        let mut db: Database = Database::initialize();
+        let test_state: State = 7;
+        //assert!(db.get(test_state).is_none());
+        let test_rec: Rec = Rec::initialize(BitVec::<u8, Msb0>::new());
+        db.put(test_state, &test_rec);
     }
 }
