@@ -13,7 +13,6 @@
 //! of memory may be materialized on arbitrary operations.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;

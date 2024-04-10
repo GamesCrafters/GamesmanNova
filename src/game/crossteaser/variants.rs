@@ -4,7 +4,6 @@
 //! game into parameters that can help build a game session.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Atharva Gupta, 11/28/2023
 //! - Cindy Xu, 11/28/2023

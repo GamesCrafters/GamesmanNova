@@ -1,4 +1,4 @@
-//! Mock Extensive Game Module
+//! Mock Extensive Test Game Module
 //!
 //! This module provides a way to represent extensive-form games by declaring
 //! the game via a graph and assigning special conditions to nodes. This makes
@@ -6,18 +6,12 @@
 //! in any necessary external interface implementations.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro 3/31/2024 (maxfierro@berkeley.edu)
 
-use anyhow::{Context, Result};
-use petgraph::dot::{Config, Dot};
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Display};
-use std::io::{self, Read, Write};
-use std::process::{Command, Stdio};
 
 use crate::game::Bounded;
 use crate::game::DTransition;
@@ -59,7 +53,7 @@ pub enum Node {
     Medial(Turn),
 }
 
-/* IMPLEMENTATION */
+/* API IMPLEMENTATION */
 
 impl<'a> Session<'a> {
     /// Return a name or identifier corresponding to this game.
@@ -84,34 +78,15 @@ impl<'a> Session<'a> {
         }
     }
 
-    /// Sends an SVG of the game graph to STDOUT. Requires an installation of
-    /// graphviz 'dot', failing if the 'dot' command is not in the user PATH.
-    pub fn image(&self) -> Result<()> {
-        let mut dot = Command::new("dot")
-            .arg("-Tsvg")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .context("Failed to execute 'dot' command.")?;
-
-        if let Some(mut stdin) = dot.stdin.take() {
-            let graph = format!("{}", self);
-            stdin.write_all(graph.as_bytes())?;
-        }
-
-        if let Some(stdout) = dot.stdout.take() {
-            let mut reader = io::BufReader::new(stdout);
-            let mut output = String::new();
-            reader.read_to_string(&mut output)?;
-            print!("{}", output);
-        }
-
-        dot.wait()?;
-        Ok(())
+    /// Return an immutable borrow of the graph underlying the game.
+    pub fn graph(&self) -> &Graph<&Node, ()> {
+        &self.game
     }
+}
 
-    /* HELPER METHODS */
+/* PRIVATE IMPLEMENTATION */
 
+impl<'a> Session<'a> {
     /// Return the states adjacent to `state`, where `dir` specifies whether
     /// they should be connected by incoming or outgoing edges.
     fn transition(&self, state: State, dir: Direction) -> Vec<State> {
@@ -187,48 +162,16 @@ impl Bounded<State> for Session<'_> {
     }
 }
 
-impl Display for Session<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{:?}",
-            Dot::with_attr_getters(
-                &self.game,
-                &[Config::EdgeNoLabel, Config::NodeNoLabel],
-                &|_, _| String::new(),
-                &|_, n| {
-                    let (_, node) = n;
-                    let mut attrs = String::new();
-                    match node {
-                        Node::Medial(turn) => {
-                            attrs += &format!("label=P{} ", turn);
-                            attrs += "style=filled  ";
-                            if self.start() == self.state(node).unwrap() {
-                                attrs += "shape=doublecircle ";
-                                attrs += "fillcolor=navajowhite3 ";
-                            } else {
-                                attrs += "shape=circle ";
-                                attrs += "fillcolor=lightsteelblue ";
-                            }
-                        },
-                        Node::Terminal(util) => {
-                            attrs += &format!("label=\"{:?}\" ", util);
-                            attrs += "shape=plain ";
-                        },
-                    }
-                    attrs
-                }
-            )
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use crate::node;
     use anyhow::Result;
+
+    /// Used for storing generated visualizations of the mock games being used
+    /// for testing purposes in this module under their own subdirectory.
+    const MODULE_NAME: &str = "mock-core-tests";
 
     #[test]
     fn get_unique_node_states() -> Result<()> {
@@ -241,7 +184,7 @@ mod tests {
         let t1 = node![1, 2, 3];
         let t2 = node![3, 2, 1];
 
-        let g = SessionBuilder::new("sample")
+        let g = SessionBuilder::new("sample1")
             .edge(&s1, &s2)?
             .edge(&s2, &s3)?
             .edge(&s3, &s4)?
@@ -251,6 +194,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         let states = vec![
             g.state(&s1),
             g.state(&s2),
@@ -288,7 +232,7 @@ mod tests {
         let t1 = node![1, 2, 3];
         let t2 = node![3, 2, 1];
 
-        let g = SessionBuilder::new("sample")
+        let g = SessionBuilder::new("sample2")
             .edge(&s1, &s2)?
             .edge(&s2, &s3)?
             .edge(&s2, &t1)?
@@ -296,6 +240,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         let start = g.state(&s1).unwrap();
         let end1 = g.state(&t1).unwrap();
         let end2 = g.state(&t2).unwrap();
@@ -315,7 +260,7 @@ mod tests {
         let t1 = node![1, 2, 3];
         let t2 = node![3, 2, 1];
 
-        let g = SessionBuilder::new("sample")
+        let g = SessionBuilder::new("sample3")
             .edge(&s1, &s2)?
             .edge(&s1, &s3)?
             .edge(&s2, &t1)?
@@ -323,6 +268,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         let s1_state = g.state(&s1).unwrap();
         let s2_state = g.state(&s2).unwrap();
         let s3_state = g.state(&s3).unwrap();
@@ -352,13 +298,14 @@ mod tests {
         let s1 = node!(0);
         let s2 = node!(1);
         let t1 = node![-1, 2];
-        let g = SessionBuilder::new("gaming")
+        let g = SessionBuilder::new("interesting name")
             .edge(&s1, &s2)?
             .edge(&s2, &t1)?
             .start(&s1)?
             .build()?;
 
-        assert_eq!(g.name(), "gaming");
+        g.visualize(MODULE_NAME)?;
+        assert_eq!(g.name(), "interesting name");
         Ok(())
     }
 
@@ -373,6 +320,7 @@ mod tests {
             .start(&s1)?
             .build()?;
 
+        g.visualize(MODULE_NAME)?;
         assert_eq!(g.players(), 7);
         Ok(())
     }

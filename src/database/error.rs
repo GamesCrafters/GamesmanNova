@@ -6,7 +6,6 @@
 //! under which all database implementations' errors can be grouped into).
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};

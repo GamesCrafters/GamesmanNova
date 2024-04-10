@@ -13,3 +13,6 @@
 
 # Profiling output
 flamegraph.svg
+
+# Development data
+/data

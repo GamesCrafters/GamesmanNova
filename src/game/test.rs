@@ -1,8 +1,92 @@
-//! # Game Test Module
+//! # Game Test Utilities Module
 //!
-//! This module provides integration tests for the game module.
+//! This module provides integration and unit testing utilities for the `game`
+//! module.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 //! - Benjamin Riley Zimmerman, 3/8/2024 (bz931@berkely.edu)
+
+use anyhow::Context;
+use anyhow::Result;
+use petgraph::dot::{Config, Dot};
+
+use std::fmt::Display;
+use std::fs::create_dir;
+use std::fs::File;
+use std::io::Write;
+use std::process::{Command, Stdio};
+
+use crate::game::mock;
+use crate::game::Bounded;
+use crate::test::*;
+
+/* IMPLEMENTATIONS */
+
+impl mock::Session<'_> {
+    /// Creates an SVG visualization of the game graph in the visuals directory
+    /// under the development data directory at the project root.
+    pub fn visualize(&self, module: &str) -> Result<()> {
+        let name = format!("{}.svg", self.name()).replace(" ", "-");
+        let mut dir = get_directory(TestData::Visuals)?;
+
+        dir.push(module);
+        if !dir.exists() {
+            create_dir(&dir)
+                .context("Failed to create module subdirectory.")?;
+        }
+
+        dir.push(name);
+        let file = File::create(dir)?;
+        let mut dot = Command::new("dot")
+            .arg("-Tsvg")
+            .stdin(Stdio::piped())
+            .stdout(file)
+            .spawn()
+            .context("Failed to execute 'dot' command.")?;
+
+        if let Some(mut stdin) = dot.stdin.take() {
+            let graph = format!("{}", self);
+            stdin.write_all(graph.as_bytes())?;
+        }
+
+        dot.wait()?;
+        Ok(())
+    }
+}
+
+impl Display for mock::Session<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}",
+            Dot::with_attr_getters(
+                &self.graph(),
+                &[Config::EdgeNoLabel, Config::NodeNoLabel],
+                &|_, _| String::new(),
+                &|_, n| {
+                    let (_, node) = n;
+                    let mut attrs = String::new();
+                    match node {
+                        mock::Node::Medial(turn) => {
+                            attrs += &format!("label=P{} ", turn);
+                            attrs += "style=filled  ";
+                            if self.start() == self.state(&node).unwrap() {
+                                attrs += "shape=doublecircle ";
+                                attrs += "fillcolor=navajowhite3 ";
+                            } else {
+                                attrs += "shape=circle ";
+                                attrs += "fillcolor=lightsteelblue ";
+                            }
+                        },
+                        mock::Node::Terminal(util) => {
+                            attrs += &format!("label=\"{:?}\" ", util);
+                            attrs += "shape=plain ";
+                        },
+                    }
+                    attrs
+                }
+            )
+        )
+    }
+}

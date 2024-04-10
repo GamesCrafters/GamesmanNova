@@ -4,7 +4,6 @@
 //! solution set data, hopefully in an efficient and scalable way.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;

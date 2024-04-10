@@ -5,7 +5,6 @@
 //! and internal (e.g., failing to spawn a child process) sources.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};

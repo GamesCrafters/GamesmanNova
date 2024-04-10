@@ -5,5 +5,4 @@
 //! optimizing for specific game characteristics wherever possible.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
