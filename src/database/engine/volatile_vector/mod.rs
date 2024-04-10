@@ -17,30 +17,41 @@ use crate::{
 };
 
 pub struct Database {
-    memory: HashMap<State, Vec<u8>>,
+    mapping: HashMap<State, u32>,
+    memory: Vec<u8>,
+
 }
 
 impl Database<'_> {
     pub fn initialize() -> Self {
         Self {
-            memory: HashMap::new(),
+            mapping: HashMap::new(),
+            memory: Vec::new(),
         }
     }
 }
 
 impl KVStore for Database {
     fn put(&mut self, key: State, value: &[u8]) {
-        todo!()
+        let new = (value[0]).clone();
+        self.mapping.insert(key, self.memory.len());
+        self.memory.push(new);
     }
 
     fn get(&self, key: State) -> Option<&[u8]> {
-        todo!()
+        let indexOpt = self.mapping.get(&key);
+        match indexOpt {
+            None => None,
+            Some(index) => Some(self.memory[*index])
+        }
+        //Doesn't work yet
     }
 
     fn del(&mut self, key: State) {
-        todo!()
+        self.mapping.remove(&key);
     }
 }
+
 
 
 
