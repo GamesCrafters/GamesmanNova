@@ -27,6 +27,11 @@ impl mock::Session<'_> {
     /// Creates an SVG visualization of the game graph in the visuals directory
     /// under the development data directory at the project root.
     pub fn visualize(&self, module: &str) -> Result<()> {
+        match test_setting()? {
+            TestSetting::Correctness => return Ok(()),
+            TestSetting::Development => (),
+        }
+
         let name = format!("{}.svg", self.name()).replace(" ", "-");
         let mut dir = get_directory(TestData::Visuals)?;
 

@@ -33,7 +33,7 @@ jobs:
       with:
         toolchain: stable
     - name: Test
-      run: cargo test --verbose
+      run: TEST_SETTING=0 cargo test --verbose
   
   check_format:
     runs-on: ubuntu-latest
