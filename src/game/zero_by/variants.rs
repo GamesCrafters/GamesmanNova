@@ -4,7 +4,6 @@
 //! into parameters that can help build a game session.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use regex::Regex;

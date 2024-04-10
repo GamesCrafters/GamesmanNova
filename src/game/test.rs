@@ -12,9 +12,9 @@ use anyhow::Result;
 use petgraph::dot::{Config, Dot};
 
 use std::fmt::Display;
-use std::fs::create_dir;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use crate::game::mock;
@@ -32,14 +32,9 @@ impl mock::Session<'_> {
             TestSetting::Development => (),
         }
 
+        let subdir = PathBuf::from(module);
+        let mut dir = get_directory(DevelopmentData::Visuals, subdir)?;
         let name = format!("{}.svg", self.name()).replace(" ", "-");
-        let mut dir = get_directory(TestData::Visuals)?;
-
-        dir.push(module);
-        if !dir.exists() {
-            create_dir(&dir)
-                .context("Failed to create module subdirectory.")?;
-        }
 
         dir.push(name);
         let file = File::create(dir)?;

@@ -10,7 +10,6 @@
 //! emulate.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
