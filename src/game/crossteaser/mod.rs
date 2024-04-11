@@ -23,15 +23,21 @@ use anyhow::{Context, Result};
 use crate::game::Bounded;
 use crate::game::Codec;
 use crate::game::DTransition;
+use crate::game::Extensive;
 use crate::game::Forward;
 use crate::game::Game;
 use crate::game::GameData;
-use crate::game::Solvable;
+use crate::game::GeneralSum;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
+use crate::model::SimpleUtility;
 use crate::model::State;
+use crate::model::Turn;
 use crate::model::Utility;
 use variants::*;
+
+use super::ClassicPuzzle;
+use super::SimpleSum;
 
 /* SUBMODULES */
 
@@ -80,7 +86,7 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<String>) -> Result<Self> {
+    fn new(variant: Option<String>) -> Result<Self> {
         if let Some(v) = variant {
             parse_variant(v).context("Malformed game variant.")
         } else {
@@ -107,7 +113,7 @@ impl Game for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl DTransition<State> for Session {
+impl DTransition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
         todo!()
     }
@@ -119,7 +125,7 @@ impl DTransition<State> for Session {
 
 /* STATE RESOLUTION IMPLEMENTATIONS */
 
-impl Bounded<State> for Session {
+impl Bounded for Session {
     fn start(&self) -> State {
         todo!()
     }
@@ -129,7 +135,7 @@ impl Bounded<State> for Session {
     }
 }
 
-impl Codec<State> for Session {
+impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
         todo!()
     }
@@ -139,7 +145,7 @@ impl Codec<State> for Session {
     }
 }
 
-impl Forward<State> for Session {
+impl Forward for Session {
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
         todo!()
     }
@@ -147,12 +153,8 @@ impl Forward<State> for Session {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl Solvable<1> for Session {
-    fn utility(&self, state: State) -> [Utility; 1] {
-        todo!()
-    }
-
-    fn turn(&self, state: crate::model::State) -> crate::model::Turn {
+impl ClassicPuzzle for Session {
+    fn utility(&self, state: State) -> SimpleUtility {
         todo!()
     }
 }

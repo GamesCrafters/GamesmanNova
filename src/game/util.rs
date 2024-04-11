@@ -99,10 +99,7 @@ where
 /// transition function, with a reminder of the current game variant.
 pub fn verify_history_static<G>(game: &G, history: Vec<String>) -> Result<State>
 where
-    G: Game
-        + Codec<State>
-        + Bounded<State>
-        + STransition<State, MAX_TRANSITIONS>,
+    G: Game + Codec<State> + Bounded<State> + STransition<MAX_TRANSITIONS>,
 {
     if let Some(s) = history.first() {
         let mut prev = game.decode(s.clone())?;

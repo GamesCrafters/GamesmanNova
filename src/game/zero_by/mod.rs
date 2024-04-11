@@ -18,8 +18,8 @@ use states::*;
 use crate::game::error::GameError;
 use crate::game::util::unpack_turn;
 use crate::game::zero_by::variants::*;
-use crate::game::{util, Bounded, Codec};
-use crate::game::{DTransition, Forward, Game, GameData, Solvable};
+use crate::game::{util, Bounded, Codec, Forward};
+use crate::game::{DTransition, Extensive, Game, GameData, GeneralSum};
 use crate::interface::{IOMode, SolutionMode};
 use crate::model::PlayerCount;
 use crate::model::Utility;
@@ -53,7 +53,7 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<String>) -> Result<Self> {
+    fn new(variant: Option<String>) -> Result<Self> {
         if let Some(v) = variant {
             parse_variant(v).context("Malformed game variant.")
         } else {
@@ -106,7 +106,7 @@ impl Game for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl DTransition<State> for Session {
+impl DTransition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
         let (state, turn) = util::unpack_turn(state, self.players);
         let mut next = self
@@ -154,7 +154,7 @@ impl DTransition<State> for Session {
 
 /* STATE RESOLUTION IMPLEMENTATIONS */
 
-impl Bounded<State> for Session {
+impl Bounded for Session {
     fn start(&self) -> State {
         self.start
     }
@@ -164,7 +164,7 @@ impl Bounded<State> for Session {
     }
 }
 
-impl Codec<State> for Session {
+impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
         Ok(parse_state(&self, string)?)
     }
@@ -175,7 +175,7 @@ impl Codec<State> for Session {
     }
 }
 
-impl Forward<State> for Session {
+impl Forward for Session {
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
         self.start = util::verify_history_dynamic(self, history)
             .context("Malformed game state encoding.")?;
@@ -185,28 +185,32 @@ impl Forward<State> for Session {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl Solvable<2> for Session {
+impl Extensive<2> for Session {
+    fn turn(&self, state: State) -> Turn {
+        util::unpack_turn(state, 2).1
+    }
+}
+
+impl GeneralSum<2> for Session {
     fn utility(&self, state: State) -> [Utility; 2] {
         let (_, turn) = unpack_turn(state, 2);
         let mut payoffs = [-1; 2];
         payoffs[turn] = 1;
         payoffs
     }
+}
 
+impl Extensive<10> for Session {
     fn turn(&self, state: State) -> Turn {
-        util::unpack_turn(state, 2).1
+        util::unpack_turn(state, 10).1
     }
 }
 
-impl Solvable<10> for Session {
+impl GeneralSum<10> for Session {
     fn utility(&self, state: State) -> [Utility; 10] {
         let (_, turn) = unpack_turn(state, 10);
         let mut payoffs = [-1; 10];
         payoffs[turn] = 9;
         payoffs
-    }
-
-    fn turn(&self, state: State) -> Turn {
-        util::unpack_turn(state, 10).1
     }
 }

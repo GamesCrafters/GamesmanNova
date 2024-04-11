@@ -105,7 +105,7 @@ impl<'a> Session<'a> {
 
 /* UTILITY IMPLEMENTATIONS */
 
-impl DTransition<State> for Session<'_> {
+impl DTransition for Session<'_> {
     fn prograde(&self, state: State) -> Vec<State> {
         self.transition(state, Direction::Outgoing)
     }
@@ -115,7 +115,7 @@ impl DTransition<State> for Session<'_> {
     }
 }
 
-impl STransition<State, MAX_TRANSITIONS> for Session<'_> {
+impl STransition<MAX_TRANSITIONS> for Session<'_> {
     fn prograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
         let adjacent = self
             .transition(state, Direction::Outgoing)
@@ -149,7 +149,7 @@ impl STransition<State, MAX_TRANSITIONS> for Session<'_> {
     }
 }
 
-impl Bounded<State> for Session<'_> {
+impl Bounded for Session<'_> {
     fn start(&self) -> State {
         self.start.index() as State
     }

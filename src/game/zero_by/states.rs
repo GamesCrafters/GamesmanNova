@@ -143,8 +143,8 @@ mod test {
 
     #[test]
     fn no_state_equals_default_state() {
-        let with_none = Session::initialize(None).unwrap();
-        let with_default = Session::initialize(None).unwrap();
+        let with_none = Session::new(None).unwrap();
+        let with_default = Session::new(None).unwrap();
 
         assert_eq!(
             with_none.start,
@@ -164,7 +164,7 @@ mod test {
 
         fn f() -> Session {
             // 2-player 10-to-zero by 1 or 2
-            Session::initialize(None).unwrap()
+            Session::new(None).unwrap()
         }
 
         assert!(parse_state(&f(), s1).is_err());
@@ -187,7 +187,7 @@ mod test {
         let s7 = "1-0".to_owned();
 
         fn f() -> Session {
-            Session::initialize(None).unwrap()
+            Session::new(None).unwrap()
         }
 
         assert!(parse_state(&f(), s1).is_ok());
@@ -210,7 +210,7 @@ mod test {
         let s3 = "200-0".to_owned();
 
         fn f(v: &str) -> Session {
-            Session::initialize(Some(v.to_owned())).unwrap()
+            Session::new(Some(v.to_owned())).unwrap()
         }
 
         assert!(parse_state(&f(v1), s1.clone()).is_ok());
@@ -298,7 +298,7 @@ mod test {
     /* UTILITIES */
 
     fn session(v: Option<String>) -> Session {
-        Session::initialize(v).unwrap()
+        Session::new(v).unwrap()
     }
 
     fn owned(v: Vec<&str>) -> Vec<String> {

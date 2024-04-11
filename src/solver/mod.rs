@@ -8,10 +8,11 @@
 //!
 //! #### Authorship
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
-
-/* CONSTANTS */
+//! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
 
 use crate::model::PlayerCount;
+
+/* CONSTANTS */
 
 /// Describes the maximum number of states that are one move away from any state
 /// within a game. Used to allocate statically-sized arrays on the stack for
@@ -19,25 +20,16 @@ use crate::model::PlayerCount;
 /// implementation, this program should panic.
 pub const MAX_TRANSITIONS: usize = 128;
 
-/* RECORD MODULES */
-
-/// A record layout that can be used to encode and decode the attributes stored
-/// in serialized records. This is stored in database table schemas so that it
-/// can be retrieved later for deserialization.
-#[derive(Clone, Copy)]
-pub enum RecordType {
-    /// Multi-Utility Remoteness record for a specific number of players.
-    MUR(PlayerCount),
-}
+/* MODULES */
 
 /// Implementations of records that can be used by solving algorithms to store
 /// or persist the information they compute about a game, and communicate it to
 /// a database system.
 pub mod record {
     pub mod mur;
+    pub mod sur;
+    pub mod rem;
 }
-
-/* SOLVER MODULES */
 
 /// Implementations of algorithms that can consume game implementations and
 /// compute different features of interest associated with groups of states or
@@ -70,9 +62,22 @@ pub mod algorithm {
     }
 }
 
-/* UTILITY MODULES */
-
 #[cfg(test)]
 mod test;
 mod error;
 mod util;
+
+/* RECORD MODULES */
+
+/// A record layout that can be used to encode and decode the attributes stored
+/// in serialized records. This is stored in database table schemas so that it
+/// can be retrieved later for deserialization.
+#[derive(Clone, Copy)]
+pub enum RecordType {
+    /// Real Utility Remoteness record for a specific number of players.
+    RUR(PlayerCount),
+    /// Simple Utility Remoteness record for a specific number of players.
+    SUR(PlayerCount),
+    /// Remoteness record (no utilities).
+    REM,
+}

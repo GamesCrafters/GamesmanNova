@@ -3,19 +3,20 @@
 //! The `games` module includes implementations for games intended to be
 //! solved. To be able to solve a game with GamesmanNova, it must satisfy
 //! the following characteristics/constraints:
-//!
-//! * It must be reasonably "sized" (number of equivalent states)
-//! * It must have states which can be efficiently represented
+//! * It must be reasonably "sized" (number of equivalent states).
+//! * It must have states which can be efficiently represented.
 //!
 //! #### Authorship
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
+//! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
 use anyhow::Result;
-use nalgebra::SMatrix;
 
 use crate::{
     interface::{IOMode, SolutionMode},
-    model::{Partition, PlayerCount, State, StateCount, Turn, Utility},
+    model::{
+        Partition, PlayerCount, SimpleUtility, State, StateCount, Turn, Utility,
+    },
 };
 
 /* UTILITY MODULES */
@@ -85,7 +86,7 @@ pub trait Game {
     /// Returns `Result::Ok(Self)` if the specified `variant` is not malformed.
     /// Otherwise, returns a `Result::Err(String)` containing a text string
     /// explaining why it could not be parsed.
-    fn initialize(variant: Option<String>) -> Result<Self>
+    fn new(variant: Option<String>) -> Result<Self>
     where
         Self: Sized;
 
@@ -137,7 +138,7 @@ pub trait Game {
 /// These facts motivate that the logic which determines the starting and ending
 /// states of games should be independent of the logic that transitions from
 /// valid states to other valid states.
-pub trait Bounded<S> {
+pub trait Bounded<S = State> {
     /// Returns the starting state of the underlying structure. This is used to
     /// deterministically initialize a traversal.
     fn start(&self) -> S;
@@ -163,7 +164,7 @@ pub trait Bounded<S> {
 /// drawing; a lot of the utility obtained from implementing this interface is
 /// having access to understandable yet compact game state representations. As
 /// a rule of thumb, all strings should be single-lined and have no whitespace.
-pub trait Codec<S> {
+pub trait Codec<S = State> {
     /// Transforms a string representation of a game state into a type **S**.
     /// The `string` representation should conform to the `state_protocol`
     /// specified in the `GameData` object returned by `Game::info`. If it does
@@ -195,7 +196,7 @@ pub trait Codec<S> {
 /// from the start of a game, it is necessary to demand a sequence of states
 /// that begin in a starting state and end in the desired state, such that each
 /// transition between states is valid per the game's ruleset.
-pub trait Forward<S>
+pub trait Forward<S = State>
 where
     Self: Bounded<S> + Codec<S>,
 {
@@ -216,37 +217,8 @@ where
 
 /* DETERMINISTIC TRAVERSAL INTERFACES */
 
-/// Defines the behavior that allows for traversing what could be best described
-/// as a discrete automata (specifically, a NFA if at all) whose states are
-/// encoded with type `S`. While such an automata only provisions a transition
-/// function that provides state transitions in the prograde of time, here we
-/// also provide a way to define a transition function which acts as if all
-/// transitions defined by the automata were inverted (which provides a way to
-/// express transitions in the retrograde of time).
-///
-/// As opposed to `STransition`, this interface trades off efficiency in the
-/// interest of versatility by using dynamically-sized data structures to return
-/// queries without explicitly upper-bounding the amount of states that each
-/// transition query can return.
-///
-/// ### Explanation
-///
-/// Most extensive-form games this project pertains to have a well-defined way
-/// of making state transitions in the prograde of time, namely, making moves
-/// that transition game states. What may seem most confusing is doing this in
-/// retrograde.
-///
-/// The reason this is desireable is to decrease the memory usage of many forms
-/// of backwards induction. If it is necessary to have the information of the
-/// states in `prograde(state)` to make a judgement on `state`, it is usually
-/// necessary to "remember" the structure of the game during exploration in
-/// order to figure out which states' information we can deduce from all of the
-/// terminal states (whose information is independent from any other state).
-///
-/// However, if we have the ability to transition states in retrograde, we can
-/// simply move in retrograde from terminal states, without having to search for
-/// for the terminal states' pre-images through the entire game tree.
-pub trait DTransition<S> {
+/// TODO
+pub trait DTransition<S = State> {
     /// Given a `state` at time `t`, returns all states that are possible at
     /// time `t + 1`. This should only guarantee that if `state` is feasible and
     /// not an end state, then all returned states are also feasible; therefore,
@@ -262,36 +234,8 @@ pub trait DTransition<S> {
     fn retrograde(&self, state: S) -> Vec<S>;
 }
 
-/// Defines the behavior that allows for traversing what could be best described
-/// as a discrete automata (specifically, a NFA if at all) whose states are
-/// encoded with type `S`. While such an automata only provisions a transition
-/// function that provides state transitions in the prograde of time, here we
-/// also provide a way to define a transition function which acts as if all
-/// transitions defined by the automata were inverted (which provides a way to
-/// express transitions in the retrograde of time).
-///
-/// As opposed to `DTransition`, this interface trades off versatility in the
-/// interest of efficiency by using statically-sized data structures to return
-/// queries without the overhead of dynamic memory allocation.
-///
-/// ### Explanation
-///
-/// Most extensive-form games this project pertains to have a well-defined way
-/// of making state transitions in the prograde of time, namely, making moves
-/// that transition game states. What may seem most confusing is doing this in
-/// retrograde.
-///
-/// The reason this is desireable is to decrease the memory usage of many forms
-/// of backwards induction. If it is necessary to have the information of the
-/// states in `prograde(state)` to make a judgement on `state`, it is usually
-/// necessary to "remember" the structure of the game during exploration in
-/// order to figure out which states' information we can deduce from all of the
-/// terminal states (whose information is independent from any other state).
-///
-/// However, if we have the ability to transition states in retrograde, we can
-/// simply move in retrograde from terminal states, without having to search for
-/// for the terminal states' pre-images through the entire game tree.
-pub trait STransition<S, const F: usize> {
+/// TODO
+pub trait STransition<const F: usize, S = State> {
     /// Given a `state` at time `t`, returns all states that are possible at
     /// time `t + 1`. This should only guarantee that if `state` is feasible and
     /// not an end state, then all returned states are also feasible; therefore,
@@ -308,29 +252,10 @@ pub trait STransition<S, const F: usize> {
     fn retrograde(&self, state: S) -> [Option<S>; F];
 }
 
-/* SOLVING INTERFACES */
+/* STRUCTURAL TRAITS */
 
-/// Indicates that an economic game object can have utility associated with
-/// players at some of its states. Naturally, this means we can make statements
-/// about their utility at other states in the game based on its structure. The
-/// kind of statements we can make is not decided by the implementation of this
-/// interface; it is decided by the nature of the underlying game (e.g., a
-/// deterministic game might be able to be strongly solved if it is of complete
-/// information, but we can always assign some utility to different players at
-/// different game states regardless of this fact).
-///
-/// The semantics of the word "solvable" here just refer to being able to have
-/// information about the utility of a game state from the utility of another,
-/// due to the above reasons. The nature of the underlying game then decides the
-/// specific kinds of "solving" that we can do.
-pub trait Solvable<const N: PlayerCount> {
-    /// If `state` is terminal, returns the utility vector associated with that
-    /// state, where `utility[i]` is the utility of the state for player `i`. If
-    /// the state is not terminal, it is recommended that this function panics
-    /// with a message indicating that an attempt was made to calculate the
-    /// utility of a non-primitive state.
-    fn utility(&self, state: State) -> [Utility; N];
-
+/// TODO
+pub trait Extensive<const N: PlayerCount> {
     /// Returns the player `i` whose turn it is at the given `state`. The player
     /// identifier `i` should never be greater than `N - 1`, where `N` is the
     /// number of players in the underlying game.
@@ -344,25 +269,14 @@ pub trait Solvable<const N: PlayerCount> {
     }
 }
 
-/// Indicates that the directed graph _G_ induced by the structure of the
-/// underlying game can be partitioned into partitions which themselves induce a
-/// directed acyclic graph. Note that this does not necessarily mean that all
-/// partitions will be strongly connected components of _G_.
-///
-/// This is useful because it allows the identification of which partitions of
-/// states can be analyzed concurrently if the analysis of some states depends
-/// on first analyzing all other "downstream" states, which is the case for all
-/// forms of backwards induction.
-///
-/// The semantics of the word "composite" here come from the fact that you can
-/// essentially "forget" about all traversed states once you transition into a
-/// new partition, meaning that it is basically a new game at that point. Hence,
-/// the original game can be interpreted as being composed of different games.
-pub trait Composite<const N: PlayerCount> {
+/// TODO
+pub trait Composite<const N: PlayerCount>
+where
+    Self: Extensive<N>,
+{
     /// Returns a unique identifier for the partition that `state` is an element
-    /// of within the game variant specified by `self`. The notion of ordering
-    /// across identifiers is left to the implementer, as it is dependent on how
-    /// this function is used.
+    /// of within the game variant specified by `self`. This implies no notion
+    /// of ordering between identifiers.
     fn partition(&self, state: State) -> Partition;
 
     /// Provides an arbitrarily precise notion of the number of states that are
@@ -374,14 +288,77 @@ pub trait Composite<const N: PlayerCount> {
 
 /* UTILITY INTERFACES */
 
-/// Indicates that it is possible for players to gain utility from the utility
-/// of other players. This is purely utilitarian, as this additional utility
-/// would ideally be factored into the game outcomes via `Solvable::utility`.
-/// This is useful in instances when a social analysis on specific situations
-/// needs to be made without modifying existing logic.
-pub trait External<const N: PlayerCount> {
-    /// Returns an NxN matrix `M`, where the entry `M[i][j]` equals the utility
-    /// obtained by player `i` for each unit of utility included in imputations
-    /// of player `j`. This is somewhat akin to an economic externality.
-    fn externality(&self) -> SMatrix<Utility, N, N>;
+/// TODO
+pub trait GeneralSum<const N: PlayerCount> {
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal it is recommended that this function panics.
+    fn utility(&self, state: State) -> [Utility; N];
+}
+
+/// TODO
+pub trait SimpleSum<const N: PlayerCount> {
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal, it is recommended that this function panics.
+    fn utility(&self, state: State) -> [SimpleUtility; N];
+}
+
+/* FAMILIAR INTERFACES */
+
+/// Indicates that a game is 2-player, simple-sum, and zero-sum; this restricts
+/// the possible utilities for a position to the following cases:
+/// * `[Draw, Draw]`
+/// * `[Lose, Win]`
+/// * `[Win, Lose]`
+/// * `[Tie, Tie]`
+///
+/// Since either entry determines the other, knowing one of the entries and the
+/// turn information for a given state provides enough information to determine
+/// both players' utilities.
+pub trait ClassicGame {
+    /// If `state` is terminal, returns the utility of the player whose turn it
+    /// is at that state. If the state is not terminal, it is recommended that
+    /// this function panics.
+    fn utility(&self, state: State) -> SimpleUtility;
+}
+
+/// Indicates that a game is a puzzle with simple outcomes. This implies that it
+/// is 1-player and the only possible utilities obtainable for the player are:
+/// * `Lose`
+/// * `Draw`
+/// * `Tie`
+/// * `Win`
+///
+/// A winning state is usually one where there exists a sequence of moves that
+/// will lead to the puzzle being fully solved. A losing state is one where any
+/// sequence of moves will always take the player to either another losing state
+/// or a state with no further moves available (with the puzzle still unsolved).
+/// A draw state is one where there is no way to reach a winning state but it is
+/// possible to play forever without reaching a losing state. A tie state is any
+/// state that does not subjectively fit into any of the above categories.
+pub trait ClassicPuzzle {
+    /// If `state` is terminal, returns the utility of the puzzle's player. If
+    /// the state is not terminal, it is recommended that this function panics.
+    fn utility(&self, state: State) -> SimpleUtility;
+}
+
+/* BLANKET IMPLEMENTATIONS */
+
+impl<const N: usize, G> GeneralSum<N> for G
+where
+    G: SimpleSum<N>,
+{
+    fn utility(&self, state: State) -> [Utility; N] {
+        todo!()
+    }
+}
+
+impl<G> SimpleSum<1> for G
+where
+    G: ClassicPuzzle,
+{
+    fn utility(&self, state: State) -> [SimpleUtility; 1] {
+        todo!()
+    }
 }
