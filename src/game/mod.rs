@@ -354,6 +354,15 @@ where
     }
 }
 
+impl<G> SimpleSum<2> for G
+where
+    G: ClassicGame,
+{
+    fn utility(&self, state: State) -> [SimpleUtility; 2] {
+        todo!()
+    }
+}
+
 impl<G> SimpleSum<1> for G
 where
     G: ClassicPuzzle,
