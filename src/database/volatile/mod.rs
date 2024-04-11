@@ -37,7 +37,7 @@ impl<R: Record> KVStore<R> for Database<'_> {
         todo!()
     }
 
-    fn del(&self, key: State) {
+    fn del(&mut self, key: State) {
         todo!()
     }
 }

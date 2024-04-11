@@ -13,6 +13,10 @@ use std::path::Path;
 
 use crate::{model::State, solver::RecordType};
 
+/* RE-EXPORTS */
+
+pub use util::SchemaBuilder;
+
 /* UTILITY MODULES */
 
 #[cfg(test)]
@@ -44,15 +48,6 @@ pub struct Schema {
     size: usize,
 }
 
-/// Builder pattern intermediary for constructing a schema declaratively out of
-/// provided attributes. This is here to help ensure schemas are not changed
-/// accidentally after being instantiated.
-pub struct SchemaBuilder {
-    attributes: Vec<Attribute>,
-    record: Option<RecordType>,
-    size: usize,
-}
-
 /// Represents a triad of a name string, a size in bits corresponding to an
 /// "attribute" or "feature" associated with a database record, and the type
 /// of the data it represents.
@@ -66,6 +61,7 @@ pub struct Attribute {
 /// Specifies the type of data being stored within a record within a specific
 /// contiguous subset of bits. This is used for interpretation. Here is the
 /// meaning of each variant, with its possible sizes in bits:
+/// - `BOOL`: Boolean of size exactly 1.
 /// - `ENUM`: Enumeration of arbitrary size.
 /// - `UINT`: Unsigned integer of arbitrary size.
 /// - `SINT`: Signed integer of size greater than 1.
@@ -74,6 +70,7 @@ pub struct Attribute {
 /// - `CSTR`: C-style string (ASCII character array) of a size divisible by 8.
 #[derive(Debug, Copy, Clone)]
 pub enum Datatype {
+    BOOL,
     ENUM,
     UINT,
     SINT,
@@ -89,7 +86,7 @@ pub enum Datatype {
 pub trait KVStore<R: Record> {
     fn put(&mut self, key: State, record: &R);
     fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>>;
-    fn del(&self, key: State);
+    fn del(&mut self, key: State);
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait
