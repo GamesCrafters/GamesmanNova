@@ -13,8 +13,8 @@ use anyhow::{Context, Result};
 
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, Extensive, SimpleSum};
-use crate::solver::SimpleUtility;
+use crate::game::{Bounded, DTransition, Extensive, SimpleSum, Game};
+use crate::model::SimpleUtility;
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, Remoteness, State, Turn};
 use crate::solver::record::sur::RecordBuffer;
@@ -34,7 +34,7 @@ const UTILITY_SIZE: usize = 2;
 
 pub fn two_player_zero_sum_dynamic_solver<G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + SimpleSum<2>
+    G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize database.")?;
@@ -44,8 +44,8 @@ where
 
 fn basic_loopy_solver<G, D> (game: &G, db: &mut D) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + SimpleSum<2>,
-    D: KVStore<RecordBuffer>,
+    G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game,
+    D: KVStore,
 {
     let mut winning_frontier = VecDeque::new();
     let mut tying_frontier = VecDeque::new();
@@ -168,8 +168,8 @@ fn enqueue_children<G, D>(winning_frontier: &mut VecDeque<State>,
                        db: &mut D
 ) -> Result<()>
 where 
-    G: DTransition<State> + Bounded<State> + SimpleSum<2>,
-    D: KVStore<RecordBuffer>,
+    G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game,
+    D: KVStore,
 {
     if game.end(curr_state) {
         let mut buf = RecordBuffer::new(game.players())
@@ -212,7 +212,7 @@ where
 /// to that table before returning the database handle.
 fn volatile_database<G>(game: &G) -> Result<volatile::Database>
 where
-    G: Extensive<2>,
+    G: Extensive<2> + Game,
 {
     let id = game.id();
     let db = volatile::Database::initialize();
@@ -235,12 +235,11 @@ mod tests {
     use crate::model::{State, Turn};
     use std::collections::{HashMap, VecDeque};
     use crate::interface::{IOMode, SolutionMode};
-    use crate::solver::SimpleUtility;
+    use crate::model::SimpleUtility;
 
     use super::{enqueue_children, volatile_database};
 
     struct GameNode {
-        // state: State,
         turn: Turn,
         utility: Vec<SimpleUtility>,
         children: Vec<State>
@@ -252,16 +251,12 @@ mod tests {
     }
 
     impl Game for GameGraph {
-        fn initialize(variant: Option<String>) -> Result<Self>
+        fn new(variant: Option<String>) -> Result<Self>
         where
             Self: Sized
         {
             unimplemented!();
         }  
-
-        fn forward(&mut self, history: Vec<String>) -> Result<()> {
-            unimplemented!();
-        }
 
         fn id(&self) -> String {
             String::from("GameGraph")

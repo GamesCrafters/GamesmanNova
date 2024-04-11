@@ -10,17 +10,17 @@ use anyhow::{Context, Result};
 use std::collections::{HashSet, VecDeque, HashMap};
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, ClassicPuzzle, Extensive};
+use crate::game::{Game, Bounded, DTransition, ClassicPuzzle, Extensive};
 use crate::interface::IOMode;
 use crate::model::{Remoteness, State};
 use crate::solver::record::sur::RecordBuffer;
 use crate::solver::RecordType;
-use crate::solver::SimpleUtility;
+use crate::model::SimpleUtility;
 use crate::solver::error::SolverError::SolverViolation;
 
 pub fn dynamic_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -34,8 +34,8 @@ where
 
 fn reverse_bfs<G, D>(db: &mut D, game: &G) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle,
-    D: KVStore<RecordBuffer>,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
+    D: KVStore,
 {
     // Get end states and create frontiers
     let mut child_counts = discover_child_counts(db, game);
@@ -97,12 +97,14 @@ where
         let parents = game.retrograde(state);
 
         for parent in parents {
-            // The check below is needed, because it is theoretically possible for child_counts to 
-            // NOT contain a position discovered by retrograde(). Consider a 3-node game tree with 
-            // starting vertex 1, and edges (1 -> 2), (3 -> 2), where 2 is a losing primitive ending position. 
-            // In this case, running discover_child_counts() on 1 above only gets child_counts for states 1 and 2,
-            // however calling retrograde on end state 2 in this BFS portion will discover state 2
-            // for the first time.
+            // The check below is needed, because it is theoretically possible
+            // for child_counts to NOT contain a position discovered by
+            // retrograde(). Consider a 3-node game tree with starting vertex 1,
+            // and edges (1 -> 2), (3 -> 2), where 2 is a losing primitive
+            // ending position. In this case, running discover_child_counts() on
+            // 1 above only gets child_counts for states 1 and 2, however
+            // calling retrograde on end state 2 in this BFS portion will
+            // discover state 2 for the first time.
             match child_counts.get(&parent) {
                 Some(count) => child_counts.insert(parent, count - 1),
                 None => child_counts.insert(parent, game.prograde(parent).len() - 1),
@@ -130,8 +132,8 @@ where
 
 fn discover_child_counts<G, D>(db: &mut D, game: &G) -> HashMap<State, usize>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle,
-    D: KVStore<RecordBuffer>,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
+    D: KVStore,
 {
     let mut child_counts = HashMap::new();
 
@@ -143,7 +145,7 @@ where
 fn discover_child_counts_helper<G, D>(db: &mut D, game: &G, state: State, child_counts: &mut HashMap<State, usize>)
 where
     G: DTransition<State> + Bounded<State> + ClassicPuzzle,
-    D: KVStore<RecordBuffer>,
+    D: KVStore,
 {
     child_counts.insert(state, game.prograde(state).len());
 
@@ -153,6 +155,7 @@ where
         }
     }
 }
+
 /* DATABASE INITIALIZATION */
 
 /// Initializes a volatile database, creating a table schema according to the
@@ -160,7 +163,7 @@ where
 /// to that table before returning the database handle.
 fn volatile_database<const N: usize, G>(game: &G) -> Result<volatile::Database>
 where
-    G: Extensive<N>,
+    G: Extensive<N> + Game,
 {
     let id = game.id();
     let db = volatile::Database::initialize();
@@ -174,6 +177,9 @@ where
         .context("Failed to select solution set database table.")?;
 
     Ok(db)
+
+    // This is only for testing purposes
+
 }
 
 
@@ -184,7 +190,7 @@ mod tests {
     use crate::model::{State, Turn};
     use std::collections::{HashMap, VecDeque};
     use crate::interface::{IOMode, SolutionMode};
-    use crate::solver::SimpleUtility;
+    use crate::model::SimpleUtility;
 
     use super::{discover_child_counts, volatile_database};
 
@@ -204,16 +210,12 @@ mod tests {
     }
 
     impl Game for PuzzleGraph {
-        fn initialize(variant: Option<String>) -> Result<Self>
+        fn new(variant: Option<String>) -> Result<Self>
         where
             Self: Sized
         {
             unimplemented!();
         }  
-
-        fn forward(&mut self, history: Vec<String>) -> Result<()> {
-            unimplemented!();
-        }
 
         fn id(&self) -> String {
             String::from("GameGraph")
@@ -244,13 +246,11 @@ mod tests {
         }
     }
 
-    impl SimpleSum<1> for PuzzleGraph {
-        fn utility(&self, state: State) -> [SimpleUtility; 1] {
-            [self.adj_list[state as usize].utility.unwrap()]
+    impl ClassicPuzzle for PuzzleGraph {
+        fn utility(&self, state: State) -> SimpleUtility {
+            self.adj_list[state as usize].utility.unwrap()
         }
     }
-
-    impl ClassicPuzzle for PuzzleGraph {}
 
     impl DTransition<State> for PuzzleGraph {
         fn prograde(&self, state: State) -> Vec<State> {
