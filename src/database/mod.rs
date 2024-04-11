@@ -87,7 +87,7 @@ pub enum Datatype {
 pub trait KVStore<R: Record> {
     fn put(&mut self, key: State, record: &R);
     fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>>;
-    fn del(&self, key: State);
+    fn del(&mut self, key: State);
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait
