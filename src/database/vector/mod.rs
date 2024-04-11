@@ -55,8 +55,8 @@ impl Database<'_> {
     }
 }
 
-impl<R: Record> KVStore<R> for Database<'_> {
-    fn put(&mut self, key: State, value: &R) {
+impl KVStore for Database<'_> {
+    fn put<R: Record>(&mut self, key: State, value: &R) {
         todo!()
     }
 
