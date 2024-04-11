@@ -1,7 +1,6 @@
-
 //! # Simple-Utility Remoteness (SUR) Record Module
 //!
-//! Implementation of a database record buffer for storing simple utilities 
+//! Implementation of a database record buffer for storing simple utilities
 //! information of different amounts of players and the remoteness value
 //! associated with a particular game state.
 //!
@@ -16,11 +15,10 @@ use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
-use crate::model::{PlayerCount, Remoteness, Turn};
+use crate::model::{PlayerCount, Remoteness, SimpleUtility, Turn};
 use crate::solver::error::SolverError::RecordViolation;
 use crate::solver::util;
 use crate::solver::RecordType;
-use crate::solver::SimpleUtility;
 
 /* CONSTANTS */
 
@@ -183,7 +181,19 @@ impl RecordBuffer {
         } else {
             let start = Self::utility_index(player);
             let end = start + UTILITY_SIZE;
-            SimpleUtility::from_u64(self.buf[start..end].load_be::<u64>())
+            let val = self.buf[start..end].load_be::<u64>();
+            if let Ok(utility) = SimpleUtility::try_from(val) {
+                Ok(utility)
+            } else {
+                Err(RecordViolation {
+                    name: RecordType::SUR(self.players).into(),
+                    hint: format!(
+                        "There was an attempt to deserialize a utility value \
+                        of '{}' into a simple utility type.",
+                        val,
+                    ),
+                })?
+            }
         }
     }
 
@@ -393,7 +403,13 @@ mod tests {
     #[test]
     fn data_is_valid_after_round_trip() {
         let mut record = RecordBuffer::new(5).unwrap();
-        let payoffs = [SimpleUtility::LOSE, SimpleUtility::WIN, SimpleUtility::LOSE, SimpleUtility::LOSE, SimpleUtility::LOSE];
+        let payoffs = [
+            SimpleUtility::LOSE,
+            SimpleUtility::WIN,
+            SimpleUtility::LOSE,
+            SimpleUtility::LOSE,
+            SimpleUtility::LOSE,
+        ];
         let remoteness = 790;
 
         record

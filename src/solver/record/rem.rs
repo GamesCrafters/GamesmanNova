@@ -1,4 +1,3 @@
-
 //! # Remoteness (SUR) Record Module
 //!
 //! Implementation of a database record buffer for storing only remoteness values
@@ -32,16 +31,14 @@ pub const BUFFER_SIZE: usize = 16;
 
 /// Return the database table schema associated with a record instance
 pub fn schema() -> Result<Schema> {
-    let mut schema = SchemaBuilder::new().of(RecordType::REMOTE);
+    let mut schema = SchemaBuilder::new().of(RecordType::REM);
 
     let name = "State remoteness";
     let data = Datatype::UINT;
     let size = REMOTENESS_SIZE;
     schema = schema
         .add(Attribute::new(name, data, size))
-        .context(
-            "Failed to add remoteness attribute to database schema.",
-        )?;
+        .context("Failed to add remoteness attribute to database schema.")?;
 
     Ok(schema.build())
 }
@@ -73,7 +70,7 @@ impl RecordBuffer {
     /// store remoteness values
     #[inline(always)]
     pub fn new() -> Result<Self> {
-       Ok(Self {
+        Ok(Self {
             buf: bitarr!(u8, Msb0; 0; BUFFER_SIZE),
         })
     }
@@ -85,7 +82,7 @@ impl RecordBuffer {
         let len = bits.len();
         if len > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::REMOTE.into(),
+                name: RecordType::REM.into(),
                 hint: format!(
                     "The record implementation operates on a buffer of {} \
                     bits, but there was an attempt to instantiate one from a \
@@ -95,7 +92,7 @@ impl RecordBuffer {
             })?
         } else if len < Self::minimum_bit_size() {
             Err(RecordViolation {
-                name: RecordType::REMOTE.into(),
+                name: RecordType::REM.into(),
                 hint: format!(
                     "This record implementation stores remoteness values, but \
                     there was an attempt to instantiate one with from a buffer \
@@ -112,7 +109,7 @@ impl RecordBuffer {
     }
 
     /* GET METHODS */
-   
+
     /// Parse and return the remoteness value in the record encoding. Failure
     /// here indicates corrupted state.
     #[inline(always)]
@@ -131,7 +128,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
             Err(RecordViolation {
-                name: RecordType::REMOTE.into(),
+                name: RecordType::REM.into(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing remoteness values, but there was an \
@@ -166,7 +163,7 @@ impl RecordBuffer {
     /// Return the bit index of the remoteness entry start in the record buffer.
     #[inline(always)]
     const fn remoteness_index() -> usize {
-        0        
+        0
     }
 }
 
@@ -174,12 +171,12 @@ impl RecordBuffer {
 mod tests {
 
     use super::*;
-    
+
     // The maximum numeric remoteness value that can be expressed with exactly
     // REMOTENESS_SIZE bits in an unsigned integer.
     const MAX_REMOTENESS: Remoteness = 2_u64.pow(REMOTENESS_SIZE as u32) - 1;
 
-   #[test]
+    #[test]
     fn initialize_from_valid_buffer() {
         let buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
         for i in REMOTENESS_SIZE..BUFFER_SIZE {
@@ -223,11 +220,10 @@ mod tests {
             .set_remoteness(remoteness)
             .unwrap();
 
-       // Remoteness unchanged after insert and fetch
+        // Remoteness unchanged after insert and fetch
         let fetched_remoteness = record.get_remoteness();
         let actual_remoteness = remoteness;
         assert_eq!(fetched_remoteness, actual_remoteness);
-
     }
 
     #[test]

@@ -10,7 +10,6 @@
 //! emulate.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
@@ -19,8 +18,8 @@ use states::*;
 use crate::game::error::GameError;
 use crate::game::util::unpack_turn;
 use crate::game::zero_by::variants::*;
-use crate::game::{util, Bounded, Legible};
-use crate::game::{DTransition, Game, GameData, GeneralSum, Extensive};
+use crate::game::{util, Bounded, Codec, Forward};
+use crate::game::{DTransition, Extensive, Game, GameData, GeneralSum};
 use crate::interface::{IOMode, SolutionMode};
 use crate::model::PlayerCount;
 use crate::model::Utility;
@@ -54,7 +53,7 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<String>) -> Result<Self> {
+    fn new(variant: Option<String>) -> Result<Self> {
         if let Some(v) = variant {
             parse_variant(v).context("Malformed game variant.")
         } else {
@@ -66,15 +65,9 @@ impl Game for Session {
         format!("{}.{}", NAME, self.variant)
     }
 
-    fn forward(&mut self, history: Vec<String>) -> Result<()> {
-        self.start = util::verify_history_dynamic(self, history)
-            .context("Malformed game state encoding.")?;
-        Ok(())
-    }
-
     fn info(&self) -> GameData {
         GameData {
-            variant: &self.variant,
+            variant: self.variant.clone(),
 
             name: NAME,
             authors: AUTHORS,
@@ -113,17 +106,7 @@ impl Game for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl Bounded<State> for Session {
-    fn start(&self) -> State {
-        self.start
-    }
-
-    fn end(&self, state: State) -> bool {
-        state == 0
-    }
-}
-
-impl DTransition<State> for Session {
+impl DTransition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
         let (state, turn) = util::unpack_turn(state, self.players);
         let mut next = self
@@ -169,9 +152,19 @@ impl DTransition<State> for Session {
     }
 }
 
-/* SUPPLEMENTAL IMPLEMENTATIONS */
+/* STATE RESOLUTION IMPLEMENTATIONS */
 
-impl Legible<State> for Session {
+impl Bounded for Session {
+    fn start(&self) -> State {
+        self.start
+    }
+
+    fn end(&self, state: State) -> bool {
+        state == 0
+    }
+}
+
+impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
         Ok(parse_state(&self, string)?)
     }
@@ -179,6 +172,14 @@ impl Legible<State> for Session {
     fn encode(&self, state: State) -> String {
         let (elements, turn) = util::unpack_turn(state, self.players);
         format!("{}-{}", elements, turn)
+    }
+}
+
+impl Forward for Session {
+    fn forward(&mut self, history: Vec<String>) -> Result<()> {
+        self.start = util::verify_history_dynamic(self, history)
+            .context("Malformed game state encoding.")?;
+        Ok(())
     }
 }
 

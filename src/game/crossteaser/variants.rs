@@ -4,7 +4,6 @@
 //! game into parameters that can help build a game session.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Atharva Gupta, 11/28/2023
 //! - Cindy Xu, 11/28/2023
@@ -128,9 +127,8 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() {
-        let with_none = Session::initialize(None);
-        let with_default =
-            Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
+        let with_none = Session::new(None);
+        let with_default = Session::new(Some(VARIANT_DEFAULT.to_owned()));
 
         assert!(with_none.is_ok());
         assert!(with_default.is_ok());
@@ -138,14 +136,14 @@ mod test {
 
     #[test]
     fn invalid_variants_fail_checks() {
-        let some_variant_1 = Session::initialize(Some("None".to_owned()));
-        let some_variant_2 = Session::initialize(Some("x4-".to_owned()));
-        let some_variant_3 = Session::initialize(Some("-".to_owned()));
-        let some_variant_4 = Session::initialize(Some("1x2-5".to_owned()));
-        let some_variant_5 = Session::initialize(Some("0x2-5".to_owned()));
-        let some_variant_6 = Session::initialize(Some("1x1-1".to_owned()));
-        let some_variant_7 = Session::initialize(Some("8x2.6-5".to_owned()));
-        let some_variant_8 = Session::initialize(Some("3x4-0".to_owned()));
+        let some_variant_1 = Session::new(Some("None".to_owned()));
+        let some_variant_2 = Session::new(Some("x4-".to_owned()));
+        let some_variant_3 = Session::new(Some("-".to_owned()));
+        let some_variant_4 = Session::new(Some("1x2-5".to_owned()));
+        let some_variant_5 = Session::new(Some("0x2-5".to_owned()));
+        let some_variant_6 = Session::new(Some("1x1-1".to_owned()));
+        let some_variant_7 = Session::new(Some("8x2.6-5".to_owned()));
+        let some_variant_8 = Session::new(Some("3x4-0".to_owned()));
 
         assert!(some_variant_1.is_err());
         assert!(some_variant_2.is_err());
@@ -159,10 +157,10 @@ mod test {
 
     #[test]
     fn valid_variants_pass_checks() {
-        let some_variant_1 = Session::initialize(Some("4x3-2".to_owned()));
-        let some_variant_2 = Session::initialize(Some("5x4-2".to_owned()));
-        let some_variant_3 = Session::initialize(Some("2x4-1".to_owned()));
-        let some_variant_4 = Session::initialize(Some("4x2-1".to_owned()));
+        let some_variant_1 = Session::new(Some("4x3-2".to_owned()));
+        let some_variant_2 = Session::new(Some("5x4-2".to_owned()));
+        let some_variant_3 = Session::new(Some("2x4-1".to_owned()));
+        let some_variant_4 = Session::new(Some("4x2-1".to_owned()));
 
         assert!(some_variant_1.is_ok());
         assert!(some_variant_2.is_ok());

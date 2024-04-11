@@ -15,24 +15,29 @@
 //! [1]: https://www.jaapsch.net/puzzles/crosstsr.htm
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Cindy Xu, 11/28/2023
 
 use anyhow::{Context, Result};
 
 use crate::game::Bounded;
+use crate::game::Codec;
 use crate::game::DTransition;
+use crate::game::Extensive;
+use crate::game::Forward;
 use crate::game::Game;
 use crate::game::GameData;
 use crate::game::GeneralSum;
-use crate::game::Legible;
-use crate::game::Extensive;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
+use crate::model::SimpleUtility;
 use crate::model::State;
+use crate::model::Turn;
 use crate::model::Utility;
 use variants::*;
+
+use super::ClassicPuzzle;
+use super::SimpleSum;
 
 /* SUBMODULES */
 
@@ -81,7 +86,7 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<String>) -> Result<Self> {
+    fn new(variant: Option<String>) -> Result<Self> {
         if let Some(v) = variant {
             parse_variant(v).context("Malformed game variant.")
         } else {
@@ -104,25 +109,11 @@ impl Game for Session {
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
         todo!()
     }
-
-    fn forward(&mut self, history: Vec<String>) -> Result<()> {
-        todo!()
-    }
 }
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl Bounded<State> for Session {
-    fn start(&self) -> State {
-        todo!()
-    }
-
-    fn end(&self, state: State) -> bool {
-        todo!()
-    }
-}
-
-impl DTransition<State> for Session {
+impl DTransition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
         todo!()
     }
@@ -132,9 +123,19 @@ impl DTransition<State> for Session {
     }
 }
 
-/* SUPPLEMENTAL IMPLEMENTATIONS */
+/* STATE RESOLUTION IMPLEMENTATIONS */
 
-impl Legible<State> for Session {
+impl Bounded for Session {
+    fn start(&self) -> State {
+        todo!()
+    }
+
+    fn end(&self, state: State) -> bool {
+        todo!()
+    }
+}
+
+impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
         todo!()
     }
@@ -144,16 +145,16 @@ impl Legible<State> for Session {
     }
 }
 
-/* SOLVING IMPLEMENTATIONS */
-
-impl Extensive<1> for Session {
-    fn turn(&self, state: crate::model::State) -> crate::model::Turn {
+impl Forward for Session {
+    fn forward(&mut self, history: Vec<String>) -> Result<()> {
         todo!()
     }
 }
 
-impl GeneralSum<1> for Session {
-    fn utility(&self, state: State) -> [Utility; 1] {
+/* SOLVING IMPLEMENTATIONS */
+
+impl ClassicPuzzle for Session {
+    fn utility(&self, state: State) -> SimpleUtility {
         todo!()
     }
 }

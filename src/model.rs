@@ -5,11 +5,10 @@
 //! throughout the project.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 //! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
-/* PRIMARY TYPES */
+/* STATES */
 
 /// Encodes the state of a game in a 64-bit unsigned integer. This also
 /// sets a limiting upper bound on the amount of possible non-equivalent states
@@ -21,12 +20,23 @@ pub type State = u64;
 /// limitation to player count that is dependent on the target architecture.
 pub type Turn = usize;
 
-/* ATTRIBUTE TYPES */
+/* UTILITY */
 
 /// A measure of how "good" an outcome is for a given player in a game. Positive
 /// values indicate an overall gain from having played the game, and negative
 /// values are net losses. The metric over abstract utility is subjective.
 pub type Utility = i64;
+
+/// TODO
+#[derive(Clone, Copy)]
+pub enum SimpleUtility {
+    WIN = 0,
+    LOSE = 1,
+    DRAW = 2,
+    TIE = 3,
+}
+
+/* ATTRIBUTES */
 
 /// Indicates the "depth of draw" which a drawing position corresponds to. For
 /// more information, see [this whitepaper](TODO). This value should be 0 for
@@ -40,9 +50,9 @@ pub type DrawDepth = u64;
 pub type Remoteness = u64;
 
 /// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
-pub type MinimumExcludedValue = u64;
+pub type MinEV = u64;
 
-/* SECONDARY TYPES */
+/* AUXILIARY */
 
 /// Used to count the number of states in a set. Although this has an identical
 /// underlying type as `State`, it is semantically different, which is why it is

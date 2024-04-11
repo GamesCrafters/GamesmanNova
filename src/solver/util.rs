@@ -4,10 +4,11 @@
 //! `crate::solver` module.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use crate::database::Schema;
+use crate::model::{SimpleUtility, Utility};
+use crate::solver::error::SolverError::RecordViolation;
 use crate::solver::{record, RecordType};
 
 /* BIT FIELDS */
@@ -34,15 +35,15 @@ pub fn min_sbits(utility: i64) -> usize {
 impl Into<String> for RecordType {
     fn into(self) -> String {
         match self {
-            RecordType::MUR(players) => {
-                format!("Multi-Utility Remoteness ({} players)", players)
+            RecordType::RUR(players) => {
+                format!("Real Utility Remoteness ({} players)", players)
             },
             RecordType::SUR(players) => {
-                format!("Simple-Utility Remoteness ({}  players)", players)
+                format!("Simple Utility Remoteness ({}  players)", players)
             },
-            RecordType::REMOTE => {
+            RecordType::REM => {
                 format!("Remoteness (no utility)")
-            }
+            },
         }
     }
 }
@@ -52,9 +53,50 @@ impl TryInto<Schema> for RecordType {
 
     fn try_into(self) -> Result<Schema, Self::Error> {
         match self {
-            RecordType::MUR(players) => record::mur::schema(players),
+            RecordType::RUR(players) => record::mur::schema(players),
             RecordType::SUR(players) => record::sur::schema(players),
-            RecordType::REMOTE => record::remote::schema()
+            RecordType::REM => record::rem::schema(),
+        }
+    }
+}
+
+/* UTILITY CONVERSION */
+
+impl TryFrom<Utility> for SimpleUtility {
+    type Error = ();
+
+    fn try_from(v: Utility) -> Result<Self, Self::Error> {
+        match v {
+            v if v == SimpleUtility::LOSE as i64 => Ok(SimpleUtility::LOSE),
+            v if v == SimpleUtility::DRAW as i64 => Ok(SimpleUtility::DRAW),
+            v if v == SimpleUtility::TIE as i64 => Ok(SimpleUtility::TIE),
+            v if v == SimpleUtility::WIN as i64 => Ok(SimpleUtility::WIN),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<u64> for SimpleUtility {
+    type Error = ();
+
+    fn try_from(v: u64) -> Result<Self, Self::Error> {
+        match v {
+            v if v == SimpleUtility::LOSE as u64 => Ok(SimpleUtility::LOSE),
+            v if v == SimpleUtility::DRAW as u64 => Ok(SimpleUtility::DRAW),
+            v if v == SimpleUtility::TIE as u64 => Ok(SimpleUtility::TIE),
+            v if v == SimpleUtility::WIN as u64 => Ok(SimpleUtility::WIN),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Into<Utility> for SimpleUtility {
+    fn into(self) -> Utility {
+        match self {
+            SimpleUtility::LOSE => -1,
+            SimpleUtility::DRAW => 0,
+            SimpleUtility::TIE => 0,
+            SimpleUtility::WIN => 1,
         }
     }
 }
