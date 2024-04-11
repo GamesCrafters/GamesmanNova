@@ -3,14 +3,13 @@
 //! This module implements strong acyclic solving routines.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
 
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, GeneralSum, Extensive, STransition};
+use crate::game::{Bounded, DTransition, Extensive, GeneralSum, STransition};
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, Remoteness, State, Utility};
 use crate::solver::record::mur::RecordBuffer;
@@ -33,9 +32,7 @@ where
 
 pub fn static_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: STransition<State, MAX_TRANSITIONS>
-        + Bounded<State>
-        + GeneralSum<N>,
+    G: STransition<State, MAX_TRANSITIONS> + Bounded<State> + GeneralSum<N>,
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -78,7 +75,7 @@ fn dynamic_backward_induction<const N: PlayerCount, D, G>(
     game: &G,
 ) -> Result<()>
 where
-    D: KVStore<RecordBuffer>,
+    D: KVStore,
     G: DTransition<State> + Bounded<State> + GeneralSum<N>,
 {
     let mut stack = Vec::new();
@@ -140,10 +137,8 @@ fn static_backward_induction<const N: PlayerCount, D, G>(
     game: &G,
 ) -> Result<()>
 where
-    D: KVStore<RecordBuffer>,
-    G: STransition<State, MAX_TRANSITIONS>
-        + Bounded<State>
-        + GeneralSum<N>,
+    D: KVStore,
+    G: STransition<State, MAX_TRANSITIONS> + Bounded<State> + GeneralSum<N>,
 {
     let mut stack = Vec::new();
     stack.push(game.start());

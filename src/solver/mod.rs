@@ -7,7 +7,6 @@
 //! of that word.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 //! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
 

@@ -4,7 +4,6 @@
 //! `crate::solver` module.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use crate::database::Schema;

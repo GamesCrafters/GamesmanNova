@@ -4,7 +4,6 @@
 //! input or an incomplete game implementation.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};

@@ -8,7 +8,6 @@
 //! * It must have states which can be efficiently represented
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 //! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
@@ -17,23 +16,24 @@ use nalgebra::SMatrix;
 
 use crate::{
     interface::{IOMode, SolutionMode},
-    model::{
-        Partition, PlayerCount, State, StateCount, Turn, Utility,
-    },
+    model::{Partition, PlayerCount, State, StateCount, Turn, Utility},
     solver::SimpleUtility,
 };
 
 /* UTILITY MODULES */
 
 #[cfg(test)]
+pub mod mock;
+
+#[cfg(test)]
 mod test;
+
 mod error;
 mod util;
 
 /* IMPLEMENTED GAMES */
 
 pub mod crossteaser;
-pub mod extensive;
 pub mod zero_by;
 
 /* DATA CONSTRUCTS */
@@ -41,11 +41,11 @@ pub mod zero_by;
 /// Contains useful data about a game, intended to provide users of the program
 /// information they can use to understand the output of solving algorithms,
 /// in addition to specifying game variants.
-pub struct GameData<'a> {
+pub struct GameData {
     /* INSTANCE */
     /// The variant string used to initialize the `Game` instance which returned
     /// this `GameData` object from its `info` associated method.
-    pub variant: &'a String,
+    pub variant: String,
 
     /* GENERAL */
     /// Known name for the game. This should return a string that can be used as
@@ -83,12 +83,6 @@ pub struct GameData<'a> {
 /// Defines miscellaneous behavior of a deterministic economic game object. Note
 /// that player count is arbitrary; puzzles are semantically one-player games,
 /// although they are more alike to optimization problems than cases of games.
-///
-/// ## Explanation
-///
-/// This interface is used to group together things that all such objects need
-/// to do in relation to the rest of the project's modules, and not necessarily
-/// in relation to their underlying nature.
 pub trait Game {
     /// Returns `Result::Ok(Self)` if the specified `variant` is not malformed.
     /// Otherwise, returns a `Result::Err(String)` containing a text string
@@ -97,30 +91,12 @@ pub trait Game {
     where
         Self: Sized;
 
-    /* SECONDARY PLUGINS */
-
     /// Returns an ID unique to this game. The return value should be consistent
     /// across calls from the same game and variant, but differing across calls
     /// from different games and variants. As such, it can be thought of as a
     /// string hash whose input is the game and variant (although it is not at
     /// all necessary that it conforms to any measure of hashing performance).
     fn id(&self) -> String;
-
-    /// Advances the game's starting state to the last state in `history`. All
-    /// all of the `String`s in `history` must conform to the `state_protocol`
-    /// defined in the `GameData` object returned by `info`. The states in
-    /// `history` should be verified by ensuring that the following is true:
-    ///
-    /// - `history[0]` is the start state specified by the game variant.
-    /// - The set `transition(history[i])` contains `history[i + 1]`.
-    ///
-    /// If these conditions are not satisfied, this function should return a
-    /// useful error containing information about why the provided `history`
-    /// is not possible for the game variant. Otherwise, it should mutate `self`
-    /// to have a starting state whose string encoding is `history.pop()`.
-    fn forward(&mut self, history: Vec<String>) -> Result<()>;
-
-    /* MAIN PLUGINS */
 
     /// Returns useful information about the game, such as the type of game it
     /// is, who implemented it, and an explanation of how to specify different
@@ -135,44 +111,7 @@ pub trait Game {
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()>;
 }
 
-/* INTERFACING */
-
-/// Defines behavior to encode and decode a state type **S** to and from a
-/// `String`. This is related to the `GameData` object, which should contain
-/// information about how game states can be represented using a string.
-///
-/// ## Explanation
-///
-/// Efficient game state hashes are rarely intuitive to understand due to being
-/// highly optimized. Providing a way to transform them to and from a string
-/// gives a representation that is easier to understand. This, in turn, can be
-/// used throughout the project's interfaces to do things like fast-forwarding
-/// a game to a user-provided state, providing readable debug output, etc.
-///
-/// Note that this is not supposed to provide a "fancy" printable game board
-/// drawing; a lot of the utility obtained from implementing this interface is
-/// having access to understandable yet compact game state representations. As
-/// a rule of thumb, all strings should be single-lined and have no whitespace.
-pub trait Legible<S>
-where
-    Self: Bounded<S>,
-{
-    /// Transforms a string representation of a game state into a type **S**.
-    /// The `string` representation should conform to the `state_protocol`
-    /// specified in the `GameData` object returned by `Game::info`. If it does
-    /// not, an error containing a message with a brief explanation on what is
-    /// wrong with `string` should be returned.
-    fn decode(&self, string: String) -> Result<S>;
-
-    /// Transforms a game state type **S** into a string representation. The
-    /// string returned should conform to the `state_protocol` specified in the
-    /// `GameData` object returned by `Game::info`. If the `state` is malformed,
-    /// this function should panic with a useful debug message. No two `state`s
-    /// should return the same string representation (ideally).
-    fn encode(&self, state: S) -> String;
-}
-
-/* DETERMINISTIC TRAVERSAL INTERFACES */
+/* STATE RESOLUTION INTERFACES */
 
 /// Provides a way to retrieve a unique starting state from which to begin a
 /// traversal, and a way to tell when a traversal can no longer continue from
@@ -200,10 +139,7 @@ where
 /// These facts motivate that the logic which determines the starting and ending
 /// states of games should be independent of the logic that transitions from
 /// valid states to other valid states.
-pub trait Bounded<S>
-where
-    Self: Game,
-{
+pub trait Bounded<S> {
     /// Returns the starting state of the underlying structure. This is used to
     /// deterministically initialize a traversal.
     fn start(&self) -> S;
@@ -212,6 +148,75 @@ where
     /// provided `state`. Inputting an invalid `state` is undefined behavior.
     fn end(&self, state: S) -> bool;
 }
+
+/// Defines behavior to encode and decode a state type **S** to and from a
+/// `String`. This is related to the `GameData` object, which should contain
+/// information about how game states can be represented using a string.
+///
+/// ## Explanation
+///
+/// Efficient game state hashes are rarely intuitive to understand due to being
+/// highly optimized. Providing a way to transform them to and from a string
+/// gives a representation that is easier to understand. This, in turn, can be
+/// used throughout the project's interfaces to do things like fast-forwarding
+/// a game to a user-provided state, providing readable debug output, etc.
+///
+/// Note that this is not supposed to provide a "fancy" printable game board
+/// drawing; a lot of the utility obtained from implementing this interface is
+/// having access to understandable yet compact game state representations. As
+/// a rule of thumb, all strings should be single-lined and have no whitespace.
+pub trait Codec<S> {
+    /// Transforms a string representation of a game state into a type **S**.
+    /// The `string` representation should conform to the `state_protocol`
+    /// specified in the `GameData` object returned by `Game::info`. If it does
+    /// not, an error containing a message with a brief explanation on what is
+    /// wrong with `string` should be returned.
+    fn decode(&self, string: String) -> Result<S>;
+
+    /// Transforms a game state type **S** into a string representation. The
+    /// string returned should conform to the `state_protocol` specified in the
+    /// `GameData` object returned by `Game::info`. If the `state` is malformed,
+    /// this function should panic with a useful debug message. No two `state`s
+    /// should return the same string representation (ideally).
+    fn encode(&self, state: S) -> String;
+}
+
+/// Provides a way to fast-forward a game state from its starting state (as
+/// defined by `Bounded::start`) to a future state by playing a sequence of
+/// string-encoded state transitions one after another. Generic over a state
+/// type **S**.
+///
+/// # Explanation
+///
+/// For certain purposes, it is useful to skip a small or big part of a game's
+/// states to go straight to exploring a subgame of interest, or because the
+/// game is simply too large to explore in its entirety. In order to skip to
+/// this part of a game, a valid state in that subgame must be provided.
+///
+/// Since it is generally impossible to verify that a given state is reachable
+/// from the start of a game, it is necessary to demand a sequence of states
+/// that begin in a starting state and end in the desired state, such that each
+/// transition between states is valid per the game's ruleset.
+pub trait Forward<S>
+where
+    Self: Bounded<S> + Codec<S>,
+{
+    /// Advances the game's starting state to the last state in `history`. All
+    /// all of the `String`s in `history` must conform to the `state_protocol`
+    /// defined in the `GameData` object returned by `info`. The states in
+    /// `history` should be verified by ensuring that the following is true:
+    ///
+    /// - `history[0]` is the start state specified by the game variant.
+    /// - The set `transition(history[i])` contains `history[i + 1]`.
+    ///
+    /// If these conditions are not satisfied, this function should return a
+    /// useful error containing information about why the provided `history`
+    /// is not possible for the game variant. Otherwise, it should mutate `self`
+    /// to have a starting state whose string encoding is `history.pop()`.
+    fn forward(&mut self, history: Vec<String>) -> Result<()>;
+}
+
+/* DETERMINISTIC TRAVERSAL INTERFACES */
 
 /// Defines the behavior that allows for traversing what could be best described
 /// as a discrete automata (specifically, a NFA if at all) whose states are
@@ -310,7 +315,7 @@ pub trait STransition<S, const F: usize> {
 /// Indicates that a game has an extensive-form representation
 /// This refers to being able to have a fixed number of players, and determine
 /// whose turn is next at a particular state. The nature of the underlying game,
-/// and the utility interface then decides the specific kinds of "solving" that 
+/// and the utility interface then decides the specific kinds of "solving" that
 /// we can do.
 pub trait Extensive<const N: PlayerCount>
 where
@@ -371,9 +376,9 @@ where
 /// different game states regardless of this fact).
 
 /// Indicates that the game is general-sum
-pub trait GeneralSum<const N: PlayerCount> 
+pub trait GeneralSum<const N: PlayerCount>
 where
-    Self: Extensive<N>
+    Self: Extensive<N>,
 {
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
@@ -385,9 +390,9 @@ where
 
 /// Indicates that the game is "simple-sum," meaning the only possible outcomes
 /// are: Win, Lose, Tie, and Draw for each player
-pub trait SimpleSum<const N: PlayerCount> 
+pub trait SimpleSum<const N: PlayerCount>
 where
-    Self: Extensive<N>
+    Self: Extensive<N>,
 {
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
@@ -404,7 +409,7 @@ where
 /// this specific type of game.
 pub trait ClassicGame
 where
-    Self: SimpleSum<2>
+    Self: SimpleSum<2>,
 {
     /// Default implemntation for extracting utility from a position; because the
     /// game is zero-sum, we can always determine both players' utility given the
@@ -427,7 +432,7 @@ where
 /// position.
 pub trait ClassicPuzzle
 where
-    Self: SimpleSum<1>
+    Self: SimpleSum<1>,
 {
     /// Default implementation for extracting utility from a position; because
     /// this is a puzzle, there is only one utility value for a position, as the
@@ -438,10 +443,10 @@ where
 }
 
 /// Indicates that a "game" is a puzzle where different states can have
-/// different utility values 
+/// different utility values
 pub trait GeneralPuzzle
-where 
-    Self: GeneralSum<1>
+where
+    Self: GeneralSum<1>,
 {
     /// Default implementation for extracting utility from a position; because
     /// this is a puzzle, there is only one utility value for a position, as the
@@ -452,13 +457,12 @@ where
 }
 
 /// Indicates that a game is combinatorial; this differs from ClassicGame in than
-/// the possible utility values are further restricted to Win or Lose. 
+/// the possible utility values are further restricted to Win or Lose.
 
 pub trait Combinatorial
 where
-    Self: ClassicGame
+    Self: ClassicGame,
 {
-    
 }
 
 /* GAME STRUCTURE MARKERS */

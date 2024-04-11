@@ -1,10 +1,9 @@
-//! # Utilities Module
+//! # General Utilities Module
 //!
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
@@ -85,7 +84,7 @@ pub fn print_game_info(game: GameModule, format: OutputMode) -> Result<()> {
 
 /* IMPLEMENTATIONS */
 
-impl GameData<'_> {
+impl GameData {
     fn print(&self, format: OutputMode) {
         match format {
             OutputMode::Extra => {
@@ -125,7 +124,7 @@ impl GameData<'_> {
     }
 }
 
-impl Display for GameData<'_> {
+impl Display for GameData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -249,23 +248,21 @@ macro_rules! schema {
 /// # Example
 ///
 /// ```no_run
-/// // A medial node with state hash 2 where it is Player 5's turn.
-/// let n1 = node!(2, 5);
+/// // A medial node where it is Player 5's turn.
+/// let n1 = node!(5);
 ///
-/// // A terminal node with state hash 2 and 5-entry utility vector.
-/// let n2 = node!(2, [-1, -4, 5, 0, 3]);
+/// // A terminal node with a 5-entry utility vector.
+/// let n2 = node![-1, -4, 5, 0, 3];
+///
+/// // A terminal node with a single utility entry.
+/// let n3 = node![4,];
 /// ```
+#[macro_export]
 macro_rules! node {
-    ($hash:expr, [$($data:expr),*]) => {
-        Node {
-            hash: $hash,
-            data: Stage::Terminal(vec![$($data),*]),
-        }
+    ($val:expr) => {
+        Node::Medial($val)
     };
-    ($hash:expr, $player:expr) => {
-        Node {
-            hash: $hash,
-            data: Stage::Medial($player),
-        }
+    ($($u:expr),+ $(,)?) => {
+        Node::Terminal(vec![$($u),*])
     };
 }

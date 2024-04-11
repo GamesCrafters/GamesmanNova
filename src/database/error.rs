@@ -6,7 +6,6 @@
 //! under which all database implementations' errors can be grouped into).
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};
@@ -106,6 +105,7 @@ impl fmt::Display for DatabaseError {
                 table,
             } => {
                 let rule = match data {
+                    Datatype::BOOL => "of exactly 1 bit",
                     Datatype::DPFP => "of exactly 64 bits",
                     Datatype::SPFP => "of exactly 32 bits",
                     Datatype::SINT => "greater than 1 bit",

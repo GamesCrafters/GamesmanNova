@@ -13,7 +13,6 @@
 //! of memory may be materialized on arbitrary operations.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
@@ -56,8 +55,8 @@ impl Database<'_> {
     }
 }
 
-impl<R: Record> KVStore<R> for Database<'_> {
-    fn put(&mut self, key: State, value: &R) {
+impl KVStore for Database<'_> {
+    fn put<R: Record>(&mut self, key: State, value: &R) {
         todo!()
     }
 
@@ -65,7 +64,7 @@ impl<R: Record> KVStore<R> for Database<'_> {
         todo!()
     }
 
-    fn del(&self, key: State) {
+    fn del(&mut self, key: State) {
         todo!()
     }
 }

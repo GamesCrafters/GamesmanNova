@@ -5,7 +5,6 @@
 //! throughout the project.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 //! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 

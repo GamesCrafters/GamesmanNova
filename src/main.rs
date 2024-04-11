@@ -10,7 +10,6 @@
 //! module as a centralized point.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
@@ -28,6 +27,9 @@ mod solver;
 mod model;
 mod game;
 mod util;
+
+#[cfg(test)]
+mod test;
 
 /* PROGRAM ENTRY */
 

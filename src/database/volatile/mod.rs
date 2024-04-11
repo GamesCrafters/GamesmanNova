@@ -4,7 +4,6 @@
 //! in-memory hashmap.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
@@ -29,8 +28,8 @@ impl Database<'_> {
     }
 }
 
-impl<R: Record> KVStore<R> for Database<'_> {
-    fn put(&mut self, key: State, value: &R) {
+impl KVStore for Database<'_> {
+    fn put<R: Record>(&mut self, key: State, value: &R) {
         todo!()
     }
 
@@ -38,7 +37,7 @@ impl<R: Record> KVStore<R> for Database<'_> {
         todo!()
     }
 
-    fn del(&self, key: State) {
+    fn del(&mut self, key: State) {
         todo!()
     }
 }

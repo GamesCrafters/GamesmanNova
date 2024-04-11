@@ -16,3 +16,6 @@ flamegraph.svg
 
 # MacOS desktop attributes file
 .DS_Store
+
+# Development data
+/dev

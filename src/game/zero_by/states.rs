@@ -5,7 +5,6 @@
 //! partially ensure compatibility with a game variant.
 //!
 //! #### Authorship
-//!
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use regex::Regex;
