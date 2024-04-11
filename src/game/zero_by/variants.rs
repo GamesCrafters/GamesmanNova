@@ -138,18 +138,17 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() {
-        let with_none = Session::initialize(None);
-        let with_default =
-            Session::initialize(Some(VARIANT_DEFAULT.to_owned()));
+        let with_none = Session::new(None);
+        let with_default = Session::new(Some(VARIANT_DEFAULT.to_owned()));
         assert!(with_none.is_ok());
         assert!(with_default.is_ok());
     }
 
     #[test]
     fn no_variant_equals_default_variant() {
-        let with_none = Session::initialize(None).unwrap();
+        let with_none = Session::new(None).unwrap();
         let with_default =
-            Session::initialize(Some(VARIANT_DEFAULT.to_owned())).unwrap();
+            Session::new(Some(VARIANT_DEFAULT.to_owned())).unwrap();
         assert_eq!(with_none.variant, with_default.variant);
         assert_eq!(with_none.start, with_default.start);
         assert_eq!(with_none.by, with_default.by);

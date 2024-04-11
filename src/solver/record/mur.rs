@@ -37,7 +37,7 @@ pub const UTILITY_SIZE: usize = 8;
 pub fn schema(players: PlayerCount) -> Result<Schema> {
     if RecordBuffer::bit_size(players) > BUFFER_SIZE {
         Err(RecordViolation {
-            name: RecordType::MUR(players).into(),
+            name: RecordType::RUR(players).into(),
             hint: format!(
                 "This record can only hold utility values for up to {} \
                 players, but there was an attempt to create a schema that \
@@ -47,7 +47,7 @@ pub fn schema(players: PlayerCount) -> Result<Schema> {
             ),
         })?
     } else {
-        let mut schema = SchemaBuilder::new().of(RecordType::MUR(players));
+        let mut schema = SchemaBuilder::new().of(RecordType::RUR(players));
 
         for i in 0..players {
             let name = &format!("P{} utility", i);
@@ -110,7 +110,7 @@ impl RecordBuffer {
     pub fn new(players: PlayerCount) -> Result<Self> {
         if Self::bit_size(players) > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::MUR(players).into(),
+                name: RecordType::RUR(players).into(),
                 hint: format!(
                     "The record can only hold utility values for up to {} \
                     players, but there was an attempt to instantiate one for \
@@ -134,7 +134,7 @@ impl RecordBuffer {
         let len = bits.len();
         if len > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::MUR(0).into(),
+                name: RecordType::RUR(0).into(),
                 hint: format!(
                     "The record implementation operates on a buffer of {} \
                     bits, but there was an attempt to instantiate one from a \
@@ -144,7 +144,7 @@ impl RecordBuffer {
             })?
         } else if len < Self::minimum_bit_size() {
             Err(RecordViolation {
-                name: RecordType::MUR(0).into(),
+                name: RecordType::RUR(0).into(),
                 hint: format!(
                     "This record implementation stores utility values, but \
                     there was an attempt to instantiate one with from a buffer \
@@ -169,7 +169,7 @@ impl RecordBuffer {
     pub fn get_utility(&self, player: Turn) -> Result<Utility> {
         if player >= self.players {
             Err(RecordViolation {
-                name: RecordType::MUR(self.players).into(),
+                name: RecordType::RUR(self.players).into(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to fetch the utility of player {} \
@@ -206,7 +206,7 @@ impl RecordBuffer {
     ) -> Result<()> {
         if N != self.players {
             Err(RecordViolation {
-                name: RecordType::MUR(self.players).into(),
+                name: RecordType::RUR(self.players).into(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to use a {}-entry utility list to \
@@ -220,7 +220,7 @@ impl RecordBuffer {
                 let size = util::min_sbits(utility);
                 if size > UTILITY_SIZE {
                     Err(RecordViolation {
-                        name: RecordType::MUR(self.players).into(),
+                        name: RecordType::RUR(self.players).into(),
                         hint: format!(
                             "This record implementation uses {} bits to store \
                             signed integers representing utility values, but \
@@ -246,7 +246,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
             Err(RecordViolation {
-                name: RecordType::MUR(self.players).into(),
+                name: RecordType::RUR(self.players).into(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing remoteness values, but there was an \

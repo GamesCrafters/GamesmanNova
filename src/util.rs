@@ -36,7 +36,7 @@ pub fn find_game(
 ) -> Result<Box<dyn Game>> {
     match game {
         GameModule::ZeroBy => {
-            let session = zero_by::Session::initialize(variant)
+            let session = zero_by::Session::new(variant)
                 .context("Failed to initialize zero-by game session.")?;
             if let Some(path) = from {
                 todo!()

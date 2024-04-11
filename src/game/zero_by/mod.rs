@@ -53,7 +53,7 @@ pub struct Session {
 }
 
 impl Game for Session {
-    fn initialize(variant: Option<String>) -> Result<Self> {
+    fn new(variant: Option<String>) -> Result<Self> {
         if let Some(v) = variant {
             parse_variant(v).context("Malformed game variant.")
         } else {
@@ -106,7 +106,7 @@ impl Game for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl DTransition<State> for Session {
+impl DTransition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
         let (state, turn) = util::unpack_turn(state, self.players);
         let mut next = self
@@ -154,7 +154,7 @@ impl DTransition<State> for Session {
 
 /* STATE RESOLUTION IMPLEMENTATIONS */
 
-impl Bounded<State> for Session {
+impl Bounded for Session {
     fn start(&self) -> State {
         self.start
     }
@@ -164,7 +164,7 @@ impl Bounded<State> for Session {
     }
 }
 
-impl Codec<State> for Session {
+impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
         Ok(parse_state(&self, string)?)
     }
@@ -175,7 +175,7 @@ impl Codec<State> for Session {
     }
 }
 
-impl Forward<State> for Session {
+impl Forward for Session {
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
         self.start = util::verify_history_dynamic(self, history)
             .context("Malformed game state encoding.")?;

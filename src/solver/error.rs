@@ -24,10 +24,6 @@ pub enum SolverError {
     /// An error to indicate that the assumptions of a solving algorithm were
     /// detectably violated during execution.
     SolverViolation { name: String, hint: String },
-
-    /// An error to indicate that an error was made trying to use a utility value; for example,
-    /// this can be used when a invalid bit sequence for a simple-sum utiliity is accessed
-    UtilityViolation { name: String, hint: String },
 }
 
 impl Error for SolverError {}
@@ -51,15 +47,6 @@ impl fmt::Display for SolverError {
                     name, hint,
                 )
             },
-            Self::UtilityViolation { name, hint } => {
-                write!(
-                    f,
-                    "An invalid utility for '{}' was violated at \
-                    runtime: {}",
-                    name, hint,
-                )
-            },
-
         }
     }
 }
