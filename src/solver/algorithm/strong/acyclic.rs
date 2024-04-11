@@ -76,7 +76,7 @@ fn dynamic_backward_induction<const N: PlayerCount, D, G>(
     game: &G,
 ) -> Result<()>
 where
-    D: KVStore<RecordBuffer>,
+    D: KVStore,
     G: DTransition<State> + Bounded<State> + Solvable<N>,
 {
     let mut stack = Vec::new();
@@ -138,7 +138,7 @@ fn static_backward_induction<const N: PlayerCount, D, G>(
     game: &G,
 ) -> Result<()>
 where
-    D: KVStore<RecordBuffer>,
+    D: KVStore,
     G: STransition<State, MAX_TRANSITIONS> + Bounded<State> + Solvable<N>,
 {
     let mut stack = Vec::new();

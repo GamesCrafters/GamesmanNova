@@ -84,8 +84,8 @@ pub enum Datatype {
 
 /// Represents the behavior of a Key-Value Store. No assumptions are made about
 /// the size of the records being used, but keys are taken to be fixed-length.
-pub trait KVStore<R: Record> {
-    fn put(&mut self, key: State, record: &R);
+pub trait KVStore {
+    fn put<R: Record>(&mut self, key: State, record: &R);
     fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>>;
     fn del(&mut self, key: State);
 }
