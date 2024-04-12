@@ -350,7 +350,7 @@ where
     G: SimpleSum<N>,
 {
     fn utility(&self, state: State) -> [Utility; N] {
-        SimpleSum::utility(self, state).map(|x| x as Utility) 
+        SimpleSum::utility(self, state).map(|x| x as Utility)
     }
 }
 
@@ -368,10 +368,9 @@ where
         };
 
         if Extensive::turn(self, state) == 0 {
-            [player_utility, other_player_utility] 
-        }
-        else {
-            [other_player_utility, player_utility] 
+            [player_utility, other_player_utility]
+        } else {
+            [other_player_utility, player_utility]
         }
     }
 }

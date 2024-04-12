@@ -8,14 +8,14 @@
 //! - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
 //! - Ishir Garg, 3/12/2024 (ishirgarg@berkeley.edu)
 
-use std::collections::{VecDeque, HashMap};
 use anyhow::{Context, Result};
+use std::collections::{HashMap, VecDeque};
 
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, Extensive, SimpleSum, Game};
-use crate::model::SimpleUtility;
+use crate::game::{Bounded, DTransition, Extensive, Game, SimpleSum};
 use crate::interface::IOMode;
+use crate::model::SimpleUtility;
 use crate::model::{PlayerCount, Remoteness, State, Turn};
 use crate::solver::record::sur::RecordBuffer;
 use crate::solver::RecordType;
@@ -31,18 +31,20 @@ const BUFFER_SIZE: usize = 128;
 /// The exact number of bits that are used to encode utility for one player.
 const UTILITY_SIZE: usize = 2;
 
-
-pub fn two_player_zero_sum_dynamic_solver<G>(game: &G, mode: IOMode) -> Result<()>
+pub fn two_player_zero_sum_dynamic_solver<G>(
+    game: &G,
+    mode: IOMode,
+) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game
+    G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game,
 {
-    let mut db = volatile_database(game)
-        .context("Failed to initialize database.")?;
+    let mut db =
+        volatile_database(game).context("Failed to initialize database.")?;
     basic_loopy_solver(game, &mut db)?;
     Ok(())
 }
 
-fn basic_loopy_solver<G, D> (game: &G, db: &mut D) -> Result<()>
+fn basic_loopy_solver<G, D>(game: &G, db: &mut D) -> Result<()>
 where
     G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game,
     D: KVStore,
@@ -53,26 +55,39 @@ where
 
     let mut child_counts = HashMap::new();
 
-    enqueue_children(&mut winning_frontier, &mut tying_frontier, &mut losing_frontier, game.start(), game, &mut child_counts, db)?;
+    enqueue_children(
+        &mut winning_frontier,
+        &mut tying_frontier,
+        &mut losing_frontier,
+        game.start(),
+        game,
+        &mut child_counts,
+        db,
+    )?;
 
     // Process winning and losing frontiers
-    while !winning_frontier.is_empty() && !losing_frontier.is_empty() && !tying_frontier.is_empty() {
+    while !winning_frontier.is_empty()
+        && !losing_frontier.is_empty()
+        && !tying_frontier.is_empty()
+    {
         let child = if !losing_frontier.is_empty() {
-                        losing_frontier.pop_front().unwrap()
-                    } else if !winning_frontier.is_empty() {
-                        winning_frontier.pop_front().unwrap()
-                    } else {
-                        tying_frontier.pop_front().unwrap()
-                    };
+            losing_frontier
+                .pop_front()
+                .unwrap()
+        } else if !winning_frontier.is_empty() {
+            winning_frontier
+                .pop_front()
+                .unwrap()
+        } else {
+            tying_frontier.pop_front().unwrap()
+        };
 
         let db_entry = RecordBuffer::from(db.get(child).unwrap())
             .context("Failed to create record for middle state.")?;
         let child_utility = db_entry
             .get_utility(game.turn(child))
             .context("Failed to get utility from record.")?;
-        let child_remoteness =  db_entry
-            .get_remoteness();
-
+        let child_remoteness = db_entry.get_remoteness();
 
         let parents = game.retrograde(child);
         // If child is a losing position
@@ -97,7 +112,9 @@ where
         // If child is a winning position
         else if matches!(child_utility, SimpleUtility::WIN) {
             for parent in parents {
-                let child_count = *child_counts.get(&parent).expect("Failed to enqueue parent state in initial enqueuing stage");
+                let child_count = *child_counts.get(&parent).expect(
+                    "Failed to enqueue parent state in initial enqueuing stage",
+                );
                 // Parent has already been solved
                 if child_count == 0 {
                     continue;
@@ -121,7 +138,9 @@ where
         // Child should never be a tying position
         else if matches!(child_utility, SimpleUtility::TIE) {
             for parent in parents {
-                let child_count = *child_counts.get(&parent).expect("Failed to enqueue parent state in initial enqueuing stage");
+                let child_count = *child_counts.get(&parent).expect(
+                    "Failed to enqueue parent state in initial enqueuing stage",
+                );
                 // Parent has already been solved
                 if child_count == 0 {
                     continue;
@@ -138,9 +157,7 @@ where
                 // Update child count
                 child_counts.insert(parent, 0);
             }
-
-        }
-        else {
+        } else {
             panic!["Position with invalid utility found in frontiers"];
         }
     }
@@ -159,15 +176,16 @@ where
 }
 
 /// Set up the initial frontiers and primitive position database entries
-fn enqueue_children<G, D>(winning_frontier: &mut VecDeque<State>,
-                       tying_frontier: &mut VecDeque<State>,
-                       losing_frontier: &mut VecDeque<State>,
-                       curr_state: State,
-                       game: &G,
-                       child_counts: &mut HashMap<State, usize>,
-                       db: &mut D
+fn enqueue_children<G, D>(
+    winning_frontier: &mut VecDeque<State>,
+    tying_frontier: &mut VecDeque<State>,
+    losing_frontier: &mut VecDeque<State>,
+    curr_state: State,
+    game: &G,
+    child_counts: &mut HashMap<State, usize>,
+    db: &mut D,
 ) -> Result<()>
-where 
+where
     G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game,
     D: KVStore,
 {
@@ -180,11 +198,16 @@ where
             .context("Failed to set remoteness for end state.")?;
         db.put(curr_state, &buf);
 
-        match game.utility(curr_state).get(game.turn(curr_state)) {
+        match game
+            .utility(curr_state)
+            .get(game.turn(curr_state))
+        {
             Some(SimpleUtility::WIN) => winning_frontier.push_back(curr_state),
             Some(SimpleUtility::TIE) => tying_frontier.push_back(curr_state),
-            Some(SimpleUtility::LOSE) => losing_frontier.push_back(curr_state), 
-            _ => panic!["Utility for primitive ending position found to be draw"]
+            Some(SimpleUtility::LOSE) => losing_frontier.push_back(curr_state),
+            _ => {
+                panic!["Utility for primitive ending position found to be draw"]
+            },
         }
         return Ok(());
     }
@@ -197,13 +220,19 @@ where
         if child_counts.contains_key(&child) {
             continue;
         }
-        enqueue_children(winning_frontier, tying_frontier, losing_frontier, child, game, child_counts, db)?;
+        enqueue_children(
+            winning_frontier,
+            tying_frontier,
+            losing_frontier,
+            child,
+            game,
+            child_counts,
+            db,
+        )?;
     }
 
     Ok(())
 }
-
-
 
 /* DATABASE INITIALIZATION */
 
@@ -230,19 +259,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use crate::game::{Game, GameData, Bounded, DTransition, Extensive, SimpleSum};
-    use crate::model::{State, Turn};
-    use std::collections::{HashMap, VecDeque};
+    use crate::game::{
+        Bounded, DTransition, Extensive, Game, GameData, SimpleSum,
+    };
     use crate::interface::{IOMode, SolutionMode};
     use crate::model::SimpleUtility;
+    use crate::model::{State, Turn};
+    use anyhow::Result;
+    use std::collections::{HashMap, VecDeque};
 
     use super::{enqueue_children, volatile_database};
 
     struct GameNode {
         turn: Turn,
         utility: Vec<SimpleUtility>,
-        children: Vec<State>
+        children: Vec<State>,
     }
 
     struct GameGraph {
@@ -253,10 +284,10 @@ mod tests {
     impl Game for GameGraph {
         fn new(variant: Option<String>) -> Result<Self>
         where
-            Self: Sized
+            Self: Sized,
         {
             unimplemented!();
-        }  
+        }
 
         fn id(&self) -> String {
             String::from("GameGraph")
@@ -273,11 +304,13 @@ mod tests {
 
     impl Bounded<State> for GameGraph {
         fn start(&self) -> u64 {
-            0 
+            0
         }
-        
+
         fn end(&self, state: State) -> bool {
-            self.adj_list[state as usize].children.is_empty()
+            self.adj_list[state as usize]
+                .children
+                .is_empty()
         }
     }
 
@@ -296,22 +329,32 @@ mod tests {
 
     impl DTransition<State> for GameGraph {
         fn prograde(&self, state: State) -> Vec<State> {
-            self.adj_list[state as usize].children.clone()
+            self.adj_list[state as usize]
+                .children
+                .clone()
         }
 
         fn retrograde(&self, state: State) -> Vec<State> {
-            todo![]; 
+            todo![];
         }
     }
 
     #[test]
-    fn enqueues_children_properly() -> Result<()>{
+    fn enqueues_children_properly() -> Result<()> {
         let graph = GameGraph {
             num_states: 2,
             adj_list: vec![
-                GameNode {turn: 0, utility: vec![], children: vec![1]},
-                GameNode {turn: 1, utility: vec![SimpleUtility::LOSE, SimpleUtility::WIN], children: vec![]}
-            ]
+                GameNode {
+                    turn: 0,
+                    utility: vec![],
+                    children: vec![1],
+                },
+                GameNode {
+                    turn: 1,
+                    utility: vec![SimpleUtility::LOSE, SimpleUtility::WIN],
+                    children: vec![],
+                },
+            ],
         };
 
         let mut db = volatile_database(&graph)?;
@@ -321,7 +364,15 @@ mod tests {
         let mut losing_frontier = VecDeque::new();
         let mut child_counts = HashMap::new();
 
-        enqueue_children(&mut winning_frontier, &mut tying_frontier, &mut losing_frontier, graph.start(), &graph, &mut child_counts, &mut db)?;
+        enqueue_children(
+            &mut winning_frontier,
+            &mut tying_frontier,
+            &mut losing_frontier,
+            graph.start(),
+            &graph,
+            &mut child_counts,
+            &mut db,
+        )?;
 
         assert!(winning_frontier.is_empty());
         assert!(tying_frontier.is_empty());

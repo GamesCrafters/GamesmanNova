@@ -7,20 +7,24 @@
 
 use anyhow::{Context, Result};
 
-use std::collections::{HashSet, VecDeque, HashMap};
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Game, Bounded, DTransition, ClassicPuzzle, Extensive};
+use crate::game::{Bounded, ClassicPuzzle, DTransition, Extensive, Game};
 use crate::interface::IOMode;
+use crate::model::SimpleUtility;
 use crate::model::{Remoteness, State};
+use crate::solver::error::SolverError::SolverViolation;
 use crate::solver::record::sur::RecordBuffer;
 use crate::solver::RecordType;
-use crate::model::SimpleUtility;
-use crate::solver::error::SolverError::SolverViolation;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 pub fn dynamic_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
+    G: DTransition<State>
+        + Bounded<State>
+        + ClassicPuzzle
+        + Extensive<1>
+        + Game,
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -31,15 +35,21 @@ where
     Ok(())
 }
 
-
 fn reverse_bfs<G, D>(db: &mut D, game: &G) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
+    G: DTransition<State>
+        + Bounded<State>
+        + ClassicPuzzle
+        + Extensive<1>
+        + Game,
     D: KVStore,
 {
     // Get end states and create frontiers
     let mut child_counts = discover_child_counts(db, game);
-    let end_states = child_counts.iter().filter(|&x| *x.1 == 0).map(|x| *x.0);
+    let end_states = child_counts
+        .iter()
+        .filter(|&x| *x.1 == 0)
+        .map(|x| *x.0);
 
     let mut winning_queue: VecDeque<(State, Remoteness)> = VecDeque::new();
     let mut losing_queue: VecDeque<(State, Remoteness)> = VecDeque::new();
@@ -63,7 +73,6 @@ where
 
     // Perform BFS on winning states
     while let Some((state, remoteness)) = winning_queue.pop_front() {
-
         let mut buf = RecordBuffer::new(1)
             .context("Failed to create placeholder record.")?;
         buf.set_utility([SimpleUtility::WIN])
@@ -107,10 +116,14 @@ where
             // discover state 2 for the first time.
             match child_counts.get(&parent) {
                 Some(count) => child_counts.insert(parent, count - 1),
-                None => child_counts.insert(parent, game.prograde(parent).len() - 1),
+                None => {
+                    child_counts.insert(parent, game.prograde(parent).len() - 1)
+                },
             };
 
-            if !visited.contains(&parent) && *child_counts.get(&state).unwrap() == 0 {
+            if !visited.contains(&parent)
+                && *child_counts.get(&state).unwrap() == 0
+            {
                 losing_queue.push_back((parent, remoteness + 1));
             }
         }
@@ -132,7 +145,11 @@ where
 
 fn discover_child_counts<G, D>(db: &mut D, game: &G) -> HashMap<State, usize>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
+    G: DTransition<State>
+        + Bounded<State>
+        + ClassicPuzzle
+        + Extensive<1>
+        + Game,
     D: KVStore,
 {
     let mut child_counts = HashMap::new();
@@ -142,8 +159,12 @@ where
     child_counts
 }
 
-fn discover_child_counts_helper<G, D>(db: &mut D, game: &G, state: State, child_counts: &mut HashMap<State, usize>)
-where
+fn discover_child_counts_helper<G, D>(
+    db: &mut D,
+    game: &G,
+    state: State,
+    child_counts: &mut HashMap<State, usize>,
+) where
     G: DTransition<State> + Bounded<State> + ClassicPuzzle,
     D: KVStore,
 {
@@ -179,24 +200,25 @@ where
     Ok(db)
 
     // This is only for testing purposes
-
 }
-
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use crate::game::{Game, GameData, Bounded, DTransition, Extensive, ClassicPuzzle, SimpleSum};
-    use crate::model::{State, Turn};
-    use std::collections::{HashMap, VecDeque};
+    use crate::game::{
+        Bounded, ClassicPuzzle, DTransition, Extensive, Game, GameData,
+        SimpleSum,
+    };
     use crate::interface::{IOMode, SolutionMode};
     use crate::model::SimpleUtility;
+    use crate::model::{State, Turn};
+    use anyhow::Result;
+    use std::collections::{HashMap, VecDeque};
 
     use super::{discover_child_counts, volatile_database};
 
     struct GameNode {
         utility: Option<SimpleUtility>, // Is None for non-primitive puzzle nodes
-        children: Vec<State>
+        children: Vec<State>,
     }
 
     struct PuzzleGraph {
@@ -212,10 +234,10 @@ mod tests {
     impl Game for PuzzleGraph {
         fn new(variant: Option<String>) -> Result<Self>
         where
-            Self: Sized
+            Self: Sized,
         {
             unimplemented!();
-        }  
+        }
 
         fn id(&self) -> String {
             String::from("GameGraph")
@@ -232,11 +254,13 @@ mod tests {
 
     impl Bounded<State> for PuzzleGraph {
         fn start(&self) -> u64 {
-            0 
+            0
         }
-        
+
         fn end(&self, state: State) -> bool {
-            self.adj_list[state as usize].children.is_empty()
+            self.adj_list[state as usize]
+                .children
+                .is_empty()
         }
     }
 
@@ -248,27 +272,43 @@ mod tests {
 
     impl ClassicPuzzle for PuzzleGraph {
         fn utility(&self, state: State) -> SimpleUtility {
-            self.adj_list[state as usize].utility.unwrap()
+            self.adj_list[state as usize]
+                .utility
+                .unwrap()
         }
     }
 
     impl DTransition<State> for PuzzleGraph {
         fn prograde(&self, state: State) -> Vec<State> {
-            self.adj_list[state as usize].children.clone()
+            self.adj_list[state as usize]
+                .children
+                .clone()
         }
 
         fn retrograde(&self, state: State) -> Vec<State> {
-           (0..self.size()).filter(|&s| self.adj_list[s as usize].children.contains(&state)).collect()
+            (0..self.size())
+                .filter(|&s| {
+                    self.adj_list[s as usize]
+                        .children
+                        .contains(&state)
+                })
+                .collect()
         }
     }
 
     #[test]
-    fn gets_child_counts_correctly() -> Result<()>{
+    fn gets_child_counts_correctly() -> Result<()> {
         let graph = PuzzleGraph {
             adj_list: vec![
-                GameNode {utility: None, children: vec![1]},
-                GameNode {utility: Some(SimpleUtility::LOSE), children: vec![]}
-            ]
+                GameNode {
+                    utility: None,
+                    children: vec![1],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![],
+                },
+            ],
         };
 
         let mut db = volatile_database(&graph)?;
