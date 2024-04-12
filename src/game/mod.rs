@@ -350,16 +350,29 @@ where
     G: SimpleSum<N>,
 {
     fn utility(&self, state: State) -> [Utility; N] {
-        todo!()
+        SimpleSum::utility(self, state).map(|x| x as Utility) 
     }
 }
 
 impl<G> SimpleSum<2> for G
 where
-    G: ClassicGame,
+    G: ClassicGame + Extensive<2>,
 {
     fn utility(&self, state: State) -> [SimpleUtility; 2] {
-        todo!()
+        let player_utility = ClassicGame::utility(self, state);
+        let other_player_utility = match player_utility {
+            SimpleUtility::WIN => SimpleUtility::LOSE,
+            SimpleUtility::LOSE => SimpleUtility::WIN,
+            SimpleUtility::TIE => SimpleUtility::TIE,
+            SimpleUtility::DRAW => SimpleUtility::DRAW,
+        };
+
+        if Extensive::turn(self, state) == 0 {
+            [player_utility, other_player_utility] 
+        }
+        else {
+            [other_player_utility, player_utility] 
+        }
     }
 }
 
@@ -368,6 +381,6 @@ where
     G: ClassicPuzzle,
 {
     fn utility(&self, state: State) -> [SimpleUtility; 1] {
-        todo!()
+        [ClassicPuzzle::utility(self, state)]
     }
 }
