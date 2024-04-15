@@ -33,9 +33,8 @@ impl Database {
 }
 
 
-
-impl<R:Record> KVStore<R> for Database {
-    fn put(&mut self, key: State, value: &R) {
+impl KVStore for Database {
+    fn put<R:Record>(&mut self, key: State, value: &R) {
         let new = BitVec::from(value.raw()).clone();
         self.memory.insert(key, new);
     }
@@ -99,8 +98,13 @@ mod tests {
     fn put_data_and_get_it() {
         let mut db: Database = Database::initialize();
         let test_state: State = 7;
-        //assert!(db.get(test_state).is_none());
+        assert!(db.get(test_state).is_none());
         let test_rec: Rec = Rec::initialize(BitVec::<u8, Msb0>::new());
         db.put(test_state, &test_rec);
+        if let Some(result_rec) = db.get(test_state) {
+            assert!(result_rec == test_rec.raw());
+        } else {
+            assert!(1 == 0);
+        }
     }
 }
