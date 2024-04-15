@@ -8,7 +8,7 @@
 //! - Implementation: Casey Stanford, 4/10/2024 (cqstanford@berkeley.edu)
 
 use anyhow::Result;
-use bitvec::{prelude::*, order::Msb0, slice::BitSlice, store::BitStore};
+use bitvec::{order::Msb0, prelude::*, slice::BitSlice, store::BitStore};
 
 use std::collections::HashMap;
 
@@ -16,7 +16,6 @@ use crate::{
     database::{KVStore, Record, Schema, Tabular},
     model::State,
 };
-
 
 //TODO: efficient version: have a huge Vec chunk of memory, and HashMap just stores indexes in that memory chunk
 
@@ -32,9 +31,8 @@ impl Database {
     }
 }
 
-
 impl KVStore for Database {
-    fn put<R:Record>(&mut self, key: State, value: &R) {
+    fn put<R: Record>(&mut self, key: State, value: &R) {
         let new = BitVec::from(value.raw()).clone();
         self.memory.insert(key, new);
     }
@@ -43,17 +41,14 @@ impl KVStore for Database {
         let vecOpt = self.memory.get(&key);
         match vecOpt {
             None => None,
-            Some(vect) => Some(&vect[..])
+            Some(vect) => Some(&vect[..]),
         }
     }
 
     fn del(&mut self, key: State) {
         self.memory.remove(&key);
-
     }
 }
-
-
 
 impl Tabular for Database {
     fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
@@ -69,8 +64,6 @@ impl Tabular for Database {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
 
@@ -82,9 +75,7 @@ mod tests {
 
     impl Rec {
         pub fn initialize(val: BitVec<u8, Msb0>) -> Self {
-            Self {
-                value: val.clone(),
-            }
+            Self { value: val.clone() }
         }
     }
 
