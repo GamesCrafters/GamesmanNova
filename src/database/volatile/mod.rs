@@ -16,8 +16,11 @@ use crate::{
     model::State,
 };
 
-pub struct Database<'a> {
-    memory: HashMap<State, &'a [u8]>,
+
+//TODO: efficient version: have a huge Vec chunk of memory, and HashMap just stores indexes in that memory chunk
+
+pub struct Database {
+    memory: HashMap<State, Vec<u8>>,
 }
 
 impl Database<'_> {
@@ -28,19 +31,28 @@ impl Database<'_> {
     }
 }
 
-impl KVStore for Database<'_> {
-    fn put<R: Record>(&mut self, key: State, value: &R) {
-        todo!()
+
+impl KVStore for Database {
+    fn put(&mut self, key: State, value: &[u8]) {
+        let new = Vec::from(value).clone();
+        self.memory.insert(key, new);
     }
 
-    fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>> {
-        todo!()
+    fn get(&self, key: State) -> Option<&[u8]> {
+        let vecOpt = self.memory.get(&key);
+        match vecOpt {
+            None => None,
+            Some(vect) => Some(&vect[..])
+        }
     }
 
     fn del(&mut self, key: State) {
-        todo!()
+        self.memory.remove(&key);
+
     }
 }
+
+
 
 impl Tabular for Database<'_> {
     fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
