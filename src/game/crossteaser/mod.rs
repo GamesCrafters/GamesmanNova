@@ -79,30 +79,57 @@ struct UnhashedState {
 /// The format of the packed orientation is front_top_right
 /// Each of these will be a value from 0-5, and have 3 bits allotted.
 const ORIENTATION_MAP: [u64; 24] = [
-    0b000_010_100,
-    0b000_100_011,
-    0b000_001_010,
-    0b000_011_001,
-    0b001_010_000,
-    0b001_000_001,
-    0b001_101_010,
-    0b001_011_001,
-    0b010_100_000,
-    0b010_000_001,
-    0b010_101_100,
-    0b010_001_101,
-    0b011_000_100,
-    0b011_100_101,
-    0b011_001_000,
-    0b011_101_001,
-    0b100_000_010,
-    0b100_010_101,
-    0b100_011_000,
-    0b100_101_011,
-    0b101_100_010,
-    0b101_010_001,
-    0b101_011_100,
-    0b101_001_011,
+    0b000_010_100,  // 1
+    0b000_100_011,  // 2
+    0b000_001_010,  // 3
+    0b000_011_001,  // 4
+    0b001_010_000,  // 5
+    0b001_000_011,  // 6
+    0b001_101_010,  // 7
+    0b001_011_101,  // 8
+    0b010_100_000,  // 9
+    0b010_000_001,  // 10
+    0b010_101_100,  // 11
+    0b010_001_101,  // 12
+    0b011_000_100,  // 13
+    0b011_100_101,  // 14
+    0b011_001_000,  // 15
+    0b011_101_001,  // 16
+    0b100_000_010,  // 17
+    0b100_010_101,  // 18
+    0b100_011_000,  // 19
+    0b100_101_011,  // 20
+    0b101_100_010,  // 21
+    0b101_010_001,  // 22
+    0b101_011_100,  // 23
+    0b101_001_011,  // 24
+];
+
+const TRANSFORM_MAP: [u64; 24] = [
+    0b0, // 1
+    0b000_01, // 2
+    0b000_11, // 3
+    0b000_01_000_01, // 4
+    0b010_01, // 5
+    0b010_01_001_01, // 6
+    0b000_11_010_01, // 7
+    0b000_01_000_01_011_11, // 8
+    0b010_01_000_01, // 9
+    0b010_01_001_01_000_01, // 10
+    0b000_11_010_01_101_11, // 11
+    0b000_11_001_11, // 12
+    0b100_11, // 13
+    0b100_11_011_01, // 14
+    0b100_11_010_11, // 15
+    0b000_01_000_01_001_01, // 16
+    0b000_11_010_11, // 17
+    0b010_11, // 18
+    0b000_01_000_01_011_01, // 19
+    0b000_01_011_01, // 20
+    0b100_11_011_01_100_11, // 21
+    0b010_01_010_01, // 22
+    0b001_01_001_01, // 23
+    0b000_01_011_01_011_01 // 24
 ];
 
 // Constant bitmask values that will be commonly used for hashing/unhashing
@@ -305,8 +332,8 @@ mod mov {
     }
 
     /// Transforms an individual piece orientation as if it was rotated
-    /// clockwise. Used for symmetries
-    pub fn cw(o: &Orientation) -> Orientation {
+    /// clockwise along the front-bottom axis. Used for symmetries
+    pub fn cw_front(o: &Orientation) -> Orientation {
         return Orientation {
             front: o.front,
             top: 5 - o.right,
@@ -315,13 +342,71 @@ mod mov {
     }
 
     /// Transforms an individual piece orientation as if it was rotated
-    /// counter-clockwise. Used for symmetries
-    pub fn ccw(o: &Orientation) -> Orientation {
+    /// counter-clockwise along the front-back axis. Used for symmetries
+    pub fn ccw_front(o: &Orientation) -> Orientation {
         return Orientation {
             front: o.front,
             top: o.right,
             right: 5 - o.top,
         };
+    }
+
+    /// Transforms an individual piece orientation as if it was rotated
+    /// clockwise along the top-bottom axis. Used for symmetries
+    pub fn cw_top(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: o.right,
+            top: o.top,
+            right: 5 - o.front,
+        }
+    }
+
+    /// Transforms an individual piece orientation as if it was rotated
+    /// counter-clockwise along the top-bottom axis. Used for symmetries
+    pub fn ccw_top(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: 5 - o.right,
+            top: o.top,
+            right: o.front,
+        }
+    }
+
+    /// Transforms an individual piece orientation as if it was rotated
+    /// clockwise along the right-left. Used for symmetries
+    pub fn cw_right(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: 5 - o.top,
+            top: o.front,
+            right: o.right,
+        }
+    }
+
+    /// Transforms an individual piece orientation as if it was rotated
+    /// counter-clockwise along the right-left axis. Used for symmetries
+    pub fn ccw_right(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: o.top,
+            top: 5 - o.front,
+            right: o.right,
+        }
+    }
+
+    pub fn cw_on_axis(o: &Orientation, axis: u64) -> Orientation {
+        if axis == o.front {
+            return cw_front(o);
+        } else if axis == 5 - o.front {
+            return ccw_front(o);
+        } else if axis == o.top {
+            return cw_top(o);
+        } else if axis == 5 - o.top {
+            return ccw_top(o);
+        } else if axis == o.right {
+            return cw_right(o);
+        } else if axis == 5 - o.right {
+            return ccw_right(o);
+        } else {
+            panic!("Invalid Orientation");
+        }
     }
 }
 
