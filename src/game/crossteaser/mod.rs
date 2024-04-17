@@ -113,7 +113,7 @@ const ORIENTATION_MAP: [u64; 24] = [
 /// de: direction of the rotation. 01 = cw, 11 = ccw.
 /// Order of transformations is right to left.
 /// Used for symmetries.
-/// NOTE: This can likely be improved by combining transformations in a 
+/// NOTE: This can likely be improved by combining transformations in a
 /// clever way.
 const TRANSFORM_MAP: [u64; 24] = [
     0b0,                    // 1
@@ -332,7 +332,7 @@ impl Session {
             free: s.free,
         };
     }
- }
+}
 
 /// Module which contains all transition helper functions
 /// There are 4 functions for rotating an individual piece which represents a
