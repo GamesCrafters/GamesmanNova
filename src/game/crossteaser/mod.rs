@@ -161,14 +161,14 @@ impl Session {
     /// Simple, inefficient hash function that converts a vector of piece
     /// orientations and an empty space represented by an integer into a 64 bit
     /// integer (State) which uniquely represents that state.
-    fn hash(&self, rep: &Vec<Orientation>, empty: u64) -> State {
-        let mut s: State = empty;
+    fn hash(&self, s: UnhashedState) -> State {
+        let mut new_s: State = s.free;
         let mut shift: u64 = EMPTY_BITS;
-        for o in rep {
-            s |= hash_orientation(o) << shift;
+        for o in s.pieces {
+            new_s |= hash_orientation(&o) << shift;
             shift += PIECE_BITS;
         }
-        return s;
+        return new_s;
     }
 
     /// Reverse of hash(), extracts the orientation vector and empty space from
@@ -194,11 +194,12 @@ impl Session {
     /// Adjusts the entire board with a "right" move
     /// Adjusts empty space accordingly
     /// Makes use of mov::right()
-    fn board_right(&self, s: UnhashedState) -> UnhashedState {
+    fn board_right(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != 0 {
             let to_move: usize = s.free as usize - 1;
-            new_state.pieces[to_move] = mov::right(&new_state.pieces[to_move]);
+            let dest: usize = s.free as usize;
+            new_state.pieces[dest] = mov::right(&new_state.pieces[to_move]);
             new_state.free = to_move as u64;
         }
         return new_state;
@@ -207,11 +208,12 @@ impl Session {
     /// Adjusts the entire board with a "left" move
     /// Adjusts empty space accordingly
     /// Makes use of mov::left()
-    fn board_left(&self, s: UnhashedState) -> UnhashedState {
+    fn board_left(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != self.width - 1 {
             let to_move: usize = s.free as usize + 1;
-            new_state.pieces[to_move] = mov::left(&new_state.pieces[to_move]);
+            let dest: usize = s.free as usize;
+            new_state.pieces[dest] = mov::left(&new_state.pieces[to_move]);
             new_state.free = to_move as u64;
         }
         return new_state;
@@ -220,11 +222,12 @@ impl Session {
     /// Adjusts the entire board with a "up" move
     /// Adjusts empty space accordingly
     /// Makes use of mov::up()
-    fn board_up(&self, s: UnhashedState) -> UnhashedState {
+    fn board_up(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free / self.width != self.length - 1 {
             let to_move: usize = (s.free + self.width) as usize;
-            new_state.pieces[to_move] = mov::up(&new_state.pieces[to_move]);
+            let dest: usize = s.free as usize;
+            new_state.pieces[dest] = mov::up(&new_state.pieces[to_move]);
             new_state.free = to_move as u64;
         }
         return new_state;
@@ -233,14 +236,27 @@ impl Session {
     /// Adjusts the entire board with a "down" move
     /// Adjusts empty space accordingly
     /// Makes use of mov::down()
-    fn board_down(&self, s: UnhashedState) -> UnhashedState {
+    fn board_down(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free / self.width != 0 {
             let to_move: usize = (s.free - self.width) as usize;
-            new_state.pieces[to_move] = mov::down(&new_state.pieces[to_move]);
+            let dest: usize = s.free as usize;
+            new_state.pieces[dest] = mov::down(&new_state.pieces[to_move]);
             new_state.free = to_move as u64;
         }
         return new_state;
+    }
+
+    fn r180(&self, s: &UnhashedState) -> UnhashedState {
+        let mut new_s: UnhashedState = s.deep_copy();
+        new_s.pieces.reverse();
+        new_s.free = self.get_pieces() - new_s.free - 1;
+        return new_s;
+    }
+    
+    fn mirror(&self, s: &UnhashedState) -> UnhashedState {
+        let mut new_s: UnhashedState = s.deep_copy();
+        todo!()
     }
 }
 
@@ -286,7 +302,29 @@ mod mov {
             right: o.right,
         };
     }
+
+    /// Transforms an individual piece orientation as if it was rotated
+    /// clockwise. Used for symmetries
+    pub fn cw(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: o.front,
+            top: 5 - o.right,
+            right: o.top,
+        }
+    }
+
+    /// Transforms an individual piece orientation as if it was rotated
+    /// counter-clockwise. Used for symmetries
+    pub fn ccw(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: o.front,
+            top: o.right,
+            right: 5 - o.top,
+        }
+    }
 }
+
+
 
 /// Represents an instance of a Crossteaser game session, which is specific to
 /// a valid variant of the game.
@@ -343,7 +381,21 @@ impl Bounded<State> for Session {
 
 impl DTransition<State> for Session {
     fn prograde(&self, state: State) -> Vec<State> {
-        todo!()
+        let s: UnhashedState = self.unhash(state);
+        let mut states: Vec<State> = Vec::new();
+        if s.free / self.width != self.length - 1 {
+            states.push(self.hash(self.board_up(&s)));
+        }
+        if s.free / self.width != 0 {
+            states.push(self.hash(self.board_down(&s)));
+        }
+        if s.free % self.width != 0 {
+            states.push(self.hash(self.board_right(&s)));
+        }
+        if s.free % self.width != self.width - 1 {
+            states.push(self.hash(self.board_left(&s)));
+        }
+        return states;
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
@@ -386,8 +438,12 @@ impl Legible<State> for Session {
 /* SOLVING IMPLEMENTATIONS */
 
 impl Solvable<1> for Session {
-    fn utility(&self, _state: State) -> [Utility; 1] {
-        return [0];
+    fn utility(&self, state: State) -> [Utility; 1] {
+        if !self.end(state) {
+            panic!("Cannot assess utility of non-terminal state!");
+        } else {
+            return [1];
+        }
     }
 
     fn turn(&self, _state: crate::model::State) -> crate::model::Turn {
