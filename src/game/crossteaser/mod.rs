@@ -112,6 +112,7 @@ const ORIENTATION_MAP: [u64; 24] = [
 /// abc: axis on which the rotation is performed
 /// de: direction of the rotation. 01 = cw, 11 = ccw.
 /// Order of transformations is right to left.
+/// Used for symmetries.
 /// NOTE: This can likely be improved by combining transformations in a 
 /// clever way.
 const TRANSFORM_MAP: [u64; 24] = [
@@ -198,11 +199,11 @@ impl Session {
     /// Simple, inefficient hash function that converts a vector of piece
     /// orientations and an empty space represented by an integer into a 64 bit
     /// integer (State) which uniquely represents that state.
-    fn hash(&self, s: UnhashedState) -> State {
+    fn hash(&self, s: &UnhashedState) -> State {
         let mut new_s: State = s.free;
         let mut shift: u64 = EMPTY_BITS;
-        for o in s.pieces {
-            new_s |= hash_orientation(&o) << shift;
+        for o in &s.pieces {
+            new_s |= hash_orientation(o) << shift;
             shift += PIECE_BITS;
         }
         return new_s;
@@ -295,7 +296,43 @@ impl Session {
         let mut new_s: UnhashedState = s.deep_copy();
         todo!()
     }
-}
+
+    fn apply_transformations(&self, o: &Orientation, t: u64) -> Orientation {
+        let mut t_list: u64 = t;
+        let mut transform: u64;
+        let mut axis: u64;
+        let mut new_o: Orientation = Orientation {
+            front: o.front,
+            top: o.top,
+            right: o.right,
+        };
+        while t_list & 0b11 != 0 {
+            transform = t_list & 0b11;
+            t_list >>= 2;
+            axis = t_list & 0b111;
+            t_list >>= 3;
+            if transform == 0b01 {
+                new_o = mov::cw_on_axis(o, axis);
+            } else if transform == 0b11 {
+                new_o = mov::cw_on_axis(o, 5 - axis);
+            }
+        }
+        return new_o;
+    }
+
+    fn canonical(&self, s: &UnhashedState) -> UnhashedState {
+        let mut new_pieces: Vec<Orientation> = Vec::new();
+        let pos: u64 = hash_orientation(&s.pieces[0]);
+        let transform_list: u64 = TRANSFORM_MAP[pos as usize];
+        for o in &s.pieces {
+            new_pieces.push(self.apply_transformations(o, transform_list));
+        }
+        return UnhashedState {
+            pieces: new_pieces,
+            free: s.free,
+        };
+    }
+ }
 
 /// Module which contains all transition helper functions
 /// There are 4 functions for rotating an individual piece which represents a
@@ -480,16 +517,16 @@ impl DTransition<State> for Session {
         let s: UnhashedState = self.unhash(state);
         let mut states: Vec<State> = Vec::new();
         if s.free / self.width != self.length - 1 {
-            states.push(self.hash(self.board_up(&s)));
+            states.push(self.hash(&self.canonical(&self.board_up(&s))));
         }
         if s.free / self.width != 0 {
-            states.push(self.hash(self.board_down(&s)));
+            states.push(self.hash(&self.canonical(&self.board_down(&s))));
         }
         if s.free % self.width != 0 {
-            states.push(self.hash(self.board_right(&s)));
+            states.push(self.hash(&self.canonical(&self.board_right(&s))));
         }
         if s.free % self.width != self.width - 1 {
-            states.push(self.hash(self.board_left(&s)));
+            states.push(self.hash(&self.canonical(&self.board_left(&s))));
         }
         return states;
     }
