@@ -17,13 +17,14 @@ use crate::{
     model::State,
 };
 
-//TODO: efficient version: have a huge Vec chunk of memory, and HashMap just stores indexes in that memory chunk
-
+/// The Database struct holds an in-memory hashmap from States to BitVec values (derived from Records)
 pub struct Database {
     memory: HashMap<State, BitVec<u8, Msb0>>,
 }
 
 impl Database {
+
+    /// The database is initialized with an empty hashmap.
     pub fn initialize() -> Self {
         Self {
             memory: HashMap::new(),
@@ -31,6 +32,10 @@ impl Database {
     }
 }
 
+/// The KVStore implementation includes three functions:
+/// - put: takes in a State "key" and a Record "value", and stores the Record's raw value in its HashMap.
+/// - get: takes in a State "key" and returns the raw value stored under that key as a BitSlice.
+/// - del: takes in a State "key" and removes any value stored under that key.
 impl KVStore for Database {
     fn put<R: Record>(&mut self, key: State, value: &R) {
         let new = BitVec::from(value.raw()).clone();
@@ -64,11 +69,14 @@ impl Tabular for Database {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
 
+    /// A maximally simple Record implementation, consisting of only a BitVec value
+    /// Created for test purposes
     pub struct Rec {
         value: BitVec<u8, Msb0>,
     }
@@ -85,12 +93,39 @@ mod tests {
         }
     }
 
+    /// This test
+    /// - creates an example state test_state and Record test_rec
+    /// - checks that that test_state is initially not mapped in the database
+    /// - puts test_rec in the database, with test_state as its key
+    /// - checks that test_state now maps to test_rec.
     #[test]
     fn put_data_and_get_it() {
         let mut db: Database = Database::initialize();
         let test_state: State = 7;
         assert!(db.get(test_state).is_none());
         let test_rec: Rec = Rec::initialize(BitVec::<u8, Msb0>::new());
+        db.put(test_state, &test_rec);
+        if let Some(result_rec) = db.get(test_state) {
+            assert!(result_rec == test_rec.raw());
+        } else {
+            assert!(1 == 0);
+        }
+    }
+
+    /// This test
+    /// - creates an example state test_state and Record test_rec
+    /// - puts test_rec in the database, with test_state as its key
+    /// - deletes test_state and any associated Record
+    /// - checks that test_state now, again, maps to nothing
+    /// - puts test_rec BACK in the database, and confirms that test_state now maps to it once again.
+    #[test]
+    fn put_remove_and_put() {
+        let mut db: Database = Database::initialize();
+        let test_state: State = 7;
+        let test_rec: Rec = Rec::initialize(BitVec::<u8, Msb0>::new());
+        db.put(test_state, &test_rec);
+        db.del(test_state);
+        assert!(db.get(test_state).is_none());
         db.put(test_state, &test_rec);
         if let Some(result_rec) = db.get(test_state) {
             assert!(result_rec == test_rec.raw());
