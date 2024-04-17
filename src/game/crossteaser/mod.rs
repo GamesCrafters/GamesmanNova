@@ -113,7 +113,6 @@ const ORIENTATION_MAP: [u64; 24] = [
 /// abc: axis on which the rotation is performed
 /// de: direction of the rotation. 01 = cw, 11 = ccw.
 /// Order of transformations is right to left.
-/// Used for symmetries.
 /// NOTE: This can likely be improved by combining transformations in a
 /// clever way.
 const TRANSFORM_MAP: [u64; 24] = [
