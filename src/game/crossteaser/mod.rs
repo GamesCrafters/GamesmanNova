@@ -110,6 +110,16 @@ const ORIENTATION_MAP: [u64; 24] = [
     0b101_001_011, // 24
 ];
 
+/// Defines a sequence of axis-wise rotations which will return an orientation
+/// to orientation 1 (index 0 in ORIENTATION_MAP).
+/// An axis-wise rotation on axis x is a rotation on a piece along the axis
+/// from face x to face 5 - x.
+/// Format: each rotation is 5 bits of format abc_de
+/// abc: axis on which the rotation is performed
+/// de: direction of the rotation. 01 = cw, 11 = ccw.
+/// Order of transformations is right to left.
+/// NOTE: This can likely be improved by combining transformations in a 
+/// clever way.
 const TRANSFORM_MAP: [u64; 24] = [
     0b0,                    // 1
     0b000_01,               // 2
@@ -396,6 +406,9 @@ mod mov {
         };
     }
 
+    /// Performs a clowckwise orientation on an orientation
+    /// along the specified axis.
+    /// I am trying to figure out a way to make this faster.
     pub fn cw_on_axis(o: &Orientation, axis: u64) -> Orientation {
         if axis == o.front {
             return cw_front(o);
