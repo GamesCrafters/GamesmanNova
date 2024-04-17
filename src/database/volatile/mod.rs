@@ -23,7 +23,6 @@ pub struct Database {
 }
 
 impl Database {
-
     /// The database is initialized with an empty hashmap.
     pub fn initialize() -> Self {
         Self {
@@ -68,7 +67,6 @@ impl Tabular for Database {
         todo!()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
