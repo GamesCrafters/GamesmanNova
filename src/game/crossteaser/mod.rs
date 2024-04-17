@@ -253,7 +253,7 @@ impl Session {
         new_s.free = self.get_pieces() - new_s.free - 1;
         return new_s;
     }
-    
+
     fn mirror(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_s: UnhashedState = s.deep_copy();
         todo!()
@@ -310,7 +310,7 @@ mod mov {
             front: o.front,
             top: 5 - o.right,
             right: o.top,
-        }
+        };
     }
 
     /// Transforms an individual piece orientation as if it was rotated
@@ -320,11 +320,9 @@ mod mov {
             front: o.front,
             top: o.right,
             right: 5 - o.top,
-        }
+        };
     }
 }
-
-
 
 /// Represents an instance of a Crossteaser game session, which is specific to
 /// a valid variant of the game.
