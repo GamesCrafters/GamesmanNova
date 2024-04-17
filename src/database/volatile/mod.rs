@@ -39,7 +39,7 @@ impl KVStore for Database {
         self.memory.insert(key, new);
     }
 
-    fn get(&self, key: State) -> Option<&[u8]> {
+    fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>> {
         let vecOpt = self.memory.get(&key);
         match vecOpt {
             None => None,
