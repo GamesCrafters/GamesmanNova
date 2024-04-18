@@ -45,7 +45,10 @@ impl Into<String> for RecordType {
                 format!("Remoteness (no utility)")
             },
             RecordType::SURCC(players) => {
-                format!("Simple Utility Remoteness with Child Count ({}  players)", players)
+                format!(
+                    "Simple Utility Remoteness with Child Count ({}  players)",
+                    players
+                )
             },
         }
     }

@@ -14,9 +14,9 @@ use crate::interface::IOMode;
 use crate::model::SimpleUtility;
 use crate::model::{Remoteness, State};
 use crate::solver::error::SolverError::SolverViolation;
-use std::collections::{HashMap, HashSet, VecDeque};
-use bitvec::{order::Msb0, prelude::*, slice::BitSlice, store::BitStore}; 
 use crate::solver::record::surcc::{ChildCount, RecordBuffer};
+use bitvec::{order::Msb0, prelude::*, slice::BitSlice, store::BitStore};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 pub fn dynamic_solver<G>(game: &G, mode: IOMode) -> Result<()>
 where
@@ -69,13 +69,21 @@ where
     // Perform BFS on winning states
     while let Some(state) = winning_queue.pop_front() {
         let buf = RecordBuffer::from(db.get(state).unwrap())?;
-        let child_remoteness = RecordBuffer::from(db.get(state).unwrap())?.get_remoteness();
+        let child_remoteness =
+            RecordBuffer::from(db.get(state).unwrap())?.get_remoteness();
 
         for parent in game.retrograde(state) {
-            let child_count = RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
+            let child_count =
+                RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
             if child_count > 0 {
                 winning_queue.push_back(parent);
-                update_db_record(db, parent, SimpleUtility::WIN, 1 + child_remoteness, 0)?;
+                update_db_record(
+                    db,
+                    parent,
+                    SimpleUtility::WIN,
+                    1 + child_remoteness,
+                    0,
+                )?;
             }
         }
     }
@@ -84,10 +92,12 @@ where
     // position.
     while let Some(state) = losing_queue.pop_front() {
         let parents = game.retrograde(state);
-        let child_remoteness = RecordBuffer::from(db.get(state).unwrap())?.get_remoteness();
+        let child_remoteness =
+            RecordBuffer::from(db.get(state).unwrap())?.get_remoteness();
 
         for parent in parents {
-            let child_count = RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
+            let child_count =
+                RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
             if child_count > 0 {
                 // Update child count
                 let mut buf = RecordBuffer::from(db.get(parent).unwrap())
@@ -99,7 +109,13 @@ where
                 // If all children have been solved, set this state as a losing state
                 if new_child_count == 0 {
                     losing_queue.push_back(parent);
-                    update_db_record(db, parent, SimpleUtility::LOSE, 1 + child_remoteness, 0)?;
+                    update_db_record(
+                        db,
+                        parent,
+                        SimpleUtility::LOSE,
+                        1 + child_remoteness,
+                        0,
+                    )?;
                 }
             }
         }
@@ -109,8 +125,14 @@ where
 }
 
 /// Updates the database record for a puzzle with given simple utility and remoteness
-fn update_db_record<D>(db: &mut D, state: State, utility: SimpleUtility, remoteness: Remoteness, child_count: ChildCount) -> Result<()>
-where 
+fn update_db_record<D>(
+    db: &mut D,
+    state: State,
+    utility: SimpleUtility,
+    remoteness: Remoteness,
+    child_count: ChildCount,
+) -> Result<()>
+where
     D: KVStore,
 {
     let mut buf = RecordBuffer::from(db.get(state).unwrap())
@@ -126,12 +148,13 @@ where
     Ok(())
 }
 
-fn discover_child_counts<G, D>(
-    db: &mut D,
-    game: &G,
-) -> Result<Vec<State>>
+fn discover_child_counts<G, D>(db: &mut D, game: &G) -> Result<Vec<State>>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
+    G: DTransition<State>
+        + Bounded<State>
+        + ClassicPuzzle
+        + Extensive<1>
+        + Game,
     D: KVStore,
 {
     let mut end_states = Vec::new();
@@ -146,22 +169,26 @@ fn discover_child_counts_helper<G, D>(
     db: &mut D,
     game: &G,
     state: State,
-    end_states: &mut Vec<State>
+    end_states: &mut Vec<State>,
 ) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Extensive<1> + Game,
+    G: DTransition<State>
+        + Bounded<State>
+        + ClassicPuzzle
+        + Extensive<1>
+        + Game,
     D: KVStore,
 {
     let child_count = game.prograde(state).len() as ChildCount;
 
     if child_count == 0 {
-        end_states.push(state);  
+        end_states.push(state);
     }
 
     // Initialize all utilies to draw; any utilities not set by the end must be
     // a drawn position
-    let mut buf = RecordBuffer::new(1)
-        .context("Failed to create record for state")?;
+    let mut buf =
+        RecordBuffer::new(1).context("Failed to create record for state")?;
     buf.set_utility([SimpleUtility::DRAW])
         .context("Failed to set remoteness for state")?;
     buf.set_child_count(child_count)
@@ -171,7 +198,11 @@ where
     // We need to check both prograde and retrograde; consider a game with 3 nodes where 0-->2
     // and 1-->2. Then, starting from node 0 with only progrades would discover states 0 and 1; we
     // need to include retrogrades to discover state 2.
-    for &child in game.prograde(state).iter().chain(game.retrograde(state).iter()) {
+    for &child in game
+        .prograde(state)
+        .iter()
+        .chain(game.retrograde(state).iter())
+    {
         if db.get(child).is_none() {
             discover_child_counts_helper(db, game, child, end_states)?;
         }
@@ -209,13 +240,13 @@ where
 
 // THIS IS ONLY FOR TESTING PURPOSES
 struct TestDB {
-    memory: HashMap<State, BitVec<u8, Msb0>>
+    memory: HashMap<State, BitVec<u8, Msb0>>,
 }
 
 impl TestDB {
     fn initialize() -> Self {
         Self {
-            memory: HashMap::new()
+            memory: HashMap::new(),
         }
     }
 }
@@ -224,9 +255,12 @@ impl KVStore for TestDB {
     fn put<R: crate::database::Record>(&mut self, key: State, record: &R) {
         let new = BitVec::from(record.raw()).clone();
         self.memory.insert(key, new);
-    } 
+    }
 
-    fn get(&self, key: State) -> Option<&bitvec::prelude::BitSlice<u8, bitvec::prelude::Msb0>> {
+    fn get(
+        &self,
+        key: State,
+    ) -> Option<&bitvec::prelude::BitSlice<u8, bitvec::prelude::Msb0>> {
         let vec_opt = self.memory.get(&key);
         match vec_opt {
             None => None,
@@ -235,7 +269,7 @@ impl KVStore for TestDB {
     }
 
     fn del(&mut self, key: State) {
-        unimplemented![]; 
+        unimplemented![];
     }
 }
 
@@ -249,6 +283,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::database::{KVStore, Tabular};
+    use crate::game::mock;
     use crate::game::{
         Bounded, ClassicPuzzle, DTransition, Extensive, Game, GameData,
         SimpleSum,
@@ -256,14 +292,14 @@ mod tests {
     use crate::interface::{IOMode, SolutionMode};
     use crate::model::SimpleUtility;
     use crate::model::{State, Turn};
+    use crate::node;
+    use crate::solver::record::surcc::RecordBuffer;
     use anyhow::Result;
     use std::collections::{HashMap, VecDeque};
-    use crate::solver::record::surcc::RecordBuffer;
-    use crate::database::{KVStore, Tabular};
-    use crate::game::mock;
-    use crate::node;
 
-    use super::{discover_child_counts, volatile_database, reverse_bfs_solver, TestDB};
+    use super::{
+        discover_child_counts, reverse_bfs_solver, volatile_database, TestDB,
+    };
 
     struct GameNode {
         children: Vec<State>,
@@ -348,18 +384,25 @@ mod tests {
     #[test]
     fn game_with_single_node_win() -> Result<()> {
         let graph = PuzzleGraph {
-            adj_list: vec![
-                GameNode { children: vec![], utility: Some(SimpleUtility::WIN) }
-            ],
+            adj_list: vec![GameNode {
+                children: vec![],
+                utility: Some(SimpleUtility::WIN),
+            }],
         };
-               
+
         // Solve game
         let mut db = volatile_database(&graph)?;
         reverse_bfs_solver(&mut db, &graph);
 
-        assert!(matches!(RecordBuffer::from(db.get(0).unwrap())?.get_utility(0)?, SimpleUtility::WIN));
-        assert_eq!(RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(), 0);
-        
+        assert!(matches!(
+            RecordBuffer::from(db.get(0).unwrap())?.get_utility(0)?,
+            SimpleUtility::WIN
+        ));
+        assert_eq!(
+            RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(),
+            0
+        );
+
         Ok(())
     }
 
@@ -367,8 +410,14 @@ mod tests {
     fn game_with_two_nodes_win() -> Result<()> {
         let graph = PuzzleGraph {
             adj_list: vec![
-                GameNode { children: vec![1], utility: None },
-                GameNode { children: vec![], utility: Some(SimpleUtility::WIN) },
+                GameNode {
+                    children: vec![1],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![],
+                    utility: Some(SimpleUtility::WIN),
+                },
             ],
         };
 
@@ -376,11 +425,23 @@ mod tests {
         let mut db = volatile_database(&graph)?;
         reverse_bfs_solver(&mut db, &graph);
 
-        assert!(matches!(RecordBuffer::from(db.get(0).unwrap())?.get_utility(0)?, SimpleUtility::WIN));
-        assert!(matches!(RecordBuffer::from(db.get(1).unwrap())?.get_utility(0)?, SimpleUtility::WIN));
+        assert!(matches!(
+            RecordBuffer::from(db.get(0).unwrap())?.get_utility(0)?,
+            SimpleUtility::WIN
+        ));
+        assert!(matches!(
+            RecordBuffer::from(db.get(1).unwrap())?.get_utility(0)?,
+            SimpleUtility::WIN
+        ));
 
-        assert_eq!(RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(), 0);
+        assert_eq!(
+            RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(),
+            0
+        );
 
         Ok(())
     }
@@ -389,11 +450,26 @@ mod tests {
     fn game_with_dag_win() -> Result<()> {
         let graph = PuzzleGraph {
             adj_list: vec![
-                GameNode { children: vec![1, 2, 4], utility: None },
-                GameNode { children: vec![3], utility: None },
-                GameNode { children: vec![3, 4], utility: None },
-                GameNode { children: vec![4], utility: None },
-                GameNode { children: vec![], utility: Some(SimpleUtility::WIN) },
+                GameNode {
+                    children: vec![1, 2, 4],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![3],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![3, 4],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![4],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![],
+                    utility: Some(SimpleUtility::WIN),
+                },
             ],
         };
 
@@ -402,14 +478,32 @@ mod tests {
         reverse_bfs_solver(&mut db, &graph);
 
         for i in 0..5 {
-            assert!(matches!(RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?, SimpleUtility::WIN));
+            assert!(matches!(
+                RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?,
+                SimpleUtility::WIN
+            ));
         }
 
-        assert_eq!(RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(), 2);
-        assert_eq!(RecordBuffer::from(db.get(2).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(3).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(4).unwrap())?.get_remoteness(), 0);
+        assert_eq!(
+            RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(),
+            2
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(2).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(3).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(4).unwrap())?.get_remoteness(),
+            0
+        );
 
         Ok(())
     }
@@ -418,12 +512,30 @@ mod tests {
     fn game_with_cyclic_graph_draw() -> Result<()> {
         let graph = PuzzleGraph {
             adj_list: vec![
-                GameNode { children: vec![1, 2, 4], utility: None },
-                GameNode { children: vec![3], utility: None },
-                GameNode { children: vec![3, 4], utility: None },
-                GameNode { children: vec![4], utility: None },
-                GameNode { children: vec![5], utility: None },
-                GameNode { children: vec![2, 4], utility: None },
+                GameNode {
+                    children: vec![1, 2, 4],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![3],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![3, 4],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![4],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![5],
+                    utility: None,
+                },
+                GameNode {
+                    children: vec![2, 4],
+                    utility: None,
+                },
             ],
         };
 
@@ -432,7 +544,10 @@ mod tests {
         reverse_bfs_solver(&mut db, &graph);
 
         for i in 0..5 {
-            assert!(matches!(RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?, SimpleUtility::DRAW));
+            assert!(matches!(
+                RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?,
+                SimpleUtility::DRAW
+            ));
         }
 
         Ok(())
@@ -442,63 +557,42 @@ mod tests {
     fn game_with_dag_win_and_lose() -> Result<()> {
         let graph = PuzzleGraph {
             adj_list: vec![
-                GameNode { utility: None, children: vec![3] },
-                GameNode { utility: None, children: vec![4] },
-                GameNode { utility: None, children: vec![4] },
-                GameNode { utility: None, children: vec![4, 5] },
-                GameNode { utility: None, children: vec![8, 0] },
-                GameNode { utility: Some(SimpleUtility::WIN), children: vec![] },
-                GameNode { utility: None, children: vec![8] },
-                GameNode { utility: None, children: vec![6, 8] },
-                GameNode { utility: Some(SimpleUtility::LOSE), children: vec![] },
-            ],
-        };
-
-       // Solve game
-        let mut db = volatile_database(&graph)?;
-        reverse_bfs_solver(&mut db, &graph);
-
-        for i in 0..=5 {
-            assert!(matches!(RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?, SimpleUtility::WIN));
-        }
-        assert!(matches!(RecordBuffer::from(db.get(6).unwrap())?.get_utility(0)?, SimpleUtility::LOSE));
-        assert!(matches!(RecordBuffer::from(db.get(7).unwrap())?.get_utility(0)?, SimpleUtility::LOSE));
-        assert!(matches!(RecordBuffer::from(db.get(8).unwrap())?.get_utility(0)?, SimpleUtility::LOSE));
-
-        assert_eq!(RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(), 2);
-        assert_eq!(RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(), 4);
-        assert_eq!(RecordBuffer::from(db.get(2).unwrap())?.get_remoteness(), 4);
-        assert_eq!(RecordBuffer::from(db.get(3).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(4).unwrap())?.get_remoteness(), 3);
-        assert_eq!(RecordBuffer::from(db.get(5).unwrap())?.get_remoteness(), 0);
-        assert_eq!(RecordBuffer::from(db.get(6).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(7).unwrap())?.get_remoteness(), 2);
-        assert_eq!(RecordBuffer::from(db.get(8).unwrap())?.get_remoteness(), 0);
-        
-        Ok(())
-    }
-
-    #[test]
-    fn game_with_wld() -> Result<()> {
-        let graph = PuzzleGraph {
-            adj_list: vec![
-                GameNode { utility: None, children: vec![3] },
-                GameNode { utility: None, children: vec![4, 5] },
-                GameNode { utility: None, children: vec![4] },
-                GameNode { utility: None, children: vec![4, 5] },
-                GameNode { utility: None, children: vec![8, 0] },
-                GameNode { utility: Some(SimpleUtility::WIN), children: vec![] },
-
-                GameNode { utility: None, children: vec![8] },
-                GameNode { utility: None, children: vec![6, 8, 13] },
-                GameNode { utility: Some(SimpleUtility::LOSE), children: vec![] },
-
-                GameNode { utility: Some(SimpleUtility::LOSE), children: vec![10] },
-                GameNode { utility: Some(SimpleUtility::LOSE), children: vec![11] },
-                GameNode { utility: Some(SimpleUtility::LOSE), children: vec![9, 2] },
-
-                GameNode { utility: Some(SimpleUtility::LOSE), children: vec![7] },
-                GameNode { utility: Some(SimpleUtility::LOSE), children: vec![12] },
+                GameNode {
+                    utility: None,
+                    children: vec![3],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![4],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![4],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![4, 5],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![8, 0],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::WIN),
+                    children: vec![],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![8],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![6, 8],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![],
+                },
             ],
         };
 
@@ -507,29 +601,209 @@ mod tests {
         reverse_bfs_solver(&mut db, &graph);
 
         for i in 0..=5 {
-            assert!(matches!(RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?, SimpleUtility::WIN));
+            assert!(matches!(
+                RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?,
+                SimpleUtility::WIN
+            ));
         }
-        assert!(matches!(RecordBuffer::from(db.get(6).unwrap())?.get_utility(0)?, SimpleUtility::LOSE));
-        assert!(matches!(RecordBuffer::from(db.get(7).unwrap())?.get_utility(0)?, SimpleUtility::DRAW));
-        assert!(matches!(RecordBuffer::from(db.get(8).unwrap())?.get_utility(0)?, SimpleUtility::LOSE));
-        for i in 9..=11 {
-            assert!(matches!(RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?, SimpleUtility::WIN));
-        }
-        assert!(matches!(RecordBuffer::from(db.get(12).unwrap())?.get_utility(0)?, SimpleUtility::DRAW));
-        assert!(matches!(RecordBuffer::from(db.get(13).unwrap())?.get_utility(0)?, SimpleUtility::DRAW));
+        assert!(matches!(
+            RecordBuffer::from(db.get(6).unwrap())?.get_utility(0)?,
+            SimpleUtility::LOSE
+        ));
+        assert!(matches!(
+            RecordBuffer::from(db.get(7).unwrap())?.get_utility(0)?,
+            SimpleUtility::LOSE
+        ));
+        assert!(matches!(
+            RecordBuffer::from(db.get(8).unwrap())?.get_utility(0)?,
+            SimpleUtility::LOSE
+        ));
 
-        assert_eq!(RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(), 2);
-        assert_eq!(RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(2).unwrap())?.get_remoteness(), 4);
-        assert_eq!(RecordBuffer::from(db.get(3).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(4).unwrap())?.get_remoteness(), 3);
-        assert_eq!(RecordBuffer::from(db.get(5).unwrap())?.get_remoteness(), 0);
-        assert_eq!(RecordBuffer::from(db.get(6).unwrap())?.get_remoteness(), 1);
-        assert_eq!(RecordBuffer::from(db.get(8).unwrap())?.get_remoteness(), 0);
-        assert_eq!(RecordBuffer::from(db.get(9).unwrap())?.get_remoteness(), 7);
-        assert_eq!(RecordBuffer::from(db.get(10).unwrap())?.get_remoteness(), 6);
-        assert_eq!(RecordBuffer::from(db.get(11).unwrap())?.get_remoteness(), 5);
-        
+        assert_eq!(
+            RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(),
+            2
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(),
+            4
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(2).unwrap())?.get_remoteness(),
+            4
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(3).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(4).unwrap())?.get_remoteness(),
+            3
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(5).unwrap())?.get_remoteness(),
+            0
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(6).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(7).unwrap())?.get_remoteness(),
+            2
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(8).unwrap())?.get_remoteness(),
+            0
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn game_with_wld() -> Result<()> {
+        let graph = PuzzleGraph {
+            adj_list: vec![
+                GameNode {
+                    utility: None,
+                    children: vec![3],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![4, 5],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![4],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![4, 5],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![8, 0],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::WIN),
+                    children: vec![],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![8],
+                },
+                GameNode {
+                    utility: None,
+                    children: vec![6, 8, 13],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![10],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![11],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![9, 2],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![7],
+                },
+                GameNode {
+                    utility: Some(SimpleUtility::LOSE),
+                    children: vec![12],
+                },
+            ],
+        };
+
+        // Solve game
+        let mut db = volatile_database(&graph)?;
+        reverse_bfs_solver(&mut db, &graph);
+
+        for i in 0..=5 {
+            assert!(matches!(
+                RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?,
+                SimpleUtility::WIN
+            ));
+        }
+        assert!(matches!(
+            RecordBuffer::from(db.get(6).unwrap())?.get_utility(0)?,
+            SimpleUtility::LOSE
+        ));
+        assert!(matches!(
+            RecordBuffer::from(db.get(7).unwrap())?.get_utility(0)?,
+            SimpleUtility::DRAW
+        ));
+        assert!(matches!(
+            RecordBuffer::from(db.get(8).unwrap())?.get_utility(0)?,
+            SimpleUtility::LOSE
+        ));
+        for i in 9..=11 {
+            assert!(matches!(
+                RecordBuffer::from(db.get(i).unwrap())?.get_utility(0)?,
+                SimpleUtility::WIN
+            ));
+        }
+        assert!(matches!(
+            RecordBuffer::from(db.get(12).unwrap())?.get_utility(0)?,
+            SimpleUtility::DRAW
+        ));
+        assert!(matches!(
+            RecordBuffer::from(db.get(13).unwrap())?.get_utility(0)?,
+            SimpleUtility::DRAW
+        ));
+
+        assert_eq!(
+            RecordBuffer::from(db.get(0).unwrap())?.get_remoteness(),
+            2
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(1).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(2).unwrap())?.get_remoteness(),
+            4
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(3).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(4).unwrap())?.get_remoteness(),
+            3
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(5).unwrap())?.get_remoteness(),
+            0
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(6).unwrap())?.get_remoteness(),
+            1
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(8).unwrap())?.get_remoteness(),
+            0
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(9).unwrap())?.get_remoteness(),
+            7
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(10).unwrap())?.get_remoteness(),
+            6
+        );
+        assert_eq!(
+            RecordBuffer::from(db.get(11).unwrap())?.get_remoteness(),
+            5
+        );
+
         Ok(())
     }
 }

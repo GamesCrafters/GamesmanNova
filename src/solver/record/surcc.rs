@@ -1,4 +1,3 @@
-
 //! # Simple-Utility Remoteness with Child Counts (SURCC) Record Module
 //!
 //! Implementation of a database record buffer for storing simple utilities
@@ -171,7 +170,8 @@ impl RecordBuffer {
                     there was an attempt to instantiate one with from a buffer \
                     with {} bits, which is not enough to store a remoteness \
                     and child count value (which takes {} bits).",
-                    len, Self::minimum_bit_size(),
+                    len,
+                    Self::minimum_bit_size(),
                 ),
             })?
         } else {
@@ -356,7 +356,7 @@ impl RecordBuffer {
         player * UTILITY_SIZE
     }
 
-    /// Return the bit index of the child count entry 
+    /// Return the bit index of the child count entry
     #[inline(always)]
     const fn child_count_index(players: usize) -> usize {
         players * UTILITY_SIZE + REMOTENESS_SIZE
