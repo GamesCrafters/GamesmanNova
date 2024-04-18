@@ -55,13 +55,17 @@ where
             SimpleUtility::LOSE => losing_queue.push_back(end_state),
             SimpleUtility::TIE => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!("Primitive end position cannot have utility TIE
-                              for a puzzle"),
+                hint: format!(
+                    "Primitive end position cannot have utility TIE
+                              for a puzzle"
+                ),
             })?,
             SimpleUtility::DRAW => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!("Primitive end position cannot have utility DRAW
-                              for a puzzle"),
+                hint: format!(
+                    "Primitive end position cannot have utility DRAW
+                              for a puzzle"
+                ),
             })?,
         }
         // Add ending state utility and remoteness to database
