@@ -39,7 +39,7 @@ pub const UTILITY_SIZE: usize = 2;
 pub const CHILD_COUNT_SIZE: usize = 32;
 
 /// Type for child count
-type ChildCount = u64;
+pub type ChildCount = u64;
 
 /* SCHEMA GENERATOR */
 
@@ -48,7 +48,7 @@ type ChildCount = u64;
 pub fn schema(players: PlayerCount) -> Result<Schema> {
     if RecordBuffer::bit_size(players) > BUFFER_SIZE {
         Err(RecordViolation {
-            name: RecordBuffer::into_string(players),
+            name: RecordType::SURCC(players).into(),
             hint: format!(
                 "This record can only hold utility values for up to {} \
                 players, but there was an attempt to create a schema that \
@@ -58,7 +58,7 @@ pub fn schema(players: PlayerCount) -> Result<Schema> {
             ),
         })?
     } else {
-        let mut schema = SchemaBuilder::new().of(RecordType::SUR(players));
+        let mut schema = SchemaBuilder::new().of(RecordType::SURCC(players));
 
         for i in 0..players {
             let name = &format!("P{} utility", i);
@@ -124,11 +124,6 @@ impl Record for RecordBuffer {
 }
 
 impl RecordBuffer {
-    // Returns the string name for this record buffer
-    fn into_string(players: PlayerCount) -> String {
-        format!("Simple Utility Remoteness Child Count ({} players)", players)
-    }
-
     /// Returns a new instance of a bit-packed record buffer that is able to
     /// store utility values for `players`. Fails if `players` is too high for
     /// the underlying buffer's capacity.
@@ -136,7 +131,7 @@ impl RecordBuffer {
     pub fn new(players: PlayerCount) -> Result<Self> {
         if Self::bit_size(players) > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordBuffer::into_string(players),
+                name: RecordType::SURCC(players).into(),
                 hint: format!(
                     "The record can only hold utility values for up to {} \
                     players, but there was an attempt to instantiate one for \
@@ -160,7 +155,7 @@ impl RecordBuffer {
         let len = bits.len();
         if len > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordBuffer::into_string(0),
+                name: RecordType::SURCC(0).into(),
                 hint: format!(
                     "The record implementation operates on a buffer of {} \
                     bits, but there was an attempt to instantiate one from a \
@@ -170,13 +165,13 @@ impl RecordBuffer {
             })?
         } else if len < Self::minimum_bit_size() {
             Err(RecordViolation {
-                name: RecordBuffer::into_string(0),
+                name: RecordType::SURCC(0).into(),
                 hint: format!(
                     "This record implementation stores utility values, but \
                     there was an attempt to instantiate one with from a buffer \
                     with {} bits, which is not enough to store a remoteness \
-                    value (which takes {} bits).",
-                    len, REMOTENESS_SIZE,
+                    and child count value (which takes {} bits).",
+                    len, Self::minimum_bit_size(),
                 ),
             })?
         } else {
@@ -195,7 +190,7 @@ impl RecordBuffer {
     pub fn get_utility(&self, player: Turn) -> Result<SimpleUtility> {
         if player >= self.players {
             Err(RecordViolation {
-                name: RecordBuffer::into_string(self.players),
+                name: RecordType::SURCC(self.players).into(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to fetch the utility of player {} \
@@ -211,7 +206,7 @@ impl RecordBuffer {
                 Ok(utility)
             } else {
                 Err(RecordViolation {
-                    name: RecordBuffer::into_string(self.players),
+                    name: RecordType::SURCC(self.players).into(),
                     hint: format!(
                         "There was an attempt to deserialize a utility value \
                         of '{}' into a simple utility type.",
@@ -253,7 +248,7 @@ impl RecordBuffer {
     ) -> Result<()> {
         if N != self.players {
             Err(RecordViolation {
-                name: RecordBuffer::into_string(self.players),
+                name: RecordType::SURCC(self.players).into(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to use a {}-entry utility list to \
@@ -267,7 +262,7 @@ impl RecordBuffer {
                 let size = util::min_ubits(utility);
                 if size > UTILITY_SIZE {
                     Err(RecordViolation {
-                        name: RecordBuffer::into_string(self.players),
+                        name: RecordType::SURCC(self.players).into(),
                         hint: format!(
                             "This record implementation uses {} bits to store \
                             signed integers representing utility values, but \
@@ -293,7 +288,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
             Err(RecordViolation {
-                name: RecordBuffer::into_string(self.players),
+                name: RecordType::SURCC(self.players).into(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing remoteness values, but there was an \
@@ -317,7 +312,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > CHILD_COUNT_SIZE {
             Err(RecordViolation {
-                name: RecordBuffer::into_string(self.players),
+                name: RecordType::SURCC(self.players).into(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing child count values, but there was an \
@@ -340,13 +335,13 @@ impl RecordBuffer {
     /// containing utility information for `players` as well as remoteness.
     #[inline(always)]
     const fn bit_size(players: usize) -> usize {
-        (players * UTILITY_SIZE) + REMOTENESS_SIZE
+        (players * UTILITY_SIZE) + REMOTENESS_SIZE + CHILD_COUNT_SIZE
     }
 
     /// Return the minimum number of bits needed for a valid record buffer.
     #[inline(always)]
     const fn minimum_bit_size() -> usize {
-        REMOTENESS_SIZE
+        REMOTENESS_SIZE + CHILD_COUNT_SIZE
     }
 
     /// Return the bit index of the remoteness entry start in the record buffer.
@@ -371,7 +366,7 @@ impl RecordBuffer {
     /// (one that maximizes bit usage) with `length`. Ignores unused bits.
     #[inline(always)]
     const fn player_count(length: usize) -> usize {
-        (length - REMOTENESS_SIZE) / UTILITY_SIZE
+        (length - REMOTENESS_SIZE - CHILD_COUNT_SIZE) / UTILITY_SIZE
     }
 }
 
@@ -534,5 +529,15 @@ mod tests {
 
         assert_eq!(record.get_remoteness(), MAX_REMOTENESS);
         assert!(record.set_utility(bad).is_err());
+    }
+
+    #[test]
+    fn child_counts_retrieved_properly() -> Result<()> {
+        let mut buf = RecordBuffer::new(3)?;
+        buf.set_child_count(4)?;
+
+        assert_eq!(buf.get_child_count(), 4);
+
+        Ok(())
     }
 }

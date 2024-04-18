@@ -44,6 +44,9 @@ impl Into<String> for RecordType {
             RecordType::REM => {
                 format!("Remoteness (no utility)")
             },
+            RecordType::SURCC(players) => {
+                format!("Simple Utility Remoteness with Child Count ({}  players)", players)
+            },
         }
     }
 }
@@ -56,6 +59,7 @@ impl TryInto<Schema> for RecordType {
             RecordType::RUR(players) => record::mur::schema(players),
             RecordType::SUR(players) => record::sur::schema(players),
             RecordType::REM => record::rem::schema(),
+            RecordType::SURCC(players) => record::surcc::schema(players),
         }
     }
 }
