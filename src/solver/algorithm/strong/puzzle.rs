@@ -47,10 +47,6 @@ where
     // Get end states and create frontiers
     let end_states = discover_child_counts(db, game)?;
 
-    // Contains states that have already been visited
-    let mut visited = HashSet::new();
-
-    // TODO: Change this to no longer store remoteness, just query db
     let mut winning_queue: VecDeque<State> = VecDeque::new();
     let mut losing_queue: VecDeque<State> = VecDeque::new();
     for end_state in end_states {
@@ -66,20 +62,19 @@ where
                 hint: format!("Primitive end position cannot have utility DRAW for a puzzle"),
             })?,
         }
-        visited.insert(end_state);
-
         // Add ending state utility and remoteness to database
         update_db_record(db, end_state, game.utility(end_state), 0, 0)?;
     }
 
     // Perform BFS on winning states
     while let Some(state) = winning_queue.pop_front() {
+        let buf = RecordBuffer::from(db.get(state).unwrap())?;
         let child_remoteness = RecordBuffer::from(db.get(state).unwrap())?.get_remoteness();
 
         for parent in game.retrograde(state) {
-            if !visited.contains(&parent) {
+            let child_count = RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
+            if child_count > 0 {
                 winning_queue.push_back(parent);
-                visited.insert(parent);
                 update_db_record(db, parent, SimpleUtility::WIN, 1 + child_remoteness, 0)?;
             }
         }
@@ -92,11 +87,11 @@ where
         let child_remoteness = RecordBuffer::from(db.get(state).unwrap())?.get_remoteness();
 
         for parent in parents {
-            if !visited.contains(&parent) {
-                // Get child count from database
+            let child_count = RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
+            if child_count > 0 {
+                // Update child count
                 let mut buf = RecordBuffer::from(db.get(parent).unwrap())
                     .context("Failed to get record for middle state")?;
-                
                 let new_child_count = buf.get_child_count() - 1;
                 buf.set_child_count(new_child_count)?;
                 db.put(parent, &buf);
@@ -104,7 +99,6 @@ where
                 // If all children have been solved, set this state as a losing state
                 if new_child_count == 0 {
                     losing_queue.push_back(parent);
-                    visited.insert(parent);
                     update_db_record(db, parent, SimpleUtility::LOSE, 1 + child_remoteness, 0)?;
                 }
             }
