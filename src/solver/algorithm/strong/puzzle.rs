@@ -55,11 +55,13 @@ where
             SimpleUtility::LOSE => losing_queue.push_back(end_state),
             SimpleUtility::TIE => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!("Primitive end position cannot have utility TIE for a puzzle"),
+                hint: format!("Primitive end position cannot have utility TIE
+                              for a puzzle"),
             })?,
             SimpleUtility::DRAW => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!("Primitive end position cannot have utility DRAW for a puzzle"),
+                hint: format!("Primitive end position cannot have utility DRAW
+                              for a puzzle"),
             })?,
         }
         // Add ending state utility and remoteness to database
@@ -88,7 +90,8 @@ where
         }
     }
 
-    // Perform BFS on losing states, where remoteness is the longest path to a losing primitive
+    // Perform BFS on losing states, where remoteness is the longest path to a
+    // losing primitive
     // position.
     while let Some(state) = losing_queue.pop_front() {
         let parents = game.retrograde(state);
@@ -106,7 +109,8 @@ where
                 buf.set_child_count(new_child_count)?;
                 db.put(parent, &buf);
 
-                // If all children have been solved, set this state as a losing state
+                // If all children have been solved, set this state as a losing
+                // state
                 if new_child_count == 0 {
                     losing_queue.push_back(parent);
                     update_db_record(
@@ -124,7 +128,8 @@ where
     Ok(())
 }
 
-/// Updates the database record for a puzzle with given simple utility and remoteness
+/// Updates the database record for a puzzle with given simple utility,
+/// remoteness, and child count
 fn update_db_record<D>(
     db: &mut D,
     state: State,
@@ -195,9 +200,10 @@ where
         .context("Failed to set child count for state.")?;
     db.put(state, &buf);
 
-    // We need to check both prograde and retrograde; consider a game with 3 nodes where 0-->2
-    // and 1-->2. Then, starting from node 0 with only progrades would discover states 0 and 1; we
-    // need to include retrogrades to discover state 2.
+    // We need to check both prograde and retrograde; consider a game with 3
+    // nodes where 0-->2 and 1-->2. Then, starting from node 0 with only
+    // progrades would discover states 0 and 1; we need to include retrogrades
+    // to discover state 2.
     for &child in game
         .prograde(state)
         .iter()
