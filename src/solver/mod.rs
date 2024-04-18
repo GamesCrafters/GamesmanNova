@@ -61,6 +61,13 @@ pub mod algorithm {
         pub mod acyclic;
         pub mod cyclic;
     }
+
+    /// These are custom records for certain solving algorithms that may need to
+    /// store additional data; these should not be accessible outside the
+    /// solving algorithms
+    mod record {
+        pub mod surcc;
+    }
 }
 
 #[cfg(test)]
