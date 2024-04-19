@@ -569,11 +569,25 @@ impl Game for Session {
 
 impl DTransition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
-        todo!()
+        let s: UnhashedState = self.unhash(state);
+        let mut states: Vec<State> = Vec::new();
+        if s.free / self.width != self.length - 1 {
+            states.push(self.hash(&self.canonical(&self.board_up(&s))));
+        }
+        if s.free / self.width != 0 {
+            states.push(self.hash(&self.canonical(&self.board_down(&s))));
+        }
+        if s.free % self.width != 0 {
+            states.push(self.hash(&self.canonical(&self.board_right(&s))));
+        }
+        if s.free % self.width != self.width - 1 {
+            states.push(self.hash(&self.canonical(&self.board_left(&s))));
+        }
+        return states;
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
-        todo!()
+        return self.prograde(state);
     }
 }
 
