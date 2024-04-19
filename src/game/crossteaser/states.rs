@@ -20,6 +20,7 @@ mod test {
     use super::*;
     use crate::game::crossteaser::*;
     use crate::game::{util::verify_history_dynamic, Game};
+    use std::collections::HashSet;
 
     /* STATE STRING PARSING */
 
@@ -39,20 +40,14 @@ mod test {
             s.pieces
                 .push(unhash_orientation(0));
         }
+        let mut state_set: HashSet<State> = HashSet::new();
         println!("{}", session.encode(session.hash(&s)));
         let mut t: UnhashedState = session.board_right(&s);
-        t = session.board_up(&t);
-        t = session.board_left(&t);
-        t = session.board_left(&t);
-        t = session.board_down(&t);
-        t = session.canonical(&t);
-        println!("empty: {}", t.free);
-        for o in &t.pieces {
-            println!("{}", hash_orientation(o));
-        }
-        println!("hash: {}", session.hash(&t));
+        let f: Vec<State> = session.prograde(session.hash(&s));
         println!("{}", session.encode(session.hash(&t)));
+        println!("{}", f.len());
+        for p in f {
+            println!("{}", session.encode(p));
+        }
     }
 }
-
-// 9_008_529_809

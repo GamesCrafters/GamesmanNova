@@ -175,7 +175,7 @@ fn hash_orientation(o: &Orientation) -> u64 {
 fn unhash_orientation(h: u64) -> Orientation {
     let packed: u64 = ORIENTATION_MAP[h as usize];
     return Orientation {
-        front: packed >> (FACE_BITS * 2) & FACE_BITMASK,
+        front: packed >> (FACE_BITS * 2),
         top: packed >> FACE_BITS & FACE_BITMASK,
         right: packed & FACE_BITMASK,
     };
@@ -542,8 +542,13 @@ impl Game for Session {
     }
 
     fn info(&self) -> GameData {
+        let var: String;
+        match &self.variant {
+            None => var = VARIANT_DEFAULT.to_string(),
+            Some(v) => var = v.clone(),
+        }
         GameData {
-            variant: self.variant,
+            variant: var,
 
             name: NAME,
             authors: AUTHORS,
@@ -646,6 +651,10 @@ impl Forward for Session {
 
 impl ClassicPuzzle for Session {
     fn utility(&self, state: State) -> SimpleUtility {
-        todo!()
+        if self.end(state) {
+            return SimpleUtility::WIN;
+        } else {
+            panic!("Cannot assess utility of non-terminal state");
+        }
     }
 }
