@@ -36,6 +36,7 @@ use crate::model::State;
 use crate::model::Turn;
 use crate::model::Utility;
 use crate::solver::algorithm::strong;
+use states::*;
 use variants::*;
 
 use super::ClassicPuzzle;
@@ -85,30 +86,30 @@ struct UnhashedState {
 /// The format of the packed orientation is front_top_right
 /// Each of these will be a value from 0-5, and have 3 bits allotted.
 const ORIENTATION_MAP: [u64; 24] = [
-    0b000_010_100, // 1
-    0b000_100_011, // 2
-    0b000_001_010, // 3
-    0b000_011_001, // 4
-    0b001_010_000, // 5
-    0b001_000_011, // 6
-    0b001_101_010, // 7
-    0b001_011_101, // 8
-    0b010_100_000, // 9
-    0b010_000_001, // 10
-    0b010_101_100, // 11
-    0b010_001_101, // 12
-    0b011_000_100, // 13
-    0b011_100_101, // 14
-    0b011_001_000, // 15
-    0b011_101_001, // 16
-    0b100_000_010, // 17
-    0b100_010_101, // 18
-    0b100_011_000, // 19
-    0b100_101_011, // 20
-    0b101_100_010, // 21
-    0b101_010_001, // 22
-    0b101_011_100, // 23
-    0b101_001_011, // 24
+    0b000_010_100, // 0
+    0b000_100_011, // 1
+    0b000_001_010, // 2
+    0b000_011_001, // 3
+    0b001_010_000, // 4
+    0b001_000_011, // 5
+    0b001_101_010, // 6
+    0b001_011_101, // 7
+    0b010_100_000, // 8
+    0b010_000_001, // 9
+    0b010_101_100, // 10
+    0b010_001_101, // 11
+    0b011_000_100, // 12
+    0b011_100_101, // 13
+    0b011_001_000, // 14
+    0b011_101_001, // 15
+    0b100_000_010, // 16
+    0b100_010_101, // 17
+    0b100_011_000, // 18
+    0b100_101_011, // 19
+    0b101_100_010, // 20
+    0b101_010_001, // 21
+    0b101_011_100, // 22
+    0b101_001_011, // 23
 ];
 
 /// Defines a sequence of axis-wise rotations which will return an orientation
@@ -123,30 +124,30 @@ const ORIENTATION_MAP: [u64; 24] = [
 /// NOTE: This can likely be improved by combining transformations in a
 /// clever way.
 const TRANSFORM_MAP: [u64; 24] = [
-    0b0,                    // 1
-    0b000_01,               // 2
-    0b000_11,               // 3
-    0b000_01_000_01,        // 4
-    0b010_01,               // 5
-    0b010_01_001_01,        // 6
-    0b000_11_010_01,        // 7
-    0b000_01_000_01_011_11, // 8
-    0b010_01_000_01,        // 9
-    0b010_01_001_01_000_01, // 10
-    0b000_11_010_01_101_11, // 11
-    0b000_11_001_11,        // 12
-    0b100_11,               // 13
-    0b100_11_011_01,        // 14
-    0b100_11_010_11,        // 15
-    0b000_01_000_01_001_01, // 16
-    0b000_11_010_11,        // 17
-    0b010_11,               // 18
-    0b000_01_000_01_011_01, // 19
-    0b000_01_011_01,        // 20
-    0b100_11_011_01_100_11, // 21
-    0b010_01_010_01,        // 22
-    0b001_01_001_01,        // 23
-    0b000_01_011_01_011_01, // 24
+    0b0,                    // 0
+    0b000_01,               // 1
+    0b000_11,               // 2
+    0b000_01_000_01,        // 3
+    0b010_01,               // 4
+    0b010_01_001_01,        // 5
+    0b000_11_010_01,        // 6
+    0b000_01_000_01_011_11, // 7
+    0b010_01_000_01,        // 8
+    0b010_01_001_01_000_01, // 9
+    0b000_11_010_01_101_11, // 10
+    0b000_11_001_11,        // 11
+    0b100_11,               // 12
+    0b100_11_011_01,        // 13
+    0b100_11_010_11,        // 14
+    0b000_01_000_01_001_01, // 15
+    0b000_11_010_11,        // 16
+    0b010_11,               // 17
+    0b000_01_000_01_011_01, // 18
+    0b000_01_011_01,        // 19
+    0b100_11_011_01_100_11, // 20
+    0b010_01_010_01,        // 21
+    0b001_01_001_01,        // 22
+    0b000_01_011_01_011_01, // 23
 ];
 
 // Constant bitmask values that will be commonly used for hashing/unhashing
@@ -289,9 +290,9 @@ impl Session {
     fn board_left(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != self.width - 1 {
-            let to_move: usize = s.free as usize + 1;
+            let to_move: usize = s.free as usize;
             new_state.pieces[to_move] = mov::left(&new_state.pieces[to_move]);
-            new_state.free = to_move as u64;
+            new_state.free = s.free + 1;
         }
         return new_state;
     }
@@ -361,9 +362,9 @@ impl Session {
             axis = t_list & 0b111;
             t_list >>= 3;
             if transform == 0b01 {
-                new_o = mov::cw_on_axis(o, axis);
+                new_o = mov::cw_on_axis(&new_o, axis);
             } else if transform == 0b11 {
-                new_o = mov::cw_on_axis(o, 5 - axis);
+                new_o = mov::cw_on_axis(&new_o, 5 - axis);
             }
         }
         return new_o;
@@ -375,7 +376,7 @@ impl Session {
     /// Uses apply_transformations() to properly adjust pieces
     fn canonical(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_pieces: Vec<Orientation> = Vec::new();
-        let pos: u64 = hash_orientation(&s.pieces[0]);
+        let pos: u64 = hash_orientation(&s.pieces.last().unwrap());
         let transform_list: u64 = TRANSFORM_MAP[pos as usize];
         for o in &s.pieces {
             new_pieces.push(self.apply_transformations(o, transform_list));
@@ -541,13 +542,26 @@ impl Game for Session {
     }
 
     fn info(&self) -> GameData {
-        todo!()
+        GameData {
+            variant: self.variant,
+
+            name: NAME,
+            authors: AUTHORS,
+            about: ABOUT,
+
+            variant_protocol: VARIANT_PROTOCOL,
+            variant_pattern: VARIANT_PATTERN,
+            variant_default: VARIANT_DEFAULT,
+
+            state_default: STATE_DEFAULT,
+            state_pattern: STATE_PATTERN,
+            state_protocol: STATE_PROTOCOL,
+        }
     }
 
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
-        strong::acyclic::dynamic_solver::<1, Self>(self, mode)
-            .context("Failed solver run.")?;
-        Ok(())
+        todo!()
+        // Pending merge to dev for new solver
     }
 }
 
@@ -588,17 +602,20 @@ impl Codec for Session {
         }
         let mut out: String = String::new();
         let mut row: usize;
-        for (i, o) in s.pieces.iter().enumerate() {
+        let mut i: usize = 0;
+        for o in &s.pieces {
             row = i / self.width as usize;
             if i as u64 == s.free {
-                v[row].push("E".to_string());
-            } else {
-                v[row].push(hash_orientation(&o).to_string());
+                v[row].push("X".to_string());
+                i += 1;
+                row = i / self.width as usize;
             }
+            v[row].push(hash_orientation(o).to_string());
+            i += 1;
         }
         for i in 0..self.length {
             out.push('|');
-            out.push_str(&v[i as usize].join(" "));
+            out.push_str(&v[i as usize].join("-"));
         }
         out.push('|');
         return out;
