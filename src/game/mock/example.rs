@@ -132,6 +132,7 @@ pub mod simple_utility {
                     .edge(&store[7], &store[16])?
                     .edge(&store[8], &store[17])?
                     .edge(&store[9], &store[18])?
+                    .start(&store[0])?
                     .build()?;
 
                 Ok(TreeExampleGame { game })
