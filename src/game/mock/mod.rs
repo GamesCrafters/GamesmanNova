@@ -1,4 +1,4 @@
-//! Mock Extensive Test Game Module
+//! # Mock Extensive Test Game Module
 //!
 //! This module provides a way to represent extensive-form games by declaring
 //! the game via a graph and assigning special conditions to nodes. This makes
@@ -53,6 +53,13 @@ pub enum Node {
     Medial(Turn),
 }
 
+/// Indicates that something can be turned into a mock game session. Used to
+/// create blanket implementations for example mock games.
+trait MockGame {
+    /// Returns an underlying mock game instance.
+    fn game(&self) -> &Session<'_>;
+}
+
 /* API IMPLEMENTATION */
 
 impl<'a> Session<'a> {
@@ -103,21 +110,36 @@ impl<'a> Session<'a> {
     }
 }
 
-/* UTILITY IMPLEMENTATIONS */
+/* BLANKET IMPLEMENTATIONS */
 
-impl DTransition for Session<'_> {
-    fn prograde(&self, state: State) -> Vec<State> {
-        self.transition(state, Direction::Outgoing)
-    }
-
-    fn retrograde(&self, state: State) -> Vec<State> {
-        self.transition(state, Direction::Incoming)
+impl MockGame for Session<'_> {
+    fn game(&self) -> &Session<'_> {
+        self
     }
 }
 
-impl STransition<MAX_TRANSITIONS> for Session<'_> {
+impl<T> DTransition for T
+where
+    T: MockGame,
+{
+    fn prograde(&self, state: State) -> Vec<State> {
+        self.game()
+            .transition(state, Direction::Outgoing)
+    }
+
+    fn retrograde(&self, state: State) -> Vec<State> {
+        self.game()
+            .transition(state, Direction::Incoming)
+    }
+}
+
+impl<T> STransition<MAX_TRANSITIONS> for T
+where
+    T: MockGame,
+{
     fn prograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
         let adjacent = self
+            .game()
             .transition(state, Direction::Outgoing)
             .iter()
             .map(|&h| Some(h))
@@ -134,6 +156,7 @@ impl STransition<MAX_TRANSITIONS> for Session<'_> {
 
     fn retrograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
         let adjacent = self
+            .game()
             .transition(state, Direction::Incoming)
             .iter()
             .map(|&h| Some(h))
@@ -149,20 +172,22 @@ impl STransition<MAX_TRANSITIONS> for Session<'_> {
     }
 }
 
-impl Bounded for Session<'_> {
+impl<T> Bounded for T
+where
+    T: MockGame,
+{
     fn start(&self) -> State {
-        self.start.index() as State
+        self.game().start.index() as State
     }
 
     fn end(&self, state: State) -> bool {
-        match self.node(state) {
+        match self.game().node(state) {
             Node::Terminal(_) => true,
             Node::Medial(_) => false,
         }
     }
 }
 
-#[cfg(test)]
 mod tests {
 
     use super::*;
