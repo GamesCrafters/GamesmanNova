@@ -167,7 +167,7 @@ fn hash_orientation(o: &Orientation) -> u64 {
 fn unhash_orientation(h: u64) -> Orientation {
     let packed: u64 = ORIENTATION_MAP[h as usize];
     return Orientation {
-        front: packed >> (FACE_BITS * 2) & FACE_BITMASK,
+        front: packed >> (FACE_BITS * 2),
         top: packed >> FACE_BITS & FACE_BITMASK,
         right: packed & FACE_BITMASK,
     };
