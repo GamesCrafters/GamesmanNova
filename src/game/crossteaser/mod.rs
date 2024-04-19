@@ -282,9 +282,9 @@ impl Session {
     fn board_left(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_state = s.deep_copy();
         if s.free % self.width != self.width - 1 {
-            let to_move: usize = s.free as usize;
+            let to_move: usize = s.free as usize + 1;
             new_state.pieces[to_move] = mov::left(&new_state.pieces[to_move]);
-            new_state.free = s.free + 1;
+            new_state.free = to_move as u64;
         }
         return new_state;
     }
