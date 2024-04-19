@@ -32,6 +32,7 @@ use crate::interface::IOMode;
 use crate::interface::SolutionMode;
 use crate::model::State;
 use crate::model::Utility;
+use crate::solver::algorithm::strong;
 use variants::*;
 
 /* SUBMODULES */
@@ -146,10 +147,11 @@ const TRANSFORM_MAP: [u64; 24] = [
 // game states.
 const FACE_BITS: u64 = 3;
 const FACE_BITMASK: u64 = 0b111;
-const EMPTY_BITS: u64 = 3;
-const EMPTY_BITMASK: u64 = 0b111;
+const EMPTY_BITS: u64 = 4;
+const EMPTY_BITMASK: u64 = 0b1111;
 const PIECE_BITS: u64 = 5;
 const PIECE_BITMASK: u64 = 0b11111;
+const PIECE_SIZE: u64 = 24;
 
 /// Converts an Orientation struct into its corresponding orientation hash,
 /// which will be a number from 0-23
@@ -200,6 +202,18 @@ impl Session {
     /// orientations and an empty space represented by an integer into a 64 bit
     /// integer (State) which uniquely represents that state.
     fn hash(&self, s: &UnhashedState) -> State {
+        let mut hashed_state: State = s.free;
+        let mut mult: u64 = self.width * self.length;
+        for o in &s.pieces {
+            hashed_state += hash_orientation(o) * mult;
+            mult *= PIECE_SIZE;
+        }
+        return hashed_state;
+    }
+
+    /// Inefficient hash function
+    /// Not in use
+    fn _hash_old(&self, s: &UnhashedState) -> State {
         let mut new_s: State = s.free;
         let mut shift: u64 = EMPTY_BITS;
         for o in &s.pieces {
@@ -212,6 +226,27 @@ impl Session {
     /// Reverse of hash(), extracts the orientation vector and empty space from
     /// a State.
     fn unhash(&self, s: State) -> UnhashedState {
+        let num_pieces: u64 = self.get_pieces();
+        let mut curr_piece: u64;
+        let mut temp_state: u64 = s;
+        let space_count: u64 = self.width * self.length;
+        let empty: u64 = s % space_count;
+        temp_state /= space_count;
+        let mut rep: Vec<Orientation> = Vec::new();
+        for _ in 0..num_pieces {
+            curr_piece = temp_state % PIECE_SIZE;
+            temp_state /= PIECE_SIZE;
+            rep.push(unhash_orientation(curr_piece));
+        }
+        return UnhashedState {
+            pieces: rep,
+            free: empty,
+        };
+    }
+
+    /// Inefficient unhash function
+    /// Not in use
+    fn _unhash_old(&self, s: State) -> UnhashedState {
         let num_pieces: u64 = self.get_pieces();
         let mut s_tmp: u64 = s;
         let mut curr: u64;
@@ -236,8 +271,7 @@ impl Session {
         let mut new_state = s.deep_copy();
         if s.free % self.width != 0 {
             let to_move: usize = s.free as usize - 1;
-            let dest: usize = s.free as usize;
-            new_state.pieces[dest] = mov::right(&new_state.pieces[to_move]);
+            new_state.pieces[to_move] = mov::right(&new_state.pieces[to_move]);
             new_state.free = to_move as u64;
         }
         return new_state;
@@ -250,8 +284,7 @@ impl Session {
         let mut new_state = s.deep_copy();
         if s.free % self.width != self.width - 1 {
             let to_move: usize = s.free as usize + 1;
-            let dest: usize = s.free as usize;
-            new_state.pieces[dest] = mov::left(&new_state.pieces[to_move]);
+            new_state.pieces[to_move] = mov::left(&new_state.pieces[to_move]);
             new_state.free = to_move as u64;
         }
         return new_state;
@@ -265,7 +298,10 @@ impl Session {
         if s.free / self.width != self.length - 1 {
             let to_move: usize = (s.free + self.width) as usize;
             let dest: usize = s.free as usize;
-            new_state.pieces[dest] = mov::up(&new_state.pieces[to_move]);
+            let piece: Orientation = new_state.pieces.remove(to_move);
+            new_state
+                .pieces
+                .insert(dest, mov::up(&piece));
             new_state.free = to_move as u64;
         }
         return new_state;
@@ -278,25 +314,32 @@ impl Session {
         let mut new_state = s.deep_copy();
         if s.free / self.width != 0 {
             let to_move: usize = (s.free - self.width) as usize;
-            let dest: usize = s.free as usize;
-            new_state.pieces[dest] = mov::down(&new_state.pieces[to_move]);
+            let dest: usize = s.free as usize - 1;
+            let piece: Orientation = new_state.pieces.remove(to_move);
+            new_state
+                .pieces
+                .insert(dest, mov::down(&piece));
             new_state.free = to_move as u64;
         }
         return new_state;
     }
 
-    fn r180(&self, s: &UnhashedState) -> UnhashedState {
+    /// Not in use
+    fn _r180(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_s: UnhashedState = s.deep_copy();
         new_s.pieces.reverse();
         new_s.free = self.get_pieces() - new_s.free - 1;
         return new_s;
     }
 
-    fn mirror(&self, s: &UnhashedState) -> UnhashedState {
-        let mut new_s: UnhashedState = s.deep_copy();
+    /// Not in use
+    fn _mirror(&self, s: &UnhashedState) -> UnhashedState {
         todo!()
     }
 
+    /// Applies a sequence of transformations on an orientation
+    /// See TRANSFORM_MAP for details on these sequences
+    /// Uses cw_on_axis() to apply transformations equivalently to any piece
     fn apply_transformations(&self, o: &Orientation, t: u64) -> Orientation {
         let mut t_list: u64 = t;
         let mut transform: u64;
@@ -320,6 +363,10 @@ impl Session {
         return new_o;
     }
 
+    /// Finds the canonical position of a given state
+    /// It does so by reducing the first piece to orientation 0,
+    /// and adjusting the rest of the pieces equivalently
+    /// Uses apply_transformations() to properly adjust pieces
     fn canonical(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_pieces: Vec<Orientation> = Vec::new();
         let pos: u64 = hash_orientation(&s.pieces[0]);
@@ -492,7 +539,9 @@ impl Game for Session {
     }
 
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
-        todo!()
+        strong::acyclic::dynamic_solver::<1, Self>(self, mode)
+            .context("Failed solver run.")?;
+        Ok(())
     }
 
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
