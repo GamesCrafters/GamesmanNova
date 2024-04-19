@@ -60,11 +60,16 @@ pub mod simple_utility {
         /* INSTANTIATION */
 
         impl<'a> TreeExampleGame<'a> {
-            /// TODO
+            /// Creates a new [`TreeExampleGame`] by instantiating all of its
+            /// nodes and appending them to `store` non-destructively (even if
+            /// the function fails). The example game returned will reference
+            /// the nodes added to `store` internally, so removing them from
+            /// `store` and attempting to use the returned game after is
+            /// undefined behavior.
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<TreeExampleGame<'a>> {
-                *store = vec![
+                let mut nodes = vec![
                     node!(0),
                     node!(1),
                     node!(1),
@@ -113,6 +118,10 @@ pub mod simple_utility {
                     ],
                 ];
 
+                let length = store.len();
+                store.append(&mut nodes);
+                let store = &store[length..];
+
                 let game = builder::SessionBuilder::new(&TREE_GAME_NAME)
                     .edge(&store[0], &store[1])?
                     .edge(&store[0], &store[2])?
@@ -138,7 +147,7 @@ pub mod simple_utility {
                 Ok(TreeExampleGame { game })
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -153,7 +162,7 @@ pub mod simple_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -168,7 +177,7 @@ pub mod simple_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -257,7 +266,7 @@ pub mod simple_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -272,7 +281,7 @@ pub mod simple_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -287,7 +296,7 @@ pub mod simple_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -368,7 +377,7 @@ pub mod general_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -383,7 +392,7 @@ pub mod general_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -398,7 +407,7 @@ pub mod general_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -471,7 +480,7 @@ pub mod general_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -486,7 +495,7 @@ pub mod general_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
@@ -501,7 +510,7 @@ pub mod general_utility {
                 todo!()
             }
 
-            /// TODO
+            /// Creates a PNG image of the game being represented.
             pub fn visualize(&self) -> Result<()> {
                 self.game
                     .visualize(super::super::MODULE_STORAGE)
