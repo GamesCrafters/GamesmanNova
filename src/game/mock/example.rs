@@ -50,7 +50,6 @@ pub mod simple_utility {
         /// TODO
         pub struct AcyclicExampleGame<'a> {
             game: Session<'a>,
-
         }
 
         /// TODO
@@ -179,7 +178,8 @@ pub mod simple_utility {
                     node!(1),
                     node!(0), // <- 1
                     node!(1),
-                    node![ // <- 0
+                    node![
+                        // <- 0
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -187,7 +187,8 @@ pub mod simple_utility {
                         SimpleUtility::WIN.into(),
                         SimpleUtility::LOSE.into(),
                     ],
-                    node![ // <- -1 (for general sum)
+                    node![
+                        // <- -1 (for general sum)
                         SimpleUtility::WIN.into(),
                         SimpleUtility::TIE.into(),
                     ],
@@ -237,7 +238,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(AcyclicExampleGame { game })
+                Ok(AcyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
@@ -271,7 +272,8 @@ pub mod simple_utility {
                     node!(1),
                     node!(0), // <- 1
                     node!(1),
-                    node![ // <- 0
+                    node![
+                        // <- 0
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -279,7 +281,8 @@ pub mod simple_utility {
                         SimpleUtility::WIN.into(),
                         SimpleUtility::LOSE.into(),
                     ],
-                    node![ // <- -1 (for general sum)
+                    node![
+                        // <- -1 (for general sum)
                         SimpleUtility::TIE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -331,7 +334,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(CyclicExampleGame { game })
+                Ok(CyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
@@ -529,7 +532,8 @@ pub mod simple_utility {
                     node!(1),
                     node!(0), // <- 1
                     node!(1),
-                    node![ // <- 0
+                    node![
+                        // <- 0
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -581,7 +585,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(AcyclicExampleGame { game })
+                Ok(AcyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
@@ -615,7 +619,8 @@ pub mod simple_utility {
                     node!(1),
                     node!(0), // <- 1
                     node!(1),
-                    node![ // <- 0
+                    node![
+                        // <- 0
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -669,7 +674,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(CyclicExampleGame { game })
+                Ok(CyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
