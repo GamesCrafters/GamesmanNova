@@ -297,7 +297,9 @@ impl Session {
         if s.free / self.width != self.length - 1 {
             let to_move: usize = (s.free + self.width) as usize;
             let dest: usize = s.free as usize;
-            let piece: Orientation = new_state.pieces.remove(to_move);
+            let piece: Orientation = new_state
+                .pieces
+                .remove(to_move - 1);
             new_state
                 .pieces
                 .insert(dest, mov::up(&piece));
@@ -323,17 +325,67 @@ impl Session {
         return new_state;
     }
 
-    /// Not in use
-    fn _r180(&self, s: &UnhashedState) -> UnhashedState {
-        let mut new_s: UnhashedState = s.deep_copy();
-        new_s.pieces.reverse();
-        new_s.free = self.get_pieces() - new_s.free - 1;
-        return new_s;
+    fn board_cw(&self, s: &UnhashedState) -> UnhashedState {
+        if self.width != self.length {
+            panic!("Cannot rotate board with unequal dimensions 90 degrees");
+        }
+        let mut rep: Vec<Orientation> = Vec::new();
+        for col in 0..self.width {
+            for row in (0..self.length).rev() {
+                let mut pos: u64 = row * self.width + col;
+                if pos != s.free {
+                    if pos > s.free {
+                        pos -= 1;
+                    }
+                    rep.push(mov::cw_front(&s.pieces[pos as usize]));
+                }
+            }
+        }
+        let row: u64 = s.free / self.width;
+        let col: u64 = s.free % self.width;
+        return UnhashedState {
+            pieces: rep,
+            free: col * self.width + self.width - row - 1,
+        };
     }
 
     /// Not in use
-    fn _mirror(&self, s: &UnhashedState) -> UnhashedState {
-        todo!()
+    fn board_180(&self, s: &UnhashedState) -> UnhashedState {
+        let mut rep: Vec<Orientation> = Vec::new();
+        for i in (0..s.pieces.len()).rev() {
+            rep.push(mov::front_180(&s.pieces[i]));
+        }
+        let f: u64 = self.get_pieces() - s.free;
+        return UnhashedState {
+            pieces: rep,
+            free: f,
+        };
+    }
+
+    /// Not in use
+    fn flip_board(&self, s: &UnhashedState) -> UnhashedState {
+        let mut rep: Vec<Orientation> = Vec::new();
+        for row in 0..self.length {
+            for col in (0..self.width).rev() {
+                let mut pos: u64 = row * self.width + col;
+                if pos != s.free {
+                    if pos > s.free {
+                        pos -= 1;
+                    }
+                    rep.push(mov::top_180(&s.pieces[pos as usize]));
+                }
+            }
+        }
+        let new_free: u64 = self.width - (s.free % self.width) - 1
+            + (s.free / self.width) * self.width;
+        return UnhashedState {
+            pieces: rep,
+            free: new_free,
+        };
+    }
+
+    fn flip_90(&self, s: &UnhashedState) -> UnhashedState {
+        return self.board_cw(&self.flip_board(s));
     }
 
     /// Applies a sequence of transformations on an orientation
@@ -377,6 +429,16 @@ impl Session {
             pieces: new_pieces,
             free: s.free,
         };
+    }
+
+    fn canonical_sym(&self, s: &UnhashedState) -> State {
+        let mut sym_list: Vec<State> = Vec::new();
+        sym_list.push(self.hash(s));
+        let flipped: UnhashedState = self.flip_90(s);
+        sym_list.push(self.hash(&flipped));
+        sym_list.push(self.hash(&self.canonical(&self.board_180(s))));
+        sym_list.push(self.hash(&self.canonical(&self.board_180(&flipped))));
+        return *sym_list.iter().min().unwrap();
     }
 }
 
@@ -483,6 +545,22 @@ mod mov {
         };
     }
 
+    pub fn front_180(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: o.front,
+            top: 5 - o.top,
+            right: 5 - o.right,
+        };
+    }
+
+    pub fn top_180(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: 5 - o.front,
+            top: o.top,
+            right: 5 - o.right,
+        };
+    }
+
     /// Performs a clowckwise orientation on an orientation
     /// along the specified axis.
     /// I am trying to figure out a way to make this faster.
@@ -553,7 +631,21 @@ impl Variable for Session {
 
 impl Transition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
-        todo!()
+        let s: UnhashedState = self.unhash(state);
+        let mut states: Vec<State> = Vec::new();
+        if s.free / self.width != self.length - 1 {
+            states.push(self.canonical_sym(&self.board_up(&s)));
+        }
+        if s.free / self.width != 0 {
+            states.push(self.canonical_sym(&self.board_down(&s)));
+        }
+        if s.free % self.width != 0 {
+            states.push(self.canonical_sym(&self.board_right(&s)));
+        }
+        if s.free % self.width != self.width - 1 {
+            states.push(self.canonical_sym(&self.board_left(&s)));
+        }
+        return states;
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
@@ -584,17 +676,21 @@ impl Codec for Session {
         for _i in 0..self.length {
             v.push(Vec::new());
         }
+        let board_size: usize = (self.width * self.length) as usize;
         let mut out: String = String::new();
         let mut row: usize;
         let mut i: usize = 0;
-        for o in &s.pieces {
+        let mut found_empty: usize = 0;
+        while i < board_size {
             row = i / self.width as usize;
             if i as u64 == s.free {
                 v[row].push("X".to_string());
-                i += 1;
-                row = i / self.width as usize;
+                found_empty = 1;
+            } else {
+                v[row].push(
+                    hash_orientation(&s.pieces[i - found_empty]).to_string(),
+                );
             }
-            v[row].push(hash_orientation(o).to_string());
             i += 1;
         }
         for i in 0..self.length {
