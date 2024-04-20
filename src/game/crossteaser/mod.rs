@@ -124,30 +124,30 @@ const ORIENTATION_MAP: [u64; 24] = [
 /// NOTE: This can likely be improved by combining transformations in a
 /// clever way.
 const TRANSFORM_MAP: [u64; 24] = [
-    0b0,                    // 0
-    0b000_01,               // 1
-    0b000_11,               // 2
-    0b000_01_000_01,        // 3
-    0b010_01,               // 4
-    0b010_01_001_01,        // 5
-    0b000_11_010_01,        // 6
-    0b000_01_000_01_011_11, // 7
-    0b010_01_000_01,        // 8
-    0b010_01_001_01_000_01, // 9
-    0b000_11_010_01_101_11, // 10
-    0b000_11_001_11,        // 11
-    0b100_11,               // 12
-    0b100_11_011_01,        // 13
-    0b100_11_010_11,        // 14
-    0b000_01_000_01_001_01, // 15
-    0b000_11_010_11,        // 16
-    0b010_11,               // 17
-    0b000_01_000_01_011_01, // 18
-    0b000_01_011_01,        // 19
-    0b100_11_011_01_100_11, // 20
-    0b010_01_010_01,        // 21
-    0b001_01_001_01,        // 22
-    0b000_01_011_01_011_01, // 23
+    0b0,             // 0
+    0b000_01,        // 1
+    0b000_11,        // 2
+    0b000_10,        // 3
+    0b010_01,        // 4
+    0b010_01_001_01, // 5
+    0b000_11_010_01, // 6
+    0b000_10_011_11, // 7
+    0b010_01_000_01, // 8
+    0b000_10_001_11, // 9
+    0b000_10_001_11, // 10
+    0b000_11_001_11, // 11
+    0b100_11,        // 12
+    0b100_11_011_01, // 13
+    0b100_11_010_11, // 14
+    0b000_10_001_01, // 15
+    0b000_11_010_11, // 16
+    0b010_11,        // 17
+    0b000_10_011_01, // 18
+    0b000_01_011_01, // 19
+    0b100_10_101_01, // 20
+    0b010_10,        // 21
+    0b001_10,        // 22
+    0b000_01_011_10, // 23
 ];
 
 // Constant bitmask values that will be commonly used for hashing/unhashing
@@ -218,18 +218,6 @@ impl Session {
         return hashed_state;
     }
 
-    /// Inefficient hash function
-    /// Not in use
-    fn _hash_old(&self, s: &UnhashedState) -> State {
-        let mut new_s: State = s.free;
-        let mut shift: u64 = EMPTY_BITS;
-        for o in &s.pieces {
-            new_s |= hash_orientation(o) << shift;
-            shift += PIECE_BITS;
-        }
-        return new_s;
-    }
-
     /// Reverse of hash(), extracts the orientation vector and empty space from
     /// a State.
     fn unhash(&self, s: State) -> UnhashedState {
@@ -244,26 +232,6 @@ impl Session {
             curr_piece = temp_state % PIECE_SIZE;
             temp_state /= PIECE_SIZE;
             rep.push(unhash_orientation(curr_piece));
-        }
-        return UnhashedState {
-            pieces: rep,
-            free: empty,
-        };
-    }
-
-    /// Inefficient unhash function
-    /// Not in use
-    fn _unhash_old(&self, s: State) -> UnhashedState {
-        let num_pieces: u64 = self.get_pieces();
-        let mut s_tmp: u64 = s;
-        let mut curr: u64;
-        let empty: u64 = s & EMPTY_BITMASK;
-        s_tmp >>= EMPTY_BITS;
-        let mut rep: Vec<Orientation> = Vec::new();
-        for i in 0..num_pieces {
-            curr = s_tmp & PIECE_BITMASK;
-            rep.push(unhash_orientation(curr));
-            s_tmp >>= PIECE_BITS;
         }
         return UnhashedState {
             pieces: rep,
@@ -357,7 +325,6 @@ impl Session {
         };
     }
 
-    /// Not in use
     fn board_180(&self, s: &UnhashedState) -> UnhashedState {
         let mut rep: Vec<Orientation> = Vec::new();
         for i in (0..s.pieces.len()).rev() {
@@ -370,7 +337,6 @@ impl Session {
         };
     }
 
-    /// Not in use
     fn flip_board(&self, s: &UnhashedState) -> UnhashedState {
         let mut rep: Vec<Orientation> = Vec::new();
         for row in 0..self.length {
@@ -393,7 +359,11 @@ impl Session {
     }
 
     fn flip_90(&self, s: &UnhashedState) -> UnhashedState {
-        return self.board_cw(&self.flip_board(s));
+        if self.width == self.length {
+            return self.board_cw(&self.flip_board(s));
+        } else {
+            return s.deep_copy();
+        }
     }
 
     /// Applies a sequence of transformations on an orientation
@@ -415,6 +385,8 @@ impl Session {
             t_list >>= 3;
             if transform == 0b01 {
                 new_o = mov::cw_on_axis(&new_o, axis);
+            } else if transform == 0b10 {
+                new_o = mov::axis_180(&new_o, axis);
             } else if transform == 0b11 {
                 new_o = mov::cw_on_axis(&new_o, 5 - axis);
             }
@@ -423,12 +395,15 @@ impl Session {
     }
 
     /// Finds the canonical position of a given state
-    /// It does so by reducing the first piece to orientation 0,
+    /// It does so by reducing the last piece to orientation 0,
     /// and adjusting the rest of the pieces equivalently
     /// Uses apply_transformations() to properly adjust pieces
-    fn canonical(&self, s: &UnhashedState) -> UnhashedState {
+    fn reduce(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_pieces: Vec<Orientation> = Vec::new();
         let pos: u64 = hash_orientation(&s.pieces.last().unwrap());
+        if pos == 0 {
+            return s.deep_copy();
+        }
         let transform_list: u64 = TRANSFORM_MAP[pos as usize];
         for o in &s.pieces {
             new_pieces.push(self.apply_transformations(o, transform_list));
@@ -439,14 +414,29 @@ impl Session {
         };
     }
 
-    fn canonical_sym(&self, s: &UnhashedState) -> State {
-        let mut sym_list: Vec<State> = Vec::new();
-        sym_list.push(self.hash(s));
-        let flipped: UnhashedState = self.flip_90(s);
-        sym_list.push(self.hash(&flipped));
-        sym_list.push(self.hash(&self.canonical(&self.board_180(s))));
-        sym_list.push(self.hash(&self.canonical(&self.board_180(&flipped))));
-        return *sym_list.iter().min().unwrap();
+    fn board_sym(&self, s: &UnhashedState) -> UnhashedState {
+        let mut sym_list: Vec<UnhashedState> = Vec::new();
+        sym_list.push(s.deep_copy());
+        sym_list.push(self.board_180(s));
+        if self.width == self.length {
+            let flipped: UnhashedState = self.flip_90(s);
+            sym_list.push(flipped.deep_copy());
+            sym_list.push(self.board_180(&flipped));
+        }
+        let mut min: u64 = self.hash(&sym_list[0]);
+        let mut min_i: usize = 0;
+        for i in 0..sym_list.len() {
+            let curr: u64 = self.hash(&sym_list[i]);
+            if curr < min {
+                min_i = i;
+                min = curr;
+            }
+        }
+        return sym_list.remove(min_i);
+    }
+
+    fn canonical(&self, s: &UnhashedState) -> UnhashedState {
+        return self.reduce(&self.board_sym(s));
     }
 }
 
@@ -569,6 +559,14 @@ mod mov {
         };
     }
 
+    pub fn right_180(o: &Orientation) -> Orientation {
+        return Orientation {
+            front: 5 - o.front,
+            top: 5 - o.top,
+            right: o.right,
+        };
+    }
+
     /// Performs a clowckwise orientation on an orientation
     /// along the specified axis.
     /// I am trying to figure out a way to make this faster.
@@ -585,6 +583,18 @@ mod mov {
             return cw_right(o);
         } else if axis == 5 - o.right {
             return ccw_right(o);
+        } else {
+            panic!("Invalid Orientation");
+        }
+    }
+
+    pub fn axis_180(o: &Orientation, axis: u64) -> Orientation {
+        if axis == o.front || axis == 5 - o.front {
+            return front_180(o);
+        } else if axis == o.top || axis == 5 - o.top {
+            return top_180(o);
+        } else if axis == o.right || axis == 5 - o.right {
+            return right_180(o);
         } else {
             panic!("Invalid Orientation");
         }
@@ -654,16 +664,16 @@ impl DTransition for Session {
         let s: UnhashedState = self.unhash(state);
         let mut states: Vec<State> = Vec::new();
         if s.free / self.width != self.length - 1 {
-            states.push(self.canonical_sym(&self.board_up(&s)));
+            states.push(self.hash(&self.canonical(&self.board_up(&s))));
         }
         if s.free / self.width != 0 {
-            states.push(self.canonical_sym(&self.board_down(&s)));
+            states.push(self.hash(&self.canonical(&self.board_down(&s))));
         }
         if s.free % self.width != 0 {
-            states.push(self.canonical_sym(&self.board_right(&s)));
+            states.push(self.hash(&self.canonical(&self.board_right(&s))));
         }
         if s.free % self.width != self.width - 1 {
-            states.push(self.canonical_sym(&self.board_left(&s)));
+            states.push(self.hash(&self.canonical(&self.board_left(&s))));
         }
         return states;
     }

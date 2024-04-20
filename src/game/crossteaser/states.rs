@@ -40,25 +40,18 @@ mod test {
             s.pieces
                 .push(unhash_orientation(0));
         }
-
-        let mut solved: HashSet<State> = HashSet::new();
+        let mut found: HashSet<State> = HashSet::new();
         let mut unsolved: Vec<State> = Vec::new();
         unsolved.push(session.hash(&s));
-        let mut count: u64 = 0;
-        while !unsolved.is_empty() {
+        for i in 0..1000 {
             let s: State = unsolved.pop().unwrap();
-            solved.insert(s);
+            found.insert(s);
             let f: Vec<State> = session.prograde(s);
             for state in f {
-                if !solved.contains(&state) {
+                if !found.contains(&state) {
                     unsolved.push(state);
                 }
             }
-            count += 1;
-            if count % 100000 == 0 {
-                println!("discovered {}", count);
-            }
         }
-        println!("{}", solved.len());
     }
 }
