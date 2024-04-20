@@ -319,6 +319,7 @@ impl Node {
     }
 }
 
+#[cfg(test)]
 mod tests {
 
     use super::*;
