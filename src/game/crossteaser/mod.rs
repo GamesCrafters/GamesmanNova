@@ -111,7 +111,7 @@ const ORIENTATION_MAP: [u64; 24] = [
 /// from face x to face 5 - x.
 /// Format: each rotation is 5 bits of format abc_de
 /// abc: axis on which the rotation is performed
-/// de: direction of the rotation. 01 = cw, 11 = ccw.
+/// de: direction of the rotation. 0b01 = cw, 0b10 = 180, 0b11 = ccw.
 /// Order of transformations is right to left.
 /// NOTE: This can likely be improved by combining transformations in a
 /// clever way.
@@ -146,10 +146,6 @@ const TRANSFORM_MAP: [u64; 24] = [
 // game states.
 const FACE_BITS: u64 = 3;
 const FACE_BITMASK: u64 = 0b111;
-const EMPTY_BITS: u64 = 4;
-const EMPTY_BITMASK: u64 = 0b1111;
-const PIECE_BITS: u64 = 5;
-const PIECE_BITMASK: u64 = 0b11111;
 const PIECE_SIZE: u64 = 24;
 
 /// Converts an Orientation struct into its corresponding orientation hash,
@@ -293,6 +289,8 @@ impl Session {
         return new_state;
     }
 
+    /// Rotates entire board clockwise 90 degrees. Used only for
+    /// combined flip board + rotate 90 symmetry.
     fn board_cw(&self, s: &UnhashedState) -> UnhashedState {
         if self.width != self.length {
             panic!("Cannot rotate board with unequal dimensions 90 degrees");
@@ -317,18 +315,21 @@ impl Session {
         };
     }
 
+    /// Rotates entire board 180 degrees
     fn board_180(&self, s: &UnhashedState) -> UnhashedState {
         let mut rep: Vec<Orientation> = Vec::new();
-        for i in (0..s.pieces.len()).rev() {
-            rep.push(mov::front_180(&s.pieces[i]));
+        let num_pieces: u64 = self.get_pieces();
+        for i in (0..num_pieces).rev() {
+            rep.push(mov::front_180(&s.pieces[i as usize]));
         }
-        let f: u64 = self.get_pieces() - s.free;
+        let f: u64 = num_pieces - s.free;
         return UnhashedState {
             pieces: rep,
             free: f,
         };
     }
 
+    /// Flips board over from left to right
     fn flip_board(&self, s: &UnhashedState) -> UnhashedState {
         let mut rep: Vec<Orientation> = Vec::new();
         for row in 0..self.length {
@@ -350,6 +351,8 @@ impl Session {
         };
     }
 
+    /// Combines flipping board plus 90 degree rotation, this is a
+    /// valid symmetry due to the perpedicular slot orentation on front and back
     fn flip_90(&self, s: &UnhashedState) -> UnhashedState {
         if self.width == self.length {
             return self.board_cw(&self.flip_board(s));
@@ -361,6 +364,11 @@ impl Session {
     /// Applies a sequence of transformations on an orientation
     /// See TRANSFORM_MAP for details on these sequences
     /// Uses cw_on_axis() to apply transformations equivalently to any piece
+    /// This means it will always apply the transformations on the axis
+    /// speicified by TRANSFORM_MAP, no matter the piece orientation.
+    /// This allows us to reduce to an equivalent state
+    /// Where equivalent means the same sequence of moves will reach a
+    /// terminal state.
     fn apply_transformations(&self, o: &Orientation, t: u64) -> Orientation {
         let mut t_list: u64 = t;
         let mut transform: u64;
@@ -386,10 +394,11 @@ impl Session {
         return new_o;
     }
 
-    /// Finds the canonical position of a given state
-    /// It does so by reducing the last piece to orientation 0,
+    /// Reduces the state to one with last piece orientation of 0
     /// and adjusting the rest of the pieces equivalently
-    /// Uses apply_transformations() to properly adjust pieces
+    /// Note that this does not mean applying the exact same transformation
+    /// to every piece.
+    /// See apply_transformation() for additional details.
     fn reduce(&self, s: &UnhashedState) -> UnhashedState {
         let mut new_pieces: Vec<Orientation> = Vec::new();
         let pos: u64 = hash_orientation(&s.pieces.last().unwrap());
@@ -406,6 +415,10 @@ impl Session {
         };
     }
 
+    /// Applies 4 physical board symmetries and finds the canonical of the set
+    /// -Rotate 180
+    /// -Flip board & rotate 90
+    /// -Flip board & rotate 270
     fn board_sym(&self, s: &UnhashedState) -> UnhashedState {
         let mut sym_list: Vec<UnhashedState> = Vec::new();
         sym_list.push(s.deep_copy());
@@ -427,6 +440,7 @@ impl Session {
         return sym_list.remove(min_i);
     }
 
+    /// Applies 4 board symmetries and then reduces state to canonical
     fn canonical(&self, s: &UnhashedState) -> UnhashedState {
         return self.reduce(&self.board_sym(s));
     }
@@ -535,6 +549,8 @@ mod mov {
         };
     }
 
+    /// Transforms an individual piece orientation as if it was rotated
+    /// 180 degrees along the front-back axis. Used for symmetries.
     pub fn front_180(o: &Orientation) -> Orientation {
         return Orientation {
             front: o.front,
@@ -543,6 +559,8 @@ mod mov {
         };
     }
 
+    /// Transforms an individual piece orientation as if it was rotated
+    /// 180 degrees along the top-bottom axis. Used for symmetries.
     pub fn top_180(o: &Orientation) -> Orientation {
         return Orientation {
             front: 5 - o.front,
@@ -551,6 +569,8 @@ mod mov {
         };
     }
 
+    /// Transforms an individual piece orientation as if it was rotated
+    /// 180 degrees along the right-left axis. Used for symmetries.
     pub fn right_180(o: &Orientation) -> Orientation {
         return Orientation {
             front: 5 - o.front,
@@ -559,7 +579,7 @@ mod mov {
         };
     }
 
-    /// Performs a clowckwise orientation on an orientation
+    /// Performs a clowckwise rotation on an orientation
     /// along the specified axis.
     /// I am trying to figure out a way to make this faster.
     pub fn cw_on_axis(o: &Orientation, axis: u64) -> Orientation {
@@ -580,6 +600,8 @@ mod mov {
         }
     }
 
+    /// Performs a 180 degree rotation on an orientation
+    /// along the specified axis.
     pub fn axis_180(o: &Orientation, axis: u64) -> Orientation {
         if axis == o.front || axis == 5 - o.front {
             return front_180(o);
@@ -677,7 +699,7 @@ impl Bounded for Session {
 
 impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
-        todo!()
+        parse_state(string, self).context("Malformed state")
     }
 
     fn encode(&self, state: State) -> String {

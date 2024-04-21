@@ -9,20 +9,137 @@
 //! - Michael Setchko Palmerlee, 4/18/2024 (michaelsp@berkeley.edu)
 
 pub const STATE_DEFAULT: &'static str = "|0-0-0|0-X-0|0-0-0|";
-pub const STATE_PATTERN: &'static str = r"^([|]([\dX]-)+[\dX])+[|]$";
+pub const STATE_PATTERN: &'static str = r"^([|]([\dX]+-)+[\dX]+)+[|]";
 pub const STATE_PROTOCOL: &'static str =
     "Rows are separated by |, columns are separated by -, empty space is X. \
 Integers 0-24 are a piece orientation as defined by ORIENTATION_MAP";
 
+use regex::Regex;
+
+use crate::game::crossteaser::*;
+use crate::game::error::GameError;
+use crate::model::State;
+
+pub fn parse_state(
+    state: String,
+    session: &Session,
+) -> Result<State, GameError> {
+    check_state_pattern(&state)?;
+    let v: Vec<String> = parse_pieces(&state);
+    for piece in &v {
+        check_valid_piece(piece)?;
+    }
+    check_free_spaces(&v, session)?;
+    check_num_pieces(&v, session)?;
+    let mut rep: Vec<Orientation> = Vec::new();
+    let mut empty: u64 = 0;
+    for (i, piece) in v.iter().enumerate() {
+        match piece.parse::<u64>() {
+            Ok(n) => rep.push(unhash_orientation(n)),
+            Err(_) => empty = i as u64,
+        }
+    }
+    Ok(session.hash(&UnhashedState {
+        pieces: rep,
+        free: empty,
+    }))
+}
+
+fn check_free_spaces(
+    v: &Vec<String>,
+    session: &Session,
+) -> Result<(), GameError> {
+    if v.iter()
+        .filter(|s| *s == "X")
+        .count()
+        == session.free as usize
+    {
+        Ok(())
+    } else {
+        Err(GameError::StateMalformed {
+            game_name: NAME,
+            hint: format!(
+                "String does not match the pattern '{}'.",
+                STATE_PATTERN
+            ),
+        })
+    }
+}
+
+fn check_num_pieces(
+    v: &Vec<String>,
+    session: &Session,
+) -> Result<(), GameError> {
+    if v.len() == (session.width * session.length) as usize {
+        Ok(())
+    } else {
+        Err(GameError::StateMalformed {
+            game_name: NAME,
+            hint: format!(
+                "String does not match the pattern '{}'.",
+                STATE_PATTERN
+            ),
+        })
+    }
+}
+
+fn check_state_pattern(state: &String) -> Result<(), GameError> {
+    let re = Regex::new(STATE_PATTERN).unwrap();
+    if !re.is_match(&state) {
+        Err(GameError::StateMalformed {
+            game_name: NAME,
+            hint: format!(
+                "String does not match the pattern '{}'.",
+                STATE_PATTERN
+            ),
+        })
+    } else {
+        Ok(())
+    }
+}
+
+fn check_valid_piece(piece: &String) -> Result<(), GameError> {
+    match piece.parse::<u64>() {
+        Ok(n) => {
+            if n < 24 {
+                Ok(())
+            } else {
+                Err(GameError::StateMalformed {
+                    game_name: NAME,
+                    hint: format!(
+                        "String does not match the pattern '{}'.",
+                        STATE_PATTERN
+                    ),
+                })
+            }
+        },
+        Err(_) => {
+            if piece == "X" {
+                Ok(())
+            } else {
+                Err(GameError::StateMalformed {
+                    game_name: NAME,
+                    hint: format!(
+                        "String does not match the pattern '{}'.",
+                        STATE_PATTERN
+                    ),
+                })
+            }
+        },
+    }
+}
+
+fn parse_pieces(state: &str) -> Vec<String> {
+    state
+        .split(['|', '-'])
+        .map(|piece| piece.to_owned())
+        .collect()
+}
+
 #[cfg(test)]
 mod test {
-
-    use super::*;
     use crate::game::crossteaser::*;
-    use crate::game::{util::verify_history_dynamic, Game};
     use std::collections::HashSet;
-
-    /* STATE STRING PARSING */
 
     #[test]
     fn test_transition() {
@@ -51,6 +168,9 @@ mod test {
                 if !found.contains(&state) {
                     unsolved.push(state);
                 }
+            }
+            if found.len() % 100000 == 0 {
+                println!("total: {}", found.len());
             }
         }
     }
