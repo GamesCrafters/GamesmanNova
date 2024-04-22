@@ -458,7 +458,7 @@ impl Session {
 
     /// Applies 4 board symmetries and then reduces state to canonical
     fn canonical(&self, s: &UnhashedState) -> UnhashedState {
-        return self.reduce(&self.board_sym(s));
+        return self.reduce(&s);
     }
 }
 
@@ -694,16 +694,16 @@ impl DTransition for Session {
         let s: UnhashedState = self.unhash(state);
         let mut states: Vec<State> = Vec::new();
         if s.free / self.width != self.length - 1 {
-            states.push(self.hash(&self.board_up(&s)));
+            states.push(self.hash(&self.canonical(&self.board_up(&s))));
         }
         if s.free / self.width != 0 {
-            states.push(self.hash(&self.board_down(&s)));
+            states.push(self.hash(&self.canonical(&self.board_down(&s))));
         }
         if s.free % self.width != 0 {
-            states.push(self.hash(&self.board_right(&s)));
+            states.push(self.hash(&self.canonical(&self.board_right(&s))));
         }
         if s.free % self.width != self.width - 1 {
-            states.push(self.hash(&self.board_left(&s)));
+            states.push(self.hash(&self.canonical(&self.board_left(&s))));
         }
         return states;
     }
