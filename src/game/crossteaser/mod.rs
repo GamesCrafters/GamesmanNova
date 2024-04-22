@@ -61,11 +61,13 @@ const ABOUT: &str = "PLACEHOLDER";
 /// the exact orientation out of 24 possible. We can think of each number from
 /// 0-5 as being one of the 6 possible colors for cross faces. The faces are
 /// arranged such that each pair of opposite faces always sum to 5. Example:
-///       1
+///       2
 ///       |
-///   3 - 0 - 2     (5 on back)
+///   1 - 0 - 4     (5 on back)
 ///       |
-///       4
+///       3
+/// The above orientation will be defined as the "default" state
+/// And is at index 0 in the ORIENTATION_MAP array
 /// All 24 orientations will be some rotation of this structure. The relative
 /// positions of faces does not change.
 struct Orientation {
@@ -201,9 +203,13 @@ impl Session {
         return self.length * self.width - self.free;
     }
 
-    /// Simple, inefficient hash function that converts a vector of piece
+    /// Simple hash function that converts a vector of piece
     /// orientations and an empty space represented by an integer into a 64 bit
     /// integer (State) which uniquely represents that state.
+    /// Uses minimal space for all theoretical states, does not optimize
+    /// for obtainable states. There will be a lot of unused hashes here
+    /// because fewer than half of the theoretical states are obtainable in
+    /// 3x3 crossteaser.
     fn hash(&self, s: &UnhashedState) -> State {
         let mut hashed_state: State = s.free;
         let mut mult: u64 = self.width * self.length;
@@ -427,6 +433,8 @@ impl Session {
     /// -Rotate 180
     /// -Flip board & rotate 90
     /// -Flip board & rotate 270
+    /// NOTE: for boards with unequal dimensions, cannot apply
+    /// Flip board & rotate 90 or flip board & rotate 270 symmetries.
     fn board_sym(&self, s: &UnhashedState) -> UnhashedState {
         let mut sym_list: Vec<UnhashedState> = Vec::new();
         sym_list.push(s.deep_copy());
@@ -686,16 +694,16 @@ impl DTransition for Session {
         let s: UnhashedState = self.unhash(state);
         let mut states: Vec<State> = Vec::new();
         if s.free / self.width != self.length - 1 {
-            states.push(self.hash(&self.canonical(&self.board_up(&s))));
+            states.push(self.hash(&self.board_up(&s)));
         }
         if s.free / self.width != 0 {
-            states.push(self.hash(&self.canonical(&self.board_down(&s))));
+            states.push(self.hash(&self.board_down(&s)));
         }
         if s.free % self.width != 0 {
-            states.push(self.hash(&self.canonical(&self.board_right(&s))));
+            states.push(self.hash(&self.board_right(&s)));
         }
         if s.free % self.width != self.width - 1 {
-            states.push(self.hash(&self.canonical(&self.board_left(&s))));
+            states.push(self.hash(&self.board_left(&s)));
         }
         return states;
     }
