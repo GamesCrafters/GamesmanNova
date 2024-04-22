@@ -24,28 +24,25 @@ use anyhow::{Context, Result};
 use crate::game::Bounded;
 use crate::game::Codec;
 use crate::game::DTransition;
-use crate::game::Extensive;
 use crate::game::Forward;
 use crate::game::Game;
 use crate::game::GameData;
-use crate::game::GeneralSum;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
 use crate::model::SimpleUtility;
 use crate::model::State;
-use crate::model::Turn;
-use crate::model::Utility;
 use crate::solver::algorithm::strong;
 use states::*;
 use variants::*;
 
 use super::ClassicPuzzle;
-use super::SimpleSum;
 
 /* SUBMODULES */
 
 mod states;
 mod variants;
+#[cfg(test)]
+mod test;
 
 /* GAME DATA */
 
@@ -684,7 +681,10 @@ impl Game for Session {
 
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
         todo!()
-        // Pending merge to dev for new solver
+        /*
+        solver::algorithm::strong::puzzle::dynamic_solver::<Self>(self, mode)
+            .context("Failed solver run.")
+            */
     }
 }
 
@@ -850,5 +850,3 @@ impl ClassicPuzzle for Session {
         }
     }
 }
-#[cfg(test)]
-mod tests;
