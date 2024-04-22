@@ -51,7 +51,6 @@ pub mod simple_utility {
         /// TODO
         pub struct AcyclicExampleGame<'a> {
             game: Session<'a>,
-
         }
 
         /// TODO
@@ -253,7 +252,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(AcyclicExampleGame { game })
+                Ok(AcyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
@@ -268,7 +267,7 @@ pub mod simple_utility {
                 store: &'a mut Vec<Node>,
             ) -> Result<CyclicExampleGame<'a>> {
                 let mut nodes = vec![
-                    node!(0), // 254 = 0
+                    node!(0),
                     node!(1),
                     node!(0),
                     node!(1),
@@ -342,7 +341,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(CyclicExampleGame { game })
+                Ok(CyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
@@ -580,7 +579,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(AcyclicExampleGame { game })
+                Ok(AcyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
@@ -652,7 +651,7 @@ pub mod simple_utility {
                     .start(&store[0])?
                     .build()?;
 
-                    Ok(CyclicExampleGame { game })
+                Ok(CyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
