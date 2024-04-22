@@ -427,6 +427,7 @@ impl Session {
     /// -Flip board & rotate 270
     /// NOTE: for boards with unequal dimensions, cannot apply
     /// Flip board & rotate 90 or flip board & rotate 270 symmetries.
+    /// Not Currently in use.
     fn board_sym(&self, s: &UnhashedState) -> UnhashedState {
         let mut sym_list: Vec<UnhashedState> = Vec::new();
         sym_list.push(s.deep_copy());
@@ -747,9 +748,9 @@ impl Bounded for Session {
             },
         ];
         let unhashed_state = UnhashedState { pieces, free: 4 };
-        let moved_state = session.board_up(&unhashed_state);
+        let moved_state = self.board_up(&unhashed_state);
 
-        self.hash(&moved_state)
+        self.hash(&self.canonical(&moved_state))
     }
 
     fn end(&self, state: State) -> bool {

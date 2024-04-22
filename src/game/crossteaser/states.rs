@@ -26,7 +26,7 @@ pub fn parse_state(
 ) -> Result<State, GameError> {
     check_state_pattern(&state)?;
     let v: Vec<String> = parse_pieces(&state);
-    for piece in &v {
+    for piece in v.iter() {
         check_valid_piece(piece)?;
     }
     check_free_spaces(&v, session)?;
@@ -90,7 +90,6 @@ fn check_state_pattern(state: &String) -> Result<(), GameError> {
 }
 
 fn check_valid_piece(piece: &String) -> Result<(), GameError> {
-    println!();
     match piece.parse::<u64>() {
         Ok(n) => {
             if n < 24 {
@@ -103,7 +102,6 @@ fn check_valid_piece(piece: &String) -> Result<(), GameError> {
             }
         },
         Err(_) => {
-            println!("{}", piece);
             if piece == "X" {
                 Ok(())
             } else {
@@ -120,19 +118,19 @@ fn parse_pieces(state: &str) -> Vec<String> {
     state
         .split(['|', '-'])
         .map(|piece| piece.to_owned())
+        .filter(|piece| !piece.is_empty())
         .collect()
 }
 
 #[cfg(test)]
 mod test {
     use crate::game::crossteaser::*;
-    use std::collections::HashSet;
 
     #[test]
     fn test_parsing() {
         let session: Session = Session {
             variant: None,
-            length: 2,
+            length: 3,
             width: 3,
             free: 1,
         };
@@ -141,40 +139,5 @@ mod test {
             Ok(s) => println!("{}", s),
             Err(e) => println!("{}", e),
         }
-    }
-
-    #[test]
-    fn test_transition() {
-        let session: Session = Session {
-            variant: None,
-            length: 2,
-            width: 3,
-            free: 1,
-        };
-        let mut s: UnhashedState = UnhashedState {
-            pieces: Vec::new(),
-            free: 4,
-        };
-        for _i in 0..5 {
-            s.pieces
-                .push(unhash_orientation(0));
-        }
-        let mut found: HashSet<State> = HashSet::new();
-        let mut unsolved: Vec<State> = Vec::new();
-        unsolved.push(session.hash(&s));
-        while false {
-            let s: State = unsolved.pop().unwrap();
-            found.insert(s);
-            let f: Vec<State> = session.prograde(s);
-            for state in f {
-                if !found.contains(&state) {
-                    unsolved.push(state);
-                }
-            }
-            if found.len() % 100000 == 0 {
-                println!("found: {}", found.len());
-            }
-        }
-        println!("total: {}", found.len());
     }
 }

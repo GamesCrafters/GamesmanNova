@@ -1,5 +1,7 @@
 use super::*; // Import everything from the parent module
 
+use std::collections::HashSet;
+
 #[test]
 fn test_move_into_center_from_above() {
     let mut session = Session {
@@ -156,4 +158,39 @@ fn test_start_end() {
         session.end(session.hash(&moved_state)),
         "This should be a valid end state."
     );
+}
+
+#[test]
+fn test_transition() {
+    let session: Session = Session {
+        variant: None,
+        length: 2,
+        width: 3,
+        free: 1,
+    };
+    let mut s: UnhashedState = UnhashedState {
+        pieces: Vec::new(),
+        free: 4,
+    };
+    for _i in 0..5 {
+        s.pieces
+            .push(unhash_orientation(0));
+    }
+    let mut found: HashSet<State> = HashSet::new();
+    let mut unsolved: Vec<State> = Vec::new();
+    unsolved.push(session.hash(&s));
+    while false {
+        let s: State = unsolved.pop().unwrap();
+        found.insert(s);
+        let f: Vec<State> = session.prograde(s);
+        for state in f {
+            if !found.contains(&state) {
+                unsolved.push(state);
+            }
+        }
+        if found.len() % 100000 == 0 {
+            println!("found: {}", found.len());
+        }
+    }
+    println!("total: {}", found.len());
 }
