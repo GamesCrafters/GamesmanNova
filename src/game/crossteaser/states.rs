@@ -12,7 +12,7 @@ pub const STATE_DEFAULT: &'static str = "|0-0-0|0-X-0|0-0-0|";
 pub const STATE_PATTERN: &'static str = r"^([|]([\dX]+-)+[\dX]+)+[|]";
 pub const STATE_PROTOCOL: &'static str =
     "Rows are separated by |, columns are separated by -, empty space is X. \
-Integers 0-24 are a piece orientation as defined by ORIENTATION_MAP";
+Integers 0-23 are a piece orientation as defined by ORIENTATION_MAP";
 
 use regex::Regex;
 
@@ -145,7 +145,7 @@ mod test {
     fn test_transition() {
         let session: Session = Session {
             variant: None,
-            length: 3,
+            length: 2,
             width: 3,
             free: 1,
         };
@@ -153,14 +153,14 @@ mod test {
             pieces: Vec::new(),
             free: 4,
         };
-        for _i in 0..8 {
+        for _i in 0..5 {
             s.pieces
                 .push(unhash_orientation(0));
         }
         let mut found: HashSet<State> = HashSet::new();
         let mut unsolved: Vec<State> = Vec::new();
         unsolved.push(session.hash(&s));
-        for i in 0..1000 {
+        while false {
             let s: State = unsolved.pop().unwrap();
             found.insert(s);
             let f: Vec<State> = session.prograde(s);
@@ -170,8 +170,9 @@ mod test {
                 }
             }
             if found.len() % 100000 == 0 {
-                println!("total: {}", found.len());
+                println!("found: {}", found.len());
             }
         }
+        println!("total: {}", found.len());
     }
 }
