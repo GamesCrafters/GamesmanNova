@@ -6,6 +6,7 @@
 //!
 //! #### Authorship
 //! - Max Fierro, 4/8/2024
+//! - Benjamin Riley Zimmerman, 4/22/2024
 
 /* CONSTANTS */
 
@@ -156,30 +157,29 @@ pub mod simple_utility {
         }
 
         impl<'a> AcyclicExampleGame<'a> {
-            /// TODO
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<AcyclicExampleGame<'a>> {
                 let mut nodes = vec![
-                    node!(0), // <- 10
-                    node!(1), // <- 9
-                    node!(0), // <- 8
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 7
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 6
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 5
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 4
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 3
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 2
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 1
+                    node!(0),
                     node!(1),
-                    node![ // <- 0
+                    node!(0),
+                    node!(1),
+                    node![
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -187,9 +187,25 @@ pub mod simple_utility {
                         SimpleUtility::WIN.into(),
                         SimpleUtility::LOSE.into(),
                     ],
-                    node![ // <- -1 (for general sum)
+                    node![
                         SimpleUtility::WIN.into(),
                         SimpleUtility::TIE.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::TIE.into(),
+                    ],
+                    node![
+                        SimpleUtility::TIE.into(),
+                        SimpleUtility::TIE.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::LOSE.into(),
                     ],
                 ];
 
@@ -197,7 +213,7 @@ pub mod simple_utility {
                 store.append(&mut nodes);
                 let store = &store[length..];
 
-                let game = builder::SessionBuilder::new(&TREE_GAME_NAME)
+                let game = builder::SessionBuilder::new(&ACYCLIC_GAME_NAME)
                     .edge(&store[0], &store[1])?
                     .edge(&store[0], &store[3])?
                     .edge(&store[1], &store[2])?
@@ -232,8 +248,8 @@ pub mod simple_utility {
                     .edge(&store[15], &store[18])?
                     .edge(&store[16], &store[19])?
                     .edge(&store[16], &store[20])?
-                    .edge(&store[17], &store[20])?
-                    .edge(&store[17], &store[18])?
+                    .edge(&store[17], &store[21])?
+                    .edge(&store[17], &store[22])?
                     .start(&store[0])?
                     .build()?;
 
@@ -248,38 +264,46 @@ pub mod simple_utility {
         }
 
         impl<'a> CyclicExampleGame<'a> {
-            /// TODO
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<CyclicExampleGame<'a>> {
                 let mut nodes = vec![
-                    node!(0), // <- 10
-                    node!(1), // <- 9
-                    node!(0), // <- 8
+                    node!(0), // 254 = 0
                     node!(1),
-                    node!(0), // <- 7
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 6
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 5
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 4
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 3
-                    node!(1),
-                    node!(0), // <- 2
-                    node!(1),
-                    node!(0), // <- 1
-                    node!(1),
-                    node![ // <- 0
+                    node!(0),
+                    node![
                         SimpleUtility::LOSE.into(),
-                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
                     ],
                     node![
                         SimpleUtility::WIN.into(),
                         SimpleUtility::LOSE.into(),
                     ],
-                    node![ // <- -1 (for general sum)
+                    node![
+                        SimpleUtility::TIE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
                         SimpleUtility::TIE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -289,45 +313,32 @@ pub mod simple_utility {
                 store.append(&mut nodes);
                 let store = &store[length..];
 
-                let game = builder::SessionBuilder::new(&TREE_GAME_NAME)
+                let game = builder::SessionBuilder::new(&CYCLIC_GAME_NAME)
                     .edge(&store[0], &store[1])?
                     .edge(&store[0], &store[3])?
-                    .edge(&store[1], &store[2])?
-                    .edge(&store[1], &store[4])?
+                    .edge(&store[0], &store[5])?
+                    .edge(&store[1], &store[8])?
+                    .edge(&store[1], &store[10])?
+                    .edge(&store[2], &store[1])?
+                    .edge(&store[2], &store[3])?
                     .edge(&store[2], &store[5])?
-                    .edge(&store[2], &store[7])?
+                    .edge(&store[3], &store[2])?
                     .edge(&store[3], &store[4])?
-                    .edge(&store[3], &store[6])?
+                    .edge(&store[4], &store[5])?
                     .edge(&store[4], &store[7])?
-                    .edge(&store[4], &store[9])?
                     .edge(&store[5], &store[6])?
                     .edge(&store[5], &store[8])?
+                    .edge(&store[6], &store[7])?
                     .edge(&store[6], &store[9])?
-                    .edge(&store[6], &store[11])?
-                    .edge(&store[7], &store[8])?
-                    .edge(&store[7], &store[10])?
-                    .edge(&store[8], &store[11])?
-                    .edge(&store[8], &store[13])?
-                    .edge(&store[9], &store[10])?
-                    .edge(&store[9], &store[12])?
-                    .edge(&store[10], &store[13])?
+                    .edge(&store[6], &store[16])?
+                    .edge(&store[7], &store[11])?
+                    .edge(&store[7], &store[12])?
+                    .edge(&store[7], &store[4])?
+                    .edge(&store[8], &store[9])?
+                    .edge(&store[8], &store[14])?
+                    .edge(&store[9], &store[13])?
                     .edge(&store[10], &store[15])?
-                    .edge(&store[11], &store[12])?
-                    .edge(&store[11], &store[14])?
-                    .edge(&store[12], &store[15])?
-                    .edge(&store[12], &store[17])?
-                    .edge(&store[13], &store[14])?
-                    .edge(&store[13], &store[16])?
-                    .edge(&store[14], &store[17])?
-                    .edge(&store[14], &store[19])?
-                    .edge(&store[15], &store[16])?
-                    .edge(&store[15], &store[18])?
-                    .edge(&store[16], &store[19])?
-                    .edge(&store[16], &store[1])?
-                    .edge(&store[17], &store[0])?
-                    .edge(&store[16], &store[20])?
-                    .edge(&store[17], &store[20])?
-                    .edge(&store[17], &store[18])?
+                    .edge(&store[10], &store[13])?
                     .start(&store[0])?
                     .build()?;
 
@@ -416,7 +427,6 @@ pub mod simple_utility {
         /* INSTANTIATION */
 
         impl<'a> TreeExampleGame<'a> {
-            /// TODO
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<TreeExampleGame<'a>> {
@@ -424,13 +434,12 @@ pub mod simple_utility {
                     node!(0),
                     node!(1),
                     node!(1),
+                    node!(0),
+                    node!(0),
                     node!(1),
-                    node!(0),
-                    node!(0),
-                    node!(0),
-                    node!(0),
-                    node!(0),
-                    node!(0),
+                    node!(1),
+                    node!(1),
+                    node!(1),
                     node![
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
@@ -462,6 +471,10 @@ pub mod simple_utility {
                     node![
                         SimpleUtility::WIN.into(),
                         SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::TIE.into(),
+                        SimpleUtility::TIE.into(),
                     ],
                     node![
                         SimpleUtility::TIE.into(),
@@ -476,22 +489,22 @@ pub mod simple_utility {
                 let game = builder::SessionBuilder::new(&TREE_GAME_NAME)
                     .edge(&store[0], &store[1])?
                     .edge(&store[0], &store[2])?
-                    .edge(&store[0], &store[3])?
+                    .edge(&store[1], &store[3])?
                     .edge(&store[1], &store[4])?
-                    .edge(&store[1], &store[5])?
-                    .edge(&store[1], &store[6])?
-                    .edge(&store[2], &store[7])?
-                    .edge(&store[2], &store[8])?
                     .edge(&store[2], &store[9])?
-                    .edge(&store[3], &store[10])?
-                    .edge(&store[3], &store[11])?
-                    .edge(&store[3], &store[12])?
-                    .edge(&store[4], &store[13])?
-                    .edge(&store[5], &store[14])?
-                    .edge(&store[6], &store[15])?
+                    .edge(&store[2], &store[10])?
+                    .edge(&store[3], &store[5])?
+                    .edge(&store[3], &store[6])?
+                    .edge(&store[4], &store[7])?
+                    .edge(&store[4], &store[8])?
+                    .edge(&store[5], &store[11])?
+                    .edge(&store[5], &store[12])?
+                    .edge(&store[6], &store[13])?
+                    .edge(&store[6], &store[14])?
+                    .edge(&store[7], &store[15])?
                     .edge(&store[7], &store[16])?
                     .edge(&store[8], &store[17])?
-                    .edge(&store[9], &store[18])?
+                    .edge(&store[8], &store[18])?
                     .start(&store[0])?
                     .build()?;
 
@@ -506,30 +519,20 @@ pub mod simple_utility {
         }
 
         impl<'a> AcyclicExampleGame<'a> {
-            /// TODO
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<AcyclicExampleGame<'a>> {
                 let mut nodes = vec![
-                    node!(0), // <- 10
-                    node!(1), // <- 9
-                    node!(0), // <- 8
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 7
                     node!(1),
-                    node!(0), // <- 6
                     node!(1),
-                    node!(0), // <- 5
-                    node!(1),
-                    node!(0), // <- 4
-                    node!(1),
-                    node!(0), // <- 3
-                    node!(1),
-                    node!(0), // <- 2
-                    node!(1),
-                    node!(0), // <- 1
-                    node!(1),
-                    node![ // <- 0
+                    node!(0),
+                    node!(0),
+                    node!(0),
+                    node!(0),
+                    node!(0),
+                    node![
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -537,47 +540,43 @@ pub mod simple_utility {
                         SimpleUtility::WIN.into(),
                         SimpleUtility::LOSE.into(),
                     ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
                 ];
 
                 let length = store.len();
                 store.append(&mut nodes);
                 let store = &store[length..];
 
-                let game = builder::SessionBuilder::new(&TREE_GAME_NAME)
+                let game = builder::SessionBuilder::new(&ACYCLIC_GAME_NAME)
                     .edge(&store[0], &store[1])?
+                    .edge(&store[0], &store[2])?
                     .edge(&store[0], &store[3])?
-                    .edge(&store[1], &store[2])?
                     .edge(&store[1], &store[4])?
-                    .edge(&store[2], &store[5])?
-                    .edge(&store[2], &store[7])?
+                    .edge(&store[1], &store[5])?
+                    .edge(&store[2], &store[4])?
+                    .edge(&store[2], &store[6])?
                     .edge(&store[3], &store[4])?
-                    .edge(&store[3], &store[6])?
-                    .edge(&store[4], &store[7])?
+                    .edge(&store[3], &store[7])?
+                    .edge(&store[3], &store[8])?
                     .edge(&store[4], &store[9])?
-                    .edge(&store[5], &store[6])?
-                    .edge(&store[5], &store[8])?
-                    .edge(&store[6], &store[9])?
-                    .edge(&store[6], &store[11])?
-                    .edge(&store[7], &store[8])?
+                    .edge(&store[4], &store[10])?
+                    .edge(&store[5], &store[11])?
+                    .edge(&store[5], &store[12])?
+                    .edge(&store[6], &store[12])?
+                    .edge(&store[6], &store[13])?
                     .edge(&store[7], &store[10])?
                     .edge(&store[8], &store[11])?
-                    .edge(&store[8], &store[13])?
-                    .edge(&store[9], &store[10])?
-                    .edge(&store[9], &store[12])?
-                    .edge(&store[10], &store[13])?
-                    .edge(&store[10], &store[15])?
-                    .edge(&store[11], &store[12])?
-                    .edge(&store[11], &store[14])?
-                    .edge(&store[12], &store[15])?
-                    .edge(&store[12], &store[17])?
-                    .edge(&store[13], &store[14])?
-                    .edge(&store[13], &store[16])?
-                    .edge(&store[14], &store[17])?
-                    .edge(&store[14], &store[19])?
-                    .edge(&store[15], &store[16])?
-                    .edge(&store[15], &store[18])?
-                    .edge(&store[16], &store[19])?
-                    .edge(&store[17], &store[18])?
                     .start(&store[0])?
                     .build()?;
 
@@ -592,30 +591,24 @@ pub mod simple_utility {
         }
 
         impl<'a> CyclicExampleGame<'a> {
-            /// TODO
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<CyclicExampleGame<'a>> {
                 let mut nodes = vec![
-                    node!(0), // <- 10
-                    node!(1), // <- 9
-                    node!(0), // <- 8
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 7
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 6
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 5
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 4
+                    node!(0),
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 3
+                    node!(0),
                     node!(1),
-                    node!(0), // <- 2
-                    node!(1),
-                    node!(0), // <- 1
-                    node!(1),
-                    node![ // <- 0
+                    node![
                         SimpleUtility::LOSE.into(),
                         SimpleUtility::WIN.into(),
                     ],
@@ -629,7 +622,7 @@ pub mod simple_utility {
                 store.append(&mut nodes);
                 let store = &store[length..];
 
-                let game = builder::SessionBuilder::new(&TREE_GAME_NAME)
+                let game = builder::SessionBuilder::new(&CYCLIC_GAME_NAME)
                     .edge(&store[0], &store[1])?
                     .edge(&store[0], &store[3])?
                     .edge(&store[1], &store[2])?
@@ -648,24 +641,14 @@ pub mod simple_utility {
                     .edge(&store[7], &store[10])?
                     .edge(&store[8], &store[11])?
                     .edge(&store[8], &store[13])?
-                    .edge(&store[9], &store[10])?
                     .edge(&store[9], &store[12])?
+                    .edge(&store[9], &store[14])?
+                    .edge(&store[10], &store[11])?
                     .edge(&store[10], &store[13])?
-                    .edge(&store[10], &store[15])?
-                    .edge(&store[11], &store[12])?
                     .edge(&store[11], &store[14])?
-                    .edge(&store[12], &store[15])?
-                    .edge(&store[12], &store[17])?
-                    .edge(&store[13], &store[14])?
-                    .edge(&store[13], &store[16])?
-                    .edge(&store[14], &store[17])?
-                    .edge(&store[14], &store[19])?
-                    .edge(&store[15], &store[16])?
-                    .edge(&store[15], &store[18])?
-                    .edge(&store[16], &store[19])?
-                    .edge(&store[16], &store[1])?
-                    .edge(&store[17], &store[0])?
-                    .edge(&store[17], &store[18])?
+                    .edge(&store[11], &store[1])?
+                    .edge(&store[12], &store[0])?
+                    .edge(&store[12], &store[13])?
                     .start(&store[0])?
                     .build()?;
 
@@ -746,11 +729,85 @@ pub mod general_utility {
         /* INSTANTIATION */
 
         impl<'a> TreeExampleGame<'a> {
-            /// TODO
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<TreeExampleGame<'a>> {
-                todo!()
+                let mut nodes = vec![
+                    node!(0),
+                    node!(1),
+                    node!(1),
+                    node!(1),
+                    node!(0),
+                    node!(0),
+                    node!(0),
+                    node!(0),
+                    node!(0),
+                    node!(0),
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::TIE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::TIE.into(),
+                        SimpleUtility::TIE.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::TIE.into(),
+                    ],
+                ];
+
+                let length = store.len();
+                store.append(&mut nodes);
+                let store = &store[length..];
+
+                let game = builder::SessionBuilder::new(&TREE_GAME_NAME)
+                    .edge(&store[0], &store[1])?
+                    .edge(&store[0], &store[2])?
+                    .edge(&store[0], &store[3])?
+                    .edge(&store[1], &store[4])?
+                    .edge(&store[1], &store[5])?
+                    .edge(&store[1], &store[6])?
+                    .edge(&store[2], &store[7])?
+                    .edge(&store[2], &store[8])?
+                    .edge(&store[2], &store[9])?
+                    .edge(&store[3], &store[10])?
+                    .edge(&store[3], &store[11])?
+                    .edge(&store[3], &store[12])?
+                    .edge(&store[4], &store[13])?
+                    .edge(&store[5], &store[14])?
+                    .edge(&store[6], &store[15])?
+                    .edge(&store[7], &store[16])?
+                    .edge(&store[8], &store[17])?
+                    .edge(&store[9], &store[18])?
+                    .start(&store[0])?
+                    .build()?;
+
+                Ok(TreeExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
