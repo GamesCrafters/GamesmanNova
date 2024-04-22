@@ -696,59 +696,65 @@ impl Transition for Session {
 /* STATE RESOLUTION IMPLEMENTATIONS */
 
 impl Bounded for Session {
-    pub fn set_start_state(&self, pieces: Vec<Orientation>, free: u64) -> State {
-        assert!(pieces.len() == 8, "There must be exactly 8 pieces.");
-        assert!((0..9).contains(&free), "Free space index must be between 0 and 8.");
-
-        let unhashed_state = UnhashedState { pieces, free };
-        self.hash(&unhashed_state)
-    }
-
-    /// Generates a random, valid game state that is not an end state.
-    pub fn set_random_state(&self) -> State {
-        let mut rng = thread_rng();
-
-        let mut pieces: Vec<Orientation> = (0..8)
-            .map(|_| {
-                let idx = rng.gen_range(0..24);
-                unhash_orientation(idx as u64)
-            })
-            .collect();
-
-        let mut free = rng.gen_range(0..9);
-
-
-        let mut state = self.set_start_state(pieces.clone(), free);
-
-        // Ensure the generated state is not an end state
-        while self.end(state) {
-            pieces.shuffle(&mut rng);
-            free = rng.gen_range(0..9);
-            state = self.set_start_state(pieces.clone(), free);
-        }
-
-        state
-    }
-
-    
-    /// Starts the game by either setting a random state or using a provided state.
-    pub fn start(&self, manual: Option<(Vec<Orientation>, u64)>) -> State {
-        match manual {
-            Some((pieces, free)) => {
-                // Assuming 'set_start_state' correctly initializes the state
-                self.set_start_state(pieces, free)
+    fn start(&self) -> State {
+        let session = Session {
+            variant: None,
+            length: 3,
+            width: 3,
+            free: 1, // Free space initially set below the center
+        };
+        // Orientations for each piece in the final (solved) position
+        let pieces = vec![
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            }, // Initial state with all pieces aligned
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
             },
-            None => {
-                // Assuming 'set_random_state' generates a valid initial non-end state
-                self.set_random_state()
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
             },
-        }
-        // Ensure each branch of the match statement is closed properly
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+        ];
+        let unhashed_state = UnhashedState { pieces, free: 4 };
+        let moved_state = session.board_up(&unhashed_state);
+
+        self.hash(&moved_state)
     }
 
     fn end(&self, state: State) -> bool {
         let current_state = self.unhash(state);
-    
+
         // Check if the free space is in the middle
         if current_state.free != 4 {
             return false;
@@ -759,13 +765,13 @@ impl Bounded for Session {
             let top = first_piece.top;
             let right = first_piece.right;
 
-            current_state.pieces.iter().all(|p| {
-                p.front == front && p.top == top && p.right == right
-            })
+            current_state
+                .pieces
+                .iter()
+                .all(|p| p.front == front && p.top == top && p.right == right)
         } else {
             false // Return false if there are no pieces, or handle differently if needed
         }
-
     }
 }
 
@@ -819,3 +825,5 @@ impl ClassicPuzzle for Session {
         todo!()
     }
 }
+#[cfg(test)]
+mod tests;
