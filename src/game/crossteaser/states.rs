@@ -58,10 +58,7 @@ fn check_free_spaces(
     } else {
         Err(GameError::StateMalformed {
             game_name: NAME,
-            hint: format!(
-                "String does not match the pattern '{}'.",
-                STATE_PATTERN
-            ),
+            hint: "Invalid free space".to_owned(),
         })
     }
 }
@@ -75,10 +72,7 @@ fn check_num_pieces(
     } else {
         Err(GameError::StateMalformed {
             game_name: NAME,
-            hint: format!(
-                "String does not match the pattern '{}'.",
-                STATE_PATTERN
-            ),
+            hint: "Invalid piece count".to_owned(),
         })
     }
 }
@@ -88,10 +82,7 @@ fn check_state_pattern(state: &String) -> Result<(), GameError> {
     if !re.is_match(&state) {
         Err(GameError::StateMalformed {
             game_name: NAME,
-            hint: format!(
-                "String does not match the pattern '{}'.",
-                STATE_PATTERN
-            ),
+            hint: "Invalid pattern".to_owned(),
         })
     } else {
         Ok(())
@@ -99,6 +90,7 @@ fn check_state_pattern(state: &String) -> Result<(), GameError> {
 }
 
 fn check_valid_piece(piece: &String) -> Result<(), GameError> {
+    println!();
     match piece.parse::<u64>() {
         Ok(n) => {
             if n < 24 {
@@ -106,23 +98,18 @@ fn check_valid_piece(piece: &String) -> Result<(), GameError> {
             } else {
                 Err(GameError::StateMalformed {
                     game_name: NAME,
-                    hint: format!(
-                        "String does not match the pattern '{}'.",
-                        STATE_PATTERN
-                    ),
+                    hint: "Invalid pieces int".to_owned(),
                 })
             }
         },
         Err(_) => {
+            println!("{}", piece);
             if piece == "X" {
                 Ok(())
             } else {
                 Err(GameError::StateMalformed {
                     game_name: NAME,
-                    hint: format!(
-                        "String does not match the pattern '{}'.",
-                        STATE_PATTERN
-                    ),
+                    hint: "Invalid pieces string".to_owned(),
                 })
             }
         },
@@ -140,6 +127,21 @@ fn parse_pieces(state: &str) -> Vec<String> {
 mod test {
     use crate::game::crossteaser::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn test_parsing() {
+        let session: Session = Session {
+            variant: None,
+            length: 2,
+            width: 3,
+            free: 1,
+        };
+        let state: String = "|0-0-0|0-X-0|0-0-0|".to_owned();
+        match parse_state(state, &session) {
+            Ok(s) => println!("{}", s),
+            Err(e) => println!("{}", e),
+        }
+    }
 
     #[test]
     fn test_transition() {
