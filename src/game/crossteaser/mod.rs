@@ -696,12 +696,76 @@ impl Transition for Session {
 /* STATE RESOLUTION IMPLEMENTATIONS */
 
 impl Bounded for Session {
-    fn start(&self) -> State {
-        todo!()
+    pub fn set_start_state(&self, pieces: Vec<Orientation>, free: u64) -> State {
+        assert!(pieces.len() == 8, "There must be exactly 8 pieces.");
+        assert!((0..9).contains(&free), "Free space index must be between 0 and 8.");
+
+        let unhashed_state = UnhashedState { pieces, free };
+        self.hash(&unhashed_state)
+    }
+
+    /// Generates a random, valid game state that is not an end state.
+    pub fn set_random_state(&self) -> State {
+        let mut rng = thread_rng();
+
+        let mut pieces: Vec<Orientation> = (0..8)
+            .map(|_| {
+                let idx = rng.gen_range(0..24);
+                unhash_orientation(idx as u64)
+            })
+            .collect();
+
+        let mut free = rng.gen_range(0..9);
+
+
+        let mut state = self.set_start_state(pieces.clone(), free);
+
+        // Ensure the generated state is not an end state
+        while self.end(state) {
+            pieces.shuffle(&mut rng);
+            free = rng.gen_range(0..9);
+            state = self.set_start_state(pieces.clone(), free);
+        }
+
+        state
+    }
+
+    
+    /// Starts the game by either setting a random state or using a provided state.
+    pub fn start(&self, manual: Option<(Vec<Orientation>, u64)>) -> State {
+        match manual {
+            Some((pieces, free)) => {
+                // Assuming 'set_start_state' correctly initializes the state
+                self.set_start_state(pieces, free)
+            },
+            None => {
+                // Assuming 'set_random_state' generates a valid initial non-end state
+                self.set_random_state()
+            },
+        }
+        // Ensure each branch of the match statement is closed properly
     }
 
     fn end(&self, state: State) -> bool {
-        todo!()
+        let current_state = self.unhash(state);
+    
+        // Check if the free space is in the middle
+        if current_state.free != 4 {
+            return false;
+        }
+        // Check if all pieces have the same front, top, and right orientation
+        if let Some(first_piece) = current_state.pieces.first() {
+            let front = first_piece.front;
+            let top = first_piece.top;
+            let right = first_piece.right;
+
+            current_state.pieces.iter().all(|p| {
+                p.front == front && p.top == top && p.right == right
+            })
+        } else {
+            false // Return false if there are no pieces, or handle differently if needed
+        }
+
     }
 }
 
