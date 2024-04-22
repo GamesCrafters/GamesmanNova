@@ -39,6 +39,8 @@ use crate::solver::ClassicPuzzle;
 
 mod states;
 mod variants;
+#[cfg(test)]
+mod test;
 
 /* GAME DATA */
 
@@ -826,5 +828,3 @@ impl ClassicPuzzle for Session {
         todo!()
     }
 }
-#[cfg(test)]
-mod tests;

@@ -1,3 +1,10 @@
+//! # Crossteaser Testing Module
+//!
+//! This module helps test crossteaser game functionality
+//!
+//! #### Authorship
+//!
+
 use super::*; // Import everything from the parent module
 
 use std::collections::HashSet;
@@ -179,7 +186,7 @@ fn test_transition() {
     let mut found: HashSet<State> = HashSet::new();
     let mut unsolved: Vec<State> = Vec::new();
     unsolved.push(session.hash(&s));
-    while false {
+    while !unsolved.is_empty() {
         let s: State = unsolved.pop().unwrap();
         found.insert(s);
         let f: Vec<State> = session.prograde(s);
