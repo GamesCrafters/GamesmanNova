@@ -717,11 +717,81 @@ impl DTransition for Session {
 
 impl Bounded for Session {
     fn start(&self) -> State {
-        todo!()
+        let session = Session {
+            variant: None,
+            length: 3,
+            width: 3,
+            free: 1, // Free space initially set below the center
+        };
+        // Orientations for each piece in the final (solved) position
+        let pieces = vec![
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            }, // Initial state with all pieces aligned
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+            Orientation {
+                front: 0,
+                top: 1,
+                right: 2,
+            },
+        ];
+        let unhashed_state = UnhashedState { pieces, free: 4 };
+        let moved_state = session.board_up(&unhashed_state);
+
+        self.hash(&moved_state)
     }
 
     fn end(&self, state: State) -> bool {
-        todo!()
+        let current_state = self.unhash(state);
+
+        // Check if the free space is in the middle
+        if current_state.free != 4 {
+            return false;
+        }
+        // Check if all pieces have the same front, top, and right orientation
+        if let Some(first_piece) = current_state.pieces.first() {
+            let front = first_piece.front;
+            let top = first_piece.top;
+            let right = first_piece.right;
+
+            current_state
+                .pieces
+                .iter()
+                .all(|p| p.front == front && p.top == top && p.right == right)
+        } else {
+            false // Return false if there are no pieces, or handle differently if needed
+        }
     }
 }
 
@@ -779,3 +849,5 @@ impl ClassicPuzzle for Session {
         }
     }
 }
+#[cfg(test)]
+mod tests;
