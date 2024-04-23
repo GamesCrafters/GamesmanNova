@@ -23,10 +23,14 @@ pub fn dynamic_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
     G: DTransition + Bounded + GeneralSum<N> + Extensive<N> + Game,
 {
-    let mut db = volatile_database(game)
+    let db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
 
-    dynamic_backward_induction(&mut db, game)
+    let table = db
+        .select_table(&game.id())
+        .context("Failed to select solution set database table.")?;
+
+    dynamic_backward_induction(table, game)
         .context("Failed solving algorithm execution.")?;
 
     Ok(())
@@ -40,9 +44,14 @@ where
         + Extensive<N>
         + Game,
 {
-    let mut db = volatile_database(game)
+    let db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
-    static_backward_induction(&mut db, game)
+
+    let table = db
+        .select_table(&game.id())
+        .context("Failed to select solution set database table.")?;
+
+    static_backward_induction(table, game)
         .context("Failed solving algorithm execution.")?;
     Ok(())
 }
@@ -64,8 +73,6 @@ where
         .context("Failed to create table schema for solver records.")?;
     db.create_table(&id, schema)
         .context("Failed to create database table for solution set.")?;
-    db.select_table(&id)
-        .context("Failed to select solution set database table.")?;
 
     Ok(db)
 }

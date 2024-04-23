@@ -10,6 +10,8 @@
 
 /* STATES */
 
+use bitvec::{order::Msb0, slice::BitSlice};
+
 /// Encodes the state of a game in a 64-bit unsigned integer. This also
 /// sets a limiting upper bound on the amount of possible non-equivalent states
 /// that can be achieved in a game.
@@ -50,7 +52,19 @@ pub type DrawDepth = u64;
 pub type Remoteness = u64;
 
 /// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
-pub type MinEV = u64;
+pub type Mex = u64;
+
+/* DATABASE */
+
+/// The type of an identifier used to differentiate database tables.
+pub type TableID = str;
+
+/// The type of a raw sequence of bits encoding a database record, backed by
+/// a [`BitSlice`] with [`u8`] big-endian storage.
+pub type RawRecord = BitSlice<u8, Msb0>;
+
+/// The type of a database key per an implementation of [`KVStore`].
+pub type Key = State;
 
 /* AUXILIARY */
 
