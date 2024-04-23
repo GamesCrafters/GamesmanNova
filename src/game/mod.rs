@@ -324,7 +324,7 @@ where
 /// both players' utilities.
 pub trait ClassicGame
 where
-    Self: Extensive<2>,
+    Self: SimpleSum<2>,
 {
     /// If `state` is terminal, returns the utility of the player whose turn it
     /// is at that state. If the state is not terminal, it is recommended that
@@ -348,7 +348,7 @@ where
 /// state that does not subjectively fit into any of the above categories.
 pub trait ClassicPuzzle
 where
-    Self: Extensive<1>,
+    Self: SimpleSum<1>,
 {
     /// If `state` is terminal, returns the utility of the puzzle's player. If
     /// the state is not terminal, it is recommended that this function panics.
@@ -368,7 +368,7 @@ where
 
 impl<G> SimpleSum<2> for G
 where
-    G: ClassicGame + Extensive<2>,
+    G: ClassicGame,
 {
     fn utility(&self, state: State) -> [SimpleUtility; 2] {
         let player_utility = ClassicGame::utility(self, state);
