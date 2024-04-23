@@ -98,7 +98,7 @@ where
         let mut buf = RecordBuffer::new(game.players())
             .context("Failed to create placeholder record.")?;
         if db.get(curr).is_none() {
-            db.put(curr, &buf);
+            db.put(curr, &buf)?;
             if game.end(curr) {
                 buf = RecordBuffer::new(game.players())
                     .context("Failed to create record for end state.")?;
@@ -106,7 +106,7 @@ where
                     .context("Failed to copy utility values to record.")?;
                 buf.set_remoteness(0)
                     .context("Failed to set remoteness for end state.")?;
-                db.put(curr, &buf);
+                db.put(curr, &buf)?;
             } else {
                 stack.push(curr);
                 stack.extend(
@@ -135,7 +135,7 @@ where
             optimal
                 .set_remoteness(min_rem + 1)
                 .context("Failed to set remoteness for solved record.")?;
-            db.put(curr, &optimal);
+            db.put(curr, &optimal)?;
         }
     }
     Ok(())
@@ -160,7 +160,7 @@ where
         let mut buf = RecordBuffer::new(game.players())
             .context("Failed to create placeholder record.")?;
         if db.get(curr).is_none() {
-            db.put(curr, &buf);
+            db.put(curr, &buf)?;
             if game.end(curr) {
                 buf = RecordBuffer::new(game.players())
                     .context("Failed to create record for end state.")?;
@@ -168,7 +168,7 @@ where
                     .context("Failed to copy utility values to record.")?;
                 buf.set_remoteness(0)
                     .context("Failed to set remoteness for end state.")?;
-                db.put(curr, &buf);
+                db.put(curr, &buf)?;
             } else {
                 stack.push(curr);
                 stack.extend(
@@ -202,7 +202,7 @@ where
             optimal
                 .set_remoteness(min_rem + 1)
                 .context("Failed to set remoteness for solved record.")?;
-            db.put(curr, &optimal);
+            db.put(curr, &optimal)?;
         }
     }
     Ok(())
