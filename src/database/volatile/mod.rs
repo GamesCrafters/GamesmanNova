@@ -7,29 +7,61 @@
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
-use bitvec::{order::Msb0, slice::BitSlice, store::BitStore};
-
-use std::collections::HashMap;
+use bitvec::{order::Msb0, slice::BitSlice};
 
 use crate::{
-    database::{KVStore, Record, Schema, Tabular},
-    model::State,
+    database::{self, KVStore, Record, Schema, Tabular},
+    model::{State, TableID},
 };
 
-pub struct Database<'a> {
-    memory: HashMap<State, &'a [u8]>,
-}
+/* DEFINITIONS */
 
-impl Database<'_> {
+pub struct Database {}
+
+pub struct Table {}
+
+/* IMPLEMENTATIONS */
+
+impl Database {
     pub fn initialize() -> Self {
-        Self {
-            memory: HashMap::new(),
-        }
+        Database {}
     }
 }
 
-impl KVStore for Database<'_> {
-    fn put<R: Record>(&mut self, key: State, value: &R) {
+impl<'a> Tabular<'a, Table> for Database {
+    fn create_table(&self, id: &TableID, schema: Schema) -> Result<&mut Table> {
+        todo!()
+    }
+
+    fn select_table(&self, id: &TableID) -> Result<&mut Table> {
+        todo!()
+    }
+
+    fn delete_table(&self, id: &mut Table) -> Result<()> {
+        todo!()
+    }
+}
+
+impl database::Table for Table {
+    fn schema(&self) -> &Schema {
+        todo!()
+    }
+
+    fn count(&self) -> u64 {
+        todo!()
+    }
+
+    fn size(&self) -> u64 {
+        todo!()
+    }
+
+    fn id(&self) -> &TableID {
+        todo!()
+    }
+}
+
+impl KVStore for Table {
+    fn put<R: Record>(&mut self, key: State, value: &R) -> Result<()> {
         todo!()
     }
 
@@ -37,21 +69,7 @@ impl KVStore for Database<'_> {
         todo!()
     }
 
-    fn del(&mut self, key: State) {
-        todo!()
-    }
-}
-
-impl Tabular for Database<'_> {
-    fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
-        todo!()
-    }
-
-    fn select_table(&self, id: &str) -> Result<()> {
-        todo!()
-    }
-
-    fn delete_table(&self, id: &str) -> Result<()> {
+    fn delete(&mut self, key: crate::model::Key) {
         todo!()
     }
 }

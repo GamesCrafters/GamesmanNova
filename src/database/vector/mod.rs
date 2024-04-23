@@ -16,69 +16,90 @@
 //! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
-use bitvec::order::Msb0;
-use bitvec::slice::BitSlice;
 
-use crate::database::Persistence;
-use crate::database::Schema;
-use crate::database::{KVStore, Record, Tabular};
-use crate::model::State;
+use std::path::Path;
 
-/* CONSTANTS */
+use crate::{
+    database::{self, KVStore, Persistent, Record, Schema, Tabular},
+    model::{Key, RawRecord, TableID},
+};
 
-const METADATA_TABLE: &'static str = ".metadata";
+/* DEFINITIONS */
 
-/* DATABASE DEFINITION */
+pub struct Database {}
 
-pub struct Database<'a> {
-    buffer: Vec<u8>,
-    table: Table<'a>,
-    mode: Persistence<'a>,
-}
+pub struct Table {}
 
-struct Table<'a> {
-    dirty: bool,
-    width: u32,
-    name: &'a str,
-    size: u128,
-}
+/* IMPLEMENTATIONS */
 
-pub struct Parameters<'a> {
-    persistence: Persistence<'a>,
-}
+impl<'a> Persistent<'a, Table> for Database {
+    fn from(path: &Path) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        todo!()
+    }
 
-/* IMPLEMENTATION */
+    fn bind(&self, path: &Path) -> Result<()> {
+        todo!()
+    }
 
-impl Database<'_> {
-    fn initialize(params: Parameters) -> Result<Self> {
+    fn flush(&self, table: &mut Table) -> Result<()> {
         todo!()
     }
 }
 
-impl KVStore for Database<'_> {
-    fn put<R: Record>(&mut self, key: State, value: &R) {
-        todo!()
-    }
-
-    fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>> {
-        todo!()
-    }
-
-    fn del(&mut self, key: State) {
+impl Drop for Database {
+    fn drop(&mut self) {
         todo!()
     }
 }
 
-impl Tabular for Database<'_> {
-    fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
+impl<'a> Tabular<'a, Table> for Database {
+    fn create_table(&self, id: &TableID, schema: Schema) -> Result<&mut Table> {
         todo!()
     }
 
-    fn select_table(&self, id: &str) -> Result<()> {
+    fn select_table(&self, id: &TableID) -> Result<&mut Table> {
         todo!()
     }
 
-    fn delete_table(&self, id: &str) -> Result<()> {
+    fn delete_table(&self, id: &mut Table) -> Result<()> {
+        todo!()
+    }
+}
+
+impl database::Table for Table {
+    fn schema(&self) -> &Schema {
+        todo!()
+    }
+
+    fn count(&self) -> u64 {
+        todo!()
+    }
+
+    fn size(&self) -> u64 {
+        todo!()
+    }
+
+    fn id(&self) -> &TableID {
+        todo!()
+    }
+}
+
+impl KVStore for Table {
+    fn put<R>(&mut self, key: Key, value: &R) -> Result<()>
+    where
+        R: Record,
+    {
+        todo!()
+    }
+
+    fn get(&self, key: Key) -> Option<&RawRecord> {
+        todo!()
+    }
+
+    fn delete(&mut self, key: Key) {
         todo!()
     }
 }
