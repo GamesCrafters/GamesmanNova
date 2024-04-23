@@ -23,7 +23,6 @@ where
     G: DTransition<State>
         + Bounded<State>
         + ClassicPuzzle
-        + Extensive<1>
         + Game,
 {
     let mut db = volatile_database(game)
@@ -40,7 +39,6 @@ where
     G: DTransition<State>
         + Bounded<State>
         + ClassicPuzzle
-        + Extensive<1>
         + Game,
     D: KVStore,
 {
@@ -55,17 +53,13 @@ where
             SimpleUtility::LOSE => losing_queue.push_back(end_state),
             SimpleUtility::TIE => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!(
-                    "Primitive end position cannot have utility TIE
-                              for a puzzle"
-                ),
+                hint: format!("Primitive end position cannot have utility TIE
+                              for a puzzle"),
             })?,
             SimpleUtility::DRAW => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!(
-                    "Primitive end position cannot have utility DRAW
-                              for a puzzle"
-                ),
+                hint: format!("Primitive end position cannot have utility DRAW
+                              for a puzzle"),
             })?,
         }
         // Add ending state utility and remoteness to database
@@ -162,7 +156,6 @@ where
     G: DTransition<State>
         + Bounded<State>
         + ClassicPuzzle
-        + Extensive<1>
         + Game,
     D: KVStore,
 {
@@ -184,7 +177,6 @@ where
     G: DTransition<State>
         + Bounded<State>
         + ClassicPuzzle
-        + Extensive<1>
         + Game,
     D: KVStore,
 {
@@ -230,7 +222,7 @@ where
 /*
 fn volatile_database<const N: usize, G>(game: &G) -> Result<volatile::Database>
 where
-    G: Extensive<N> + Game,
+    G: Extensive<1> + Game,
 {
     let id = game.id();
     let db = volatile::Database::initialize();
@@ -283,9 +275,9 @@ impl KVStore for TestDB {
     }
 }
 
-fn volatile_database<const N: usize, G>(game: &G) -> Result<TestDB>
+fn volatile_database<G>(game: &G) -> Result<TestDB>
 where
-    G: Extensive<N> + Game,
+    G: Extensive<1> + Game,
 {
     let db = TestDB::initialize();
     Ok(db)
@@ -356,12 +348,6 @@ mod tests {
             self.adj_list[state as usize]
                 .children
                 .is_empty()
-        }
-    }
-
-    impl Extensive<1> for PuzzleGraph {
-        fn turn(&self, state: State) -> Turn {
-            0
         }
     }
 

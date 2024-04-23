@@ -289,7 +289,10 @@ where
 /* UTILITY INTERFACES */
 
 /// TODO
-pub trait GeneralSum<const N: PlayerCount> {
+pub trait GeneralSum<const N: PlayerCount> 
+where
+    Self: Extensive<N>,
+{
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal it is recommended that this function panics.
@@ -297,7 +300,10 @@ pub trait GeneralSum<const N: PlayerCount> {
 }
 
 /// TODO
-pub trait SimpleSum<const N: PlayerCount> {
+pub trait SimpleSum<const N: PlayerCount>
+where
+    Self: Extensive<N>,
+{
     /// If `state` is terminal, returns the utility vector associated with that
     /// state, where `utility[i]` is the utility of the state for player `i`. If
     /// the state is not terminal, it is recommended that this function panics.
@@ -316,7 +322,10 @@ pub trait SimpleSum<const N: PlayerCount> {
 /// Since either entry determines the other, knowing one of the entries and the
 /// turn information for a given state provides enough information to determine
 /// both players' utilities.
-pub trait ClassicGame {
+pub trait ClassicGame
+where
+    Self: Extensive<2>,
+{
     /// If `state` is terminal, returns the utility of the player whose turn it
     /// is at that state. If the state is not terminal, it is recommended that
     /// this function panics.
@@ -337,7 +346,10 @@ pub trait ClassicGame {
 /// A draw state is one where there is no way to reach a winning state but it is
 /// possible to play forever without reaching a losing state. A tie state is any
 /// state that does not subjectively fit into any of the above categories.
-pub trait ClassicPuzzle {
+pub trait ClassicPuzzle
+where
+    Self: Extensive<1>,
+{
     /// If `state` is terminal, returns the utility of the puzzle's player. If
     /// the state is not terminal, it is recommended that this function panics.
     fn utility(&self, state: State) -> SimpleUtility;
@@ -381,5 +393,14 @@ where
 {
     fn utility(&self, state: State) -> [SimpleUtility; 1] {
         [ClassicPuzzle::utility(self, state)]
+    }
+}
+
+impl<G> Extensive<1> for G
+where 
+    G: ClassicPuzzle,
+{
+    fn turn(&self, state: State) -> Turn {
+        0
     }
 }
