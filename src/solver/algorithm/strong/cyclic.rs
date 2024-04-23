@@ -9,6 +9,7 @@
 //! - Ishir Garg, 3/12/2024 (ishirgarg@berkeley.edu)
 
 use anyhow::{Context, Result};
+
 use std::collections::{HashMap, VecDeque};
 
 use crate::database::volatile;
@@ -20,18 +21,7 @@ use crate::model::{PlayerCount, Remoteness, State, Turn};
 use crate::solver::record::sur::RecordBuffer;
 use crate::solver::RecordType;
 
-/* CONSTANTS */
-
-/// The exact number of bits that are used to encode remoteness.
-const REMOTENESS_SIZE: usize = 16;
-
-/// The maximum number of bits that can be used to encode a record.
-const BUFFER_SIZE: usize = 128;
-
-/// The exact number of bits that are used to encode utility for one player.
-const UTILITY_SIZE: usize = 2;
-
-pub fn two_player_zero_sum_dynamic_solver<G>(
+pub fn dynamic_solver<G>(
     game: &G,
     mode: IOMode,
 ) -> Result<()>
@@ -40,11 +30,11 @@ where
 {
     let mut db =
         volatile_database(game).context("Failed to initialize database.")?;
-    basic_loopy_solver(game, &mut db)?;
+    cyclic_solver(game, &mut db)?;
     Ok(())
 }
 
-fn basic_loopy_solver<G, D>(game: &G, db: &mut D) -> Result<()>
+fn cyclic_solver<G, D>(game: &G, db: &mut D) -> Result<()>
 where
     G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game,
     D: KVStore,
@@ -91,7 +81,7 @@ where
 
         let parents = game.retrograde(child);
         // If child is a losing position
-        if matches!(child_utility, SimpleUtility::LOSE) {
+        if let SimpleUtility::LOSE = child_utility {
             for parent in parents {
                 if *child_counts.get(&parent).expect("Failed to enqueue parent state in initial enqueueing stage") > 0 {
                     // Add database entry

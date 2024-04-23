@@ -28,7 +28,7 @@ pub type Turn = usize;
 pub type Utility = i64;
 
 /// TODO
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SimpleUtility {
     WIN = 0,
     LOSE = 1,
