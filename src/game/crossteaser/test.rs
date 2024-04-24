@@ -171,7 +171,7 @@ fn test_start_end() {
 fn test_transition() {
     let session: Session = Session {
         variant: None,
-        length: 2,
+        length: 3,
         width: 3,
         free: 1,
     };
@@ -179,14 +179,17 @@ fn test_transition() {
         pieces: Vec::new(),
         free: 4,
     };
-    for _i in 0..5 {
+    for _i in 0..8 {
         s.pieces
             .push(unhash_orientation(0));
     }
+    let t = session.reduce(&session.board_left(&session.board_up(&s)));
+
+    println!("{}", session.encode(session.hash(&t)));
     let mut found: HashSet<State> = HashSet::new();
     let mut unsolved: Vec<State> = Vec::new();
     unsolved.push(session.hash(&s));
-    while !unsolved.is_empty() {
+    for _ in 0..1000 {
         let s: State = unsolved.pop().unwrap();
         found.insert(s);
         let f: Vec<State> = session.prograde(s);
@@ -201,3 +204,6 @@ fn test_transition() {
     }
     println!("total: {}", found.len());
 }
+
+#[test]
+fn test_bit_array() {}
