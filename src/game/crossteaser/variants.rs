@@ -40,6 +40,7 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
         length: params[0],
         width: params[1],
         free: params[2],
+        num_pieces: params[0] * params[1] - params[2],
     })
 }
 
