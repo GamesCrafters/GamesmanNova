@@ -21,10 +21,7 @@ use crate::solver::record::surcc::{ChildCount, RecordBuffer};
 
 pub fn dynamic_solver<G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: DTransition<State>
-        + Bounded<State>
-        + ClassicPuzzle
-        + Game,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Game,
 {
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -43,10 +40,7 @@ where
 /// store child count along with utility and remoteness.
 fn reverse_bfs_solver<G, D>(db: &mut D, game: &G) -> Result<()>
 where
-    G: DTransition<State>
-        + Bounded<State>
-        + ClassicPuzzle
-        + Game,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Game,
     D: KVStore,
 {
     let end_states = discover_child_counts(db, game)?;
@@ -59,17 +53,27 @@ where
             SimpleUtility::LOSE => losing_queue.push_back(end_state),
             SimpleUtility::TIE => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!("Primitive end position cannot have utility TIE
-                              for a puzzle"),
+                hint: format!(
+                    "Primitive end position cannot have utility TIE
+                              for a puzzle"
+                ),
             })?,
             SimpleUtility::DRAW => Err(SolverViolation {
                 name: "PuzzleSolver".to_string(),
-                hint: format!("Primitive end position cannot have utility DRAW
-                              for a puzzle"),
+                hint: format!(
+                    "Primitive end position cannot have utility DRAW
+                              for a puzzle"
+                ),
             })?,
         }
         // Add ending state utility and remoteness to database
-        update_db_record(db, end_state, ClassicPuzzle::utility(game, end_state), 0, 0)?;
+        update_db_record(
+            db,
+            end_state,
+            ClassicPuzzle::utility(game, end_state),
+            0,
+            0,
+        )?;
     }
 
     reverse_bfs_winning_states(db, game, &mut winning_queue)?;
@@ -82,13 +86,10 @@ where
 fn reverse_bfs_winning_states<G, D>(
     db: &mut D,
     game: &G,
-    winning_queue: &mut VecDeque<State>
+    winning_queue: &mut VecDeque<State>,
 ) -> Result<()>
 where
-    G: DTransition<State>
-        + Bounded<State>
-        + ClassicPuzzle
-        + Game,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Game,
     D: KVStore,
 {
     while let Some(state) = winning_queue.pop_front() {
@@ -96,7 +97,8 @@ where
         let child_remoteness = buf.get_remoteness();
 
         for parent in game.retrograde(state) {
-            let child_count = RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
+            let child_count =
+                RecordBuffer::from(db.get(parent).unwrap())?.get_child_count();
             if child_count > 0 {
                 winning_queue.push_back(parent);
                 update_db_record(
@@ -109,7 +111,7 @@ where
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -118,13 +120,10 @@ where
 fn reverse_bfs_losing_states<G, D>(
     db: &mut D,
     game: &G,
-    losing_queue: &mut VecDeque<State>
-)-> Result<()>
+    losing_queue: &mut VecDeque<State>,
+) -> Result<()>
 where
-    G: DTransition<State>
-        + Bounded<State>
-        + ClassicPuzzle
-        + Game,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Game,
     D: KVStore,
 {
     while let Some(state) = losing_queue.pop_front() {
@@ -158,7 +157,7 @@ where
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -189,10 +188,7 @@ where
 
 fn discover_child_counts<G, D>(db: &mut D, game: &G) -> Result<Vec<State>>
 where
-    G: DTransition<State>
-        + Bounded<State>
-        + ClassicPuzzle
-        + Game,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Game,
     D: KVStore,
 {
     let mut end_states = Vec::new();
@@ -208,10 +204,7 @@ fn discover_child_counts_from_state<G, D>(
     end_states: &mut Vec<State>,
 ) -> Result<()>
 where
-    G: DTransition<State>
-        + Bounded<State>
-        + ClassicPuzzle
-        + Game,
+    G: DTransition<State> + Bounded<State> + ClassicPuzzle + Game,
     D: KVStore,
 {
     let child_count = game.prograde(state).len() as ChildCount;
@@ -320,9 +313,9 @@ where
 mod tests {
     use anyhow::Result;
 
-    use crate::game::mock::{Session, SessionBuilder};
     use crate::database::{KVStore, Tabular};
     use crate::game::mock;
+    use crate::game::mock::{Session, SessionBuilder};
     use crate::game::{
         Bounded, ClassicPuzzle, DTransition, Extensive, Game, GameData,
         SimpleSum,
@@ -333,9 +326,7 @@ mod tests {
     use crate::node;
     use crate::solver::record::surcc::RecordBuffer;
 
-    use super::{
-        reverse_bfs_solver, volatile_database,
-    };
+    use super::{reverse_bfs_solver, volatile_database};
 
     struct GameNode {
         children: Vec<State>,
@@ -516,7 +507,10 @@ mod tests {
 
         let expected_remoteness = [1, 2, 1, 1, 0];
 
-        for (i, &remoteness) in expected_remoteness.iter().enumerate() {
+        for (i, &remoteness) in expected_remoteness
+            .iter()
+            .enumerate()
+        {
             assert_eq!(
                 RecordBuffer::from(db.get(i as u64).unwrap())?.get_remoteness(),
                 remoteness
@@ -627,19 +621,26 @@ mod tests {
             SimpleUtility::WIN,
             SimpleUtility::LOSE,
             SimpleUtility::LOSE,
-            SimpleUtility::LOSE
-        ];  
+            SimpleUtility::LOSE,
+        ];
 
         let expected_remoteness = [2, 4, 4, 1, 3, 0, 1, 2, 0];
 
-        for (i, &utility) in expected_utilities.iter().enumerate() {
+        for (i, &utility) in expected_utilities
+            .iter()
+            .enumerate()
+        {
             assert_eq!(
-                RecordBuffer::from(db.get(i as u64).unwrap())?.get_utility(0)?,
+                RecordBuffer::from(db.get(i as u64).unwrap())?
+                    .get_utility(0)?,
                 utility
             );
         }
 
-        for (i, &remoteness) in expected_remoteness.iter().enumerate() {
+        for (i, &remoteness) in expected_remoteness
+            .iter()
+            .enumerate()
+        {
             assert_eq!(
                 RecordBuffer::from(db.get(i as u64).unwrap())?.get_remoteness(),
                 remoteness
@@ -731,18 +732,25 @@ mod tests {
             SimpleUtility::DRAW,
             SimpleUtility::DRAW,
             SimpleUtility::DRAW,
-        ];  
+        ];
 
         let expected_remoteness = [2, 1, 4, 1, 3, 0, 1, 5, 0, 7, 6];
 
-        for (i, &utility) in expected_utilities.iter().enumerate() {
+        for (i, &utility) in expected_utilities
+            .iter()
+            .enumerate()
+        {
             assert_eq!(
-                RecordBuffer::from(db.get(i as u64).unwrap())?.get_utility(0)?,
+                RecordBuffer::from(db.get(i as u64).unwrap())?
+                    .get_utility(0)?,
                 utility
             );
         }
 
-        for (i, &remoteness) in expected_remoteness.iter().enumerate() {
+        for (i, &remoteness) in expected_remoteness
+            .iter()
+            .enumerate()
+        {
             assert_eq!(
                 RecordBuffer::from(db.get(i as u64).unwrap())?.get_remoteness(),
                 remoteness

@@ -289,7 +289,7 @@ where
 /* UTILITY INTERFACES */
 
 /// TODO
-pub trait GeneralSum<const N: PlayerCount> 
+pub trait GeneralSum<const N: PlayerCount>
 where
     Self: Extensive<N>,
 {
@@ -397,7 +397,7 @@ where
 }
 
 impl<G> Extensive<1> for G
-where 
+where
     G: ClassicPuzzle,
 {
     fn turn(&self, state: State) -> Turn {

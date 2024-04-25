@@ -21,10 +21,7 @@ use crate::model::{PlayerCount, Remoteness, State, Turn};
 use crate::solver::record::sur::RecordBuffer;
 use crate::solver::RecordType;
 
-pub fn dynamic_solver<G>(
-    game: &G,
-    mode: IOMode,
-) -> Result<()>
+pub fn dynamic_solver<G>(game: &G, mode: IOMode) -> Result<()>
 where
     G: DTransition<State> + Bounded<State> + SimpleSum<2> + Extensive<2> + Game,
 {
