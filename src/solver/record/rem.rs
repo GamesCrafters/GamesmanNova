@@ -1,7 +1,6 @@
 //! # Remoteness (SUR) Record Module
 //!
-//! Implementation of a database record buffer for storing only remoteness values
-//! Note that this record does not store any utilities, making it useful for puzzles
+//! TODO
 //!
 //! #### Authorship
 //!
@@ -14,10 +13,10 @@ use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
-use crate::model::Remoteness;
+use crate::model::solver::Remoteness;
 use crate::solver::error::SolverError::RecordViolation;
-use crate::solver::util;
 use crate::solver::RecordType;
+use crate::util;
 
 /* CONSTANTS */
 
@@ -45,15 +44,7 @@ pub fn schema() -> Result<Schema> {
 
 /* RECORD IMPLEMENTATION */
 
-/// Solver-specific record entry, meant to communicate the remoteness at a corresponding game
-/// state.
-///
-/// ```none
-/// [REMOTENESS_SIZE bits: Remoteness]
-/// [0b0 until BUFFER_SIZE]
-/// ```
-///
-/// The remoteness values are encoded in big-endian as unsigned integers
+/// TODO
 pub struct RecordBuffer {
     buf: BitArr!(for BUFFER_SIZE, in u8, Msb0),
 }

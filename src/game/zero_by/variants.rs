@@ -6,12 +6,13 @@
 //! #### Authorship
 //! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
+use bitvec::field::BitField;
 use regex::Regex;
 
 use crate::game::error::GameError;
-use crate::game::util::pack_turn;
 use crate::game::zero_by::{Session, NAME};
-use crate::model::Turn;
+use crate::model::game::{Player, State};
+use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
 
@@ -39,10 +40,19 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
     check_param_count(&params)?;
     check_params_are_positive(&params)?;
     let players = parse_player_count(&params)?;
+
+    let start_elems = params[1];
+    let mut start_state = State::ZERO;
+    let player_bits = min_ubits(players as u64);
+    start_state[..player_bits].store_be(Player::default());
+    start_state[player_bits..].store_be(start_elems);
+
     Ok(Session {
-        variant,
+        start_state,
+        start_elems,
+        player_bits,
         players,
-        start: pack_turn(params[1], 0, players),
+        variant,
         by: Vec::from(&params[2..]),
     })
 }
@@ -103,17 +113,17 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
     }
 }
 
-fn parse_player_count(params: &Vec<u64>) -> Result<Turn, GameError> {
-    if params[0] > (Turn::MAX as u64) {
+fn parse_player_count(params: &Vec<u64>) -> Result<Player, GameError> {
+    if params[0] > (Player::MAX as u64) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "The number of players in the game must be lower than {}.",
-                Turn::MAX
+                Player::MAX
             ),
         })
     } else {
-        Ok(Turn::try_from(params[0]).unwrap())
+        Ok(Player::try_from(params[0]).unwrap())
     }
 }
 
@@ -150,7 +160,7 @@ mod test {
         let with_default =
             Session::new(Some(VARIANT_DEFAULT.to_owned())).unwrap();
         assert_eq!(with_none.variant, with_default.variant);
-        assert_eq!(with_none.start, with_default.start);
+        assert_eq!(with_none.start_state, with_default.start_state);
         assert_eq!(with_none.by, with_default.by);
     }
 

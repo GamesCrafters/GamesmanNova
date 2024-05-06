@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::game::mock::Node;
 use crate::game::mock::Session;
-use crate::model::PlayerCount;
+use crate::model::game::PlayerCount;
 
 /* DEFINITIONS */
 
@@ -137,7 +137,7 @@ impl<'a> SessionBuilder<'a> {
     pub fn build(self) -> Result<Session<'a>> {
         let start = self.check_starting_state()?;
         self.check_terminal_state(start)?;
-        self.check_outgoing_edges(start)?;
+        self.check_outgoing_edges()?;
         let (players, _) = self.players;
         Ok(Session {
             inserted: self.inserted,
@@ -273,7 +273,7 @@ impl<'a> SessionBuilder<'a> {
 
     /// Fails if there exists a node marked as medial in the game graph which
     /// does not have any outgoing edges.
-    fn check_outgoing_edges(&self, start: NodeIndex) -> Result<()> {
+    fn check_outgoing_edges(&self) -> Result<()> {
         if self.game.node_indices().any(|i| {
             self.game[i].medial()
                 && self

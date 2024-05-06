@@ -8,77 +8,99 @@
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 //! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
-/* STATES */
+/// # Game Data Models Module
+///
+/// Provides definitions for types used in game interfaces.
+///
+/// #### Authorship
+/// - Max Fierro, 4/30/2024 (maxfierro@berkeley.edu)
+pub mod game {
 
-use bitvec::{order::Msb0, slice::BitSlice};
+    use bitvec::{array::BitArray, order::Msb0};
 
-/// Encodes the state of a game in a 64-bit unsigned integer. This also
-/// sets a limiting upper bound on the amount of possible non-equivalent states
-/// that can be achieved in a game.
-pub type State = u64;
+    /// The default number of bytes used to encode states.
+    pub const DEFAULT_STATE_BYTES: usize = 8;
 
-/// Expresses whose turn it is in a game, where every player is assigned to a
-/// different integer. Note that the type imposes a natural (but unknown)
-/// limitation to player count that is dependent on the target architecture.
-pub type Turn = usize;
+    /// Unique identifier of a particular state in a game.
+    pub type State<const B: usize = DEFAULT_STATE_BYTES> =
+        BitArray<[u8; B], Msb0>;
 
-/* UTILITY */
+    /// Unique identifier for a player in a game.
+    pub type Player = usize;
 
-/// A measure of how "good" an outcome is for a given player in a game. Positive
-/// values indicate an overall gain from having played the game, and negative
-/// values are net losses. The metric over abstract utility is subjective.
-pub type Utility = i64;
+    /// Unique identifier of a subset of states of a game.
+    pub type Partition = u64;
 
-/// TODO
-#[derive(Clone, Copy)]
-pub enum SimpleUtility {
-    WIN = 0,
-    LOSE = 1,
-    DRAW = 2,
-    TIE = 3,
+    /// Count of the number of states in a game.
+    pub type StateCount = u64;
+
+    /// Count of the number of players in a game.
+    pub type PlayerCount = Player;
 }
 
-/* ATTRIBUTES */
+/// # Solver Data Models Module
+///
+/// Provides definitions for types used in solver implementations.
+///
+/// #### Authorship
+/// - Max Fierro, 5/5/2024 (maxfierro@berkeley.edu)
+pub mod solver {
+    /// Indicates the "depth of draw" which a drawing position corresponds to.
+    /// For more information, see [this whitepaper](TODO). This value should be
+    /// 0 for non-drawing positions.
+    pub type DrawDepth = u64;
 
-/// Indicates the "depth of draw" which a drawing position corresponds to. For
-/// more information, see [this whitepaper](TODO). This value should be 0 for
-/// non-drawing positions.
-pub type DrawDepth = u64;
+    /// Indicates the number of choices that players have to make to reach a
+    /// terminal state in a game under perfect play. For drawing positions,
+    /// indicates the number of choices players can make to bring the game to a
+    /// state which can transition to a non-drawing state.
+    pub type Remoteness = u64;
 
-/// Indicates the number of choices that players have to make to reach a
-/// terminal state in a game under perfect play. For drawing positions,
-/// indicates the number of choices players can make to bring the game to a
-/// state which can transition to a non-drawing state.
-pub type Remoteness = u64;
+    /// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
+    pub type MinExclusion = u64;
 
-/// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
-pub type Mex = u64;
+    /// A measure of how "good" an outcome is for a given player in a game.
+    /// Positive values indicate an overall gain from having played the game,
+    /// and negative values are net losses. The metric over abstract utility is
+    /// subjective.
+    pub type RUtility = f64;
 
-/* DATABASE */
+    /// A discrete measure of how "good" an outcome is for a given player.
+    /// Positive values indicate an overall gain from having played the game,
+    /// and negative values are net losses. The metric over abstract utility is
+    /// subjective.
+    pub type IUtility = i64;
 
-/// The type of an identifier used to differentiate database tables.
-pub type TableID = str;
+    /// A simple measure of hoe "good" an outcome is for a given player in a
+    /// game. The specific meaning of each variant can change based on the game
+    /// in consideration, but this is ultimately an intuitive notion.
+    #[derive(Clone, Copy)]
+    pub enum SUtility {
+        WIN = 0,
+        LOSE = 1,
+        DRAW = 2,
+        TIE = 3,
+    }
+}
 
-/// The type of a raw sequence of bits encoding a database record, backed by
-/// a [`BitSlice`] with [`u8`] big-endian storage.
-pub type RawRecord = BitSlice<u8, Msb0>;
+/// # Database Data Models Module
+///
+/// Provides definitions for types used in database interfaces.
+///
+/// #### Authorship
+/// - Max Fierro, 4/30/2024 (maxfierro@berkeley.edu)
+pub mod database {
 
-/// The type of a database key per an implementation of [`KVStore`].
-pub type Key = State;
+    use bitvec::order::Msb0;
+    use bitvec::slice::BitSlice;
 
-/* AUXILIARY */
+    /// A generic number used to differentiate between objects.
+    pub type Identifier = u64;
 
-/// Used to count the number of states in a set. Although this has an identical
-/// underlying type as `State`, it is semantically different, which is why it is
-/// declared under a different type.
-pub type StateCount = State;
+    /// The type of a raw sequence of bits encoding a database value associated
+    /// with a key, backed by a [`BitSlice`] with [`u8`] big-endian storage.
+    pub type Value = BitSlice<u8, Msb0>;
 
-/// Used to count the number of players in a game. Although this has a type that
-/// is identical to `Turn`, it is semantically different, which is why it has
-/// its own type declaration.
-pub type PlayerCount = Turn;
-
-/// Encodes an identifier for a given partition within the space of states of a
-/// game. This is a secondary type because the maximum number of partitions is
-/// the number of states itself.
-pub type Partition = State;
+    /// The type of a database key per an implementation of [`KVStore`].
+    pub type Key = BitSlice<u8, Msb0>;
+}

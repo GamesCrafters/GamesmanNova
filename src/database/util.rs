@@ -107,9 +107,7 @@ impl SchemaBuilder {
             Datatype::SPFP => s != 32,
             Datatype::DPFP => s != 64,
             Datatype::CSTR => s % 8 != 0,
-            Datatype::UINT | Datatype::ENUM => {
-                unreachable!("UINTs and ENUMs can be of any nonzero size.")
-            },
+            Datatype::UINT | Datatype::ENUM => s == 0,
         } {
             Err(DatabaseError::InvalidSize {
                 size: new.size(),

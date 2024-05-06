@@ -10,7 +10,13 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 //! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
 
-use crate::model::PlayerCount;
+use crate::model::{
+    game::{
+        Partition, Player, PlayerCount, State, StateCount,
+        DEFAULT_STATE_BYTES as DBYTES,
+    },
+    solver::{IUtility, RUtility, SUtility},
+};
 
 /* CONSTANTS */
 
@@ -18,7 +24,7 @@ use crate::model::PlayerCount;
 /// within a game. Used to allocate statically-sized arrays on the stack for
 /// faster execution of solving algorithms. If this limit is violated by a game
 /// implementation, this program should panic.
-pub const MAX_TRANSITIONS: usize = 128;
+pub const MAX_TRANSITIONS: usize = 512 / 8;
 
 /* MODULES */
 
@@ -67,17 +73,154 @@ mod test;
 mod error;
 mod util;
 
-/* RECORD MODULES */
+/* SOLVER DATABASE RECORDS */
 
 /// A record layout that can be used to encode and decode the attributes stored
 /// in serialized records. This is stored in database table schemas so that it
 /// can be retrieved later for deserialization.
 #[derive(Clone, Copy)]
 pub enum RecordType {
-    /// Real Utility Remoteness record for a specific number of players.
-    RUR(PlayerCount),
+    /// Multi-Utility Remoteness record for a specific number of players.
+    MUR(PlayerCount),
     /// Simple Utility Remoteness record for a specific number of players.
     SUR(PlayerCount),
     /// Remoteness record (no utilities).
     REM,
+}
+
+/* STRUCTURAL INTERFACES */
+
+/// TODO
+pub trait Extensive<const N: PlayerCount, const B: usize = DBYTES> {
+    /// Returns the player `i` whose turn it is at the given `state`. The player
+    /// identifier `i` should never be greater than `N - 1`, where `N` is the
+    /// number of players in the underlying game.
+    fn turn(&self, state: State<B>) -> Player;
+
+    /// Returns the number of players in the underlying game. This should be at
+    /// least one higher than the maximum value returned by `turn`.
+    #[inline(always)]
+    fn players(&self) -> PlayerCount {
+        N
+    }
+}
+
+/// TODO
+pub trait Composite<const N: PlayerCount, const B: usize = DBYTES>
+where
+    Self: Extensive<N, B>,
+{
+    /// Returns a unique identifier for the partition that `state` is an element
+    /// of within the game variant specified by `self`. This implies no notion
+    /// of ordering between identifiers.
+    fn partition(&self, state: State<B>) -> Partition;
+
+    /// Provides an arbitrarily precise notion of the number of states that are
+    /// elements of `partition`. This can be used to distribute the work of
+    /// analyzing different partitions concurrently across different consumers
+    /// in a way that is equitable to improve efficiency.
+    fn size(&self, partition: Partition) -> StateCount;
+}
+
+/* UTILITY MEASURE INTERFACES */
+
+/// TODO
+pub trait RealUtility<const N: PlayerCount, const B: usize = DBYTES> {
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal, it is recommended that this function panics.
+    fn utility(&self, state: State<B>) -> [RUtility; N];
+}
+
+/// TODO
+pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES> {
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal it is recommended that this function panics.
+    fn utility(&self, state: State<B>) -> [IUtility; N];
+}
+
+/// TODO
+pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES> {
+    /// If `state` is terminal, returns the utility vector associated with that
+    /// state, where `utility[i]` is the utility of the state for player `i`. If
+    /// the state is not terminal, it is recommended that this function panics.
+    fn utility(&self, state: State<B>) -> [SUtility; N];
+}
+
+/* UTILITY STRUCTURE INTERFACES */
+
+/// Indicates that a game is 2-player, simple-sum, and zero-sum; this restricts
+/// the possible utilities for a position to the following cases:
+/// * `[Draw, Draw]`
+/// * `[Lose, Win]`
+/// * `[Win, Lose]`
+/// * `[Tie, Tie]`
+///
+/// Since either entry determines the other, knowing one of the entries and the
+/// turn information for a given state provides enough information to determine
+/// both players' utilities.
+pub trait ClassicGame<const B: usize = DBYTES> {
+    /// If `state` is terminal, returns the utility of the player whose turn it
+    /// is at that state. If the state is not terminal, it is recommended that
+    /// this function panics.
+    fn utility(&self, state: State<B>) -> SUtility;
+}
+
+/// Indicates that a game is a puzzle with simple outcomes. This implies that it
+/// is 1-player and the only possible utilities obtainable for the player are:
+/// * `Lose`
+/// * `Draw`
+/// * `Tie`
+/// * `Win`
+///
+/// A winning state is usually one where there exists a sequence of moves that
+/// will lead to the puzzle being fully solved. A losing state is one where any
+/// sequence of moves will always take the player to either another losing state
+/// or a state with no further moves available (with the puzzle still unsolved).
+/// A draw state is one where there is no way to reach a winning state but it is
+/// possible to play forever without reaching a losing state. A tie state is any
+/// state that does not subjectively fit into any of the above categories.
+pub trait ClassicPuzzle<const B: usize = DBYTES> {
+    /// If `state` is terminal, returns the utility of the puzzle's player. If
+    /// the state is not terminal, it is recommended that this function panics.
+    fn utility(&self, state: State<B>) -> SUtility;
+}
+
+/* BLANKET IMPLEMENTATIONS */
+
+impl<const N: PlayerCount, const B: usize, G> RealUtility<N, B> for G
+where
+    G: IntegerUtility<N, B>,
+{
+    fn utility(&self, state: State<B>) -> [RUtility; N] {
+        todo!()
+    }
+}
+
+impl<const N: PlayerCount, const B: usize, G> IntegerUtility<N, B> for G
+where
+    G: SimpleUtility<N, B>,
+{
+    fn utility(&self, state: State<B>) -> [IUtility; N] {
+        todo!()
+    }
+}
+
+impl<const B: usize, G> SimpleUtility<2, B> for G
+where
+    G: ClassicGame<B>,
+{
+    fn utility(&self, state: State<B>) -> [SUtility; 2] {
+        todo!()
+    }
+}
+
+impl<const B: usize, G> SimpleUtility<1, B> for G
+where
+    G: ClassicPuzzle<B>,
+{
+    fn utility(&self, state: State<B>) -> [SUtility; 1] {
+        todo!()
+    }
 }

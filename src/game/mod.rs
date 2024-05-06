@@ -15,7 +15,8 @@ use anyhow::Result;
 use crate::{
     interface::{IOMode, SolutionMode},
     model::{
-        Partition, PlayerCount, SimpleUtility, State, StateCount, Turn, Utility,
+        database::Identifier,
+        game::{State, DEFAULT_STATE_BYTES},
     },
 };
 
@@ -35,7 +36,7 @@ mod util;
 pub mod crossteaser;
 pub mod zero_by;
 
-/* DATA CONSTRUCTS */
+/* DEFINITIONS */
 
 /// Contains useful data about a game, intended to provide users of the program
 /// information they can use to understand the output of solving algorithms,
@@ -77,7 +78,7 @@ pub struct GameData {
     pub state_default: &'static str,
 }
 
-/* ACCESS INTERFACES */
+/* INTERFACES */
 
 /// Defines miscellaneous behavior of a deterministic economic game object. Note
 /// that player count is arbitrary; puzzles are semantically one-player games,
@@ -95,7 +96,7 @@ pub trait Game {
     /// from different games and variants. As such, it can be thought of as a
     /// string hash whose input is the game and variant (although it is not at
     /// all necessary that it conforms to any measure of hashing performance).
-    fn id(&self) -> String;
+    fn id(&self) -> Identifier;
 
     /// Returns useful information about the game, such as the type of game it
     /// is, who implemented it, and an explanation of how to specify different
@@ -109,8 +110,6 @@ pub trait Game {
     /// specification. See `IOMode` for specifics on intended side effects.
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()>;
 }
-
-/* STATE RESOLUTION INTERFACES */
 
 /// Provides a way to retrieve a unique starting state from which to begin a
 /// traversal, and a way to tell when a traversal can no longer continue from
@@ -138,14 +137,14 @@ pub trait Game {
 /// These facts motivate that the logic which determines the starting and ending
 /// states of games should be independent of the logic that transitions from
 /// valid states to other valid states.
-pub trait Bounded<S = State> {
+pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
     /// Returns the starting state of the underlying structure. This is used to
     /// deterministically initialize a traversal.
-    fn start(&self) -> S;
+    fn start(&self) -> State<B>;
 
     /// Returns true if and only if there are no possible transitions from the
     /// provided `state`. Inputting an invalid `state` is undefined behavior.
-    fn end(&self, state: S) -> bool;
+    fn end(&self, state: State<B>) -> bool;
 }
 
 /// Defines behavior to encode and decode a state type **S** to and from a
@@ -164,20 +163,20 @@ pub trait Bounded<S = State> {
 /// drawing; a lot of the utility obtained from implementing this interface is
 /// having access to understandable yet compact game state representations. As
 /// a rule of thumb, all strings should be single-lined and have no whitespace.
-pub trait Codec<S = State> {
+pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     /// Transforms a string representation of a game state into a type **S**.
     /// The `string` representation should conform to the `state_protocol`
     /// specified in the `GameData` object returned by `Game::info`. If it does
     /// not, an error containing a message with a brief explanation on what is
     /// wrong with `string` should be returned.
-    fn decode(&self, string: String) -> Result<S>;
+    fn decode(&self, string: String) -> Result<State<B>>;
 
     /// Transforms a game state type **S** into a string representation. The
     /// string returned should conform to the `state_protocol` specified in the
     /// `GameData` object returned by `Game::info`. If the `state` is malformed,
     /// this function should panic with a useful debug message. No two `state`s
     /// should return the same string representation (ideally).
-    fn encode(&self, state: S) -> String;
+    fn encode(&self, state: State<B>) -> String;
 }
 
 /// Provides a way to fast-forward a game state from its starting state (as
@@ -196,9 +195,9 @@ pub trait Codec<S = State> {
 /// from the start of a game, it is necessary to demand a sequence of states
 /// that begin in a starting state and end in the desired state, such that each
 /// transition between states is valid per the game's ruleset.
-pub trait Forward<S = State>
+pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
 where
-    Self: Bounded<S> + Codec<S>,
+    Self: Bounded<B> + Codec<B>,
 {
     /// Advances the game's starting state to the last state in `history`. All
     /// all of the `String`s in `history` must conform to the `state_protocol`
@@ -215,150 +214,19 @@ where
     fn forward(&mut self, history: Vec<String>) -> Result<()>;
 }
 
-/* DETERMINISTIC TRAVERSAL INTERFACES */
-
 /// TODO
-pub trait DTransition<S = State> {
+pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
     /// Given a `state` at time `t`, returns all states that are possible at
     /// time `t + 1`. This should only guarantee that if `state` is feasible and
     /// not an end state, then all returned states are also feasible; therefore,
     /// inputting an invalid or end `state` is undefined behavior. The order of
     /// the values returned is insignificant.
-    fn prograde(&self, state: S) -> Vec<S>;
+    fn prograde(&self, state: State<B>) -> Vec<State<B>>;
 
     /// Given a `state` at time `t`, returns all states that are possible at
     /// time `t - 1`. This should only guarantee that if `state` is feasible,
     /// then all returned states are also feasible; therefore, inputting an
     /// invalid `state` is undefined behavior. The order of the values returned
     /// is insignificant.
-    fn retrograde(&self, state: S) -> Vec<S>;
-}
-
-/// TODO
-pub trait STransition<const F: usize, S = State> {
-    /// Given a `state` at time `t`, returns all states that are possible at
-    /// time `t + 1`. This should only guarantee that if `state` is feasible and
-    /// not an end state, then all returned states are also feasible; therefore,
-    /// inputting an invalid or end `state` is undefined behavior. In the return
-    /// value, `Some(S)` represents a valid state. The order of these values is
-    /// insignificant.
-    fn prograde(&self, state: S) -> [Option<S>; F];
-
-    /// Given a `state` at time `t`, returns all states that are possible at
-    /// time `t - 1`. This should only guarantee that if `state` is feasible,
-    /// then all returned states are also feasible; therefore, inputting an
-    /// invalid `state` is undefined behavior. In the return value, `Some(S)`
-    /// represents a valid state. The order of these values is insignificant.
-    fn retrograde(&self, state: S) -> [Option<S>; F];
-}
-
-/* STRUCTURAL TRAITS */
-
-/// TODO
-pub trait Extensive<const N: PlayerCount> {
-    /// Returns the player `i` whose turn it is at the given `state`. The player
-    /// identifier `i` should never be greater than `N - 1`, where `N` is the
-    /// number of players in the underlying game.
-    fn turn(&self, state: State) -> Turn;
-
-    /// Returns the number of players in the underlying game. This should be at
-    /// least one higher than the maximum value returned by `turn`.
-    #[inline(always)]
-    fn players(&self) -> PlayerCount {
-        N
-    }
-}
-
-/// TODO
-pub trait Composite<const N: PlayerCount>
-where
-    Self: Extensive<N>,
-{
-    /// Returns a unique identifier for the partition that `state` is an element
-    /// of within the game variant specified by `self`. This implies no notion
-    /// of ordering between identifiers.
-    fn partition(&self, state: State) -> Partition;
-
-    /// Provides an arbitrarily precise notion of the number of states that are
-    /// elements of `partition`. This can be used to distribute the work of
-    /// analyzing different partitions concurrently across different consumers
-    /// in a way that is equitable to improve efficiency.
-    fn size(&self, partition: Partition) -> StateCount;
-}
-
-/* UTILITY INTERFACES */
-
-/// TODO
-pub trait GeneralSum<const N: PlayerCount> {
-    /// If `state` is terminal, returns the utility vector associated with that
-    /// state, where `utility[i]` is the utility of the state for player `i`. If
-    /// the state is not terminal it is recommended that this function panics.
-    fn utility(&self, state: State) -> [Utility; N];
-}
-
-/// TODO
-pub trait SimpleSum<const N: PlayerCount> {
-    /// If `state` is terminal, returns the utility vector associated with that
-    /// state, where `utility[i]` is the utility of the state for player `i`. If
-    /// the state is not terminal, it is recommended that this function panics.
-    fn utility(&self, state: State) -> [SimpleUtility; N];
-}
-
-/* FAMILIAR INTERFACES */
-
-/// Indicates that a game is 2-player, simple-sum, and zero-sum; this restricts
-/// the possible utilities for a position to the following cases:
-/// * `[Draw, Draw]`
-/// * `[Lose, Win]`
-/// * `[Win, Lose]`
-/// * `[Tie, Tie]`
-///
-/// Since either entry determines the other, knowing one of the entries and the
-/// turn information for a given state provides enough information to determine
-/// both players' utilities.
-pub trait ClassicGame {
-    /// If `state` is terminal, returns the utility of the player whose turn it
-    /// is at that state. If the state is not terminal, it is recommended that
-    /// this function panics.
-    fn utility(&self, state: State) -> SimpleUtility;
-}
-
-/// Indicates that a game is a puzzle with simple outcomes. This implies that it
-/// is 1-player and the only possible utilities obtainable for the player are:
-/// * `Lose`
-/// * `Draw`
-/// * `Tie`
-/// * `Win`
-///
-/// A winning state is usually one where there exists a sequence of moves that
-/// will lead to the puzzle being fully solved. A losing state is one where any
-/// sequence of moves will always take the player to either another losing state
-/// or a state with no further moves available (with the puzzle still unsolved).
-/// A draw state is one where there is no way to reach a winning state but it is
-/// possible to play forever without reaching a losing state. A tie state is any
-/// state that does not subjectively fit into any of the above categories.
-pub trait ClassicPuzzle {
-    /// If `state` is terminal, returns the utility of the puzzle's player. If
-    /// the state is not terminal, it is recommended that this function panics.
-    fn utility(&self, state: State) -> SimpleUtility;
-}
-
-/* BLANKET IMPLEMENTATIONS */
-
-impl<const N: usize, G> GeneralSum<N> for G
-where
-    G: SimpleSum<N>,
-{
-    fn utility(&self, state: State) -> [Utility; N] {
-        todo!()
-    }
-}
-
-impl<G> SimpleSum<1> for G
-where
-    G: ClassicPuzzle,
-{
-    fn utility(&self, state: State) -> [SimpleUtility; 1] {
-        todo!()
-    }
+    fn retrograde(&self, state: State<B>) -> Vec<State<B>>;
 }

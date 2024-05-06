@@ -14,10 +14,11 @@ use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
-use crate::model::{PlayerCount, Remoteness, Turn, Utility};
+use crate::model::game::{Player, PlayerCount};
+use crate::model::solver::{IUtility, Remoteness};
 use crate::solver::error::SolverError::RecordViolation;
-use crate::solver::util;
 use crate::solver::RecordType;
+use crate::util;
 
 /* CONSTANTS */
 
@@ -37,7 +38,7 @@ pub const UTILITY_SIZE: usize = 8;
 pub fn schema(players: PlayerCount) -> Result<Schema> {
     if RecordBuffer::bit_size(players) > BUFFER_SIZE {
         Err(RecordViolation {
-            name: RecordType::RUR(players).into(),
+            name: RecordType::MUR(players).into(),
             hint: format!(
                 "This record can only hold utility values for up to {} \
                 players, but there was an attempt to create a schema that \
@@ -47,7 +48,7 @@ pub fn schema(players: PlayerCount) -> Result<Schema> {
             ),
         })?
     } else {
-        let mut schema = SchemaBuilder::new().of(RecordType::RUR(players));
+        let mut schema = SchemaBuilder::new().of(RecordType::MUR(players));
 
         for i in 0..players {
             let name = &format!("P{} utility", i);
@@ -110,7 +111,7 @@ impl RecordBuffer {
     pub fn new(players: PlayerCount) -> Result<Self> {
         if Self::bit_size(players) > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::RUR(players).into(),
+                name: RecordType::MUR(players).into(),
                 hint: format!(
                     "The record can only hold utility values for up to {} \
                     players, but there was an attempt to instantiate one for \
@@ -134,7 +135,7 @@ impl RecordBuffer {
         let len = bits.len();
         if len > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::RUR(0).into(),
+                name: RecordType::MUR(0).into(),
                 hint: format!(
                     "The record implementation operates on a buffer of {} \
                     bits, but there was an attempt to instantiate one from a \
@@ -144,7 +145,7 @@ impl RecordBuffer {
             })?
         } else if len < Self::minimum_bit_size() {
             Err(RecordViolation {
-                name: RecordType::RUR(0).into(),
+                name: RecordType::MUR(0).into(),
                 hint: format!(
                     "This record implementation stores utility values, but \
                     there was an attempt to instantiate one with from a buffer \
@@ -166,10 +167,10 @@ impl RecordBuffer {
     /// Parse and return the utility value corresponding to `player`. Fails if
     /// the `player` index passed in is incoherent with player count.
     #[inline(always)]
-    pub fn get_utility(&self, player: Turn) -> Result<Utility> {
+    pub fn get_utility(&self, player: Player) -> Result<IUtility> {
         if player >= self.players {
             Err(RecordViolation {
-                name: RecordType::RUR(self.players).into(),
+                name: RecordType::MUR(self.players).into(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to fetch the utility of player {} \
@@ -180,7 +181,7 @@ impl RecordBuffer {
         } else {
             let start = Self::utility_index(player);
             let end = start + UTILITY_SIZE;
-            Ok(self.buf[start..end].load_be::<Utility>())
+            Ok(self.buf[start..end].load_be::<IUtility>())
         }
     }
 
@@ -202,11 +203,11 @@ impl RecordBuffer {
     #[inline(always)]
     pub fn set_utility<const N: usize>(
         &mut self,
-        v: [Utility; N],
+        v: [IUtility; N],
     ) -> Result<()> {
         if N != self.players {
             Err(RecordViolation {
-                name: RecordType::RUR(self.players).into(),
+                name: RecordType::MUR(self.players).into(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to use a {}-entry utility list to \
@@ -220,7 +221,7 @@ impl RecordBuffer {
                 let size = util::min_sbits(utility);
                 if size > UTILITY_SIZE {
                     Err(RecordViolation {
-                        name: RecordType::RUR(self.players).into(),
+                        name: RecordType::MUR(self.players).into(),
                         hint: format!(
                             "This record implementation uses {} bits to store \
                             signed integers representing utility values, but \
@@ -246,7 +247,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
             Err(RecordViolation {
-                name: RecordType::RUR(self.players).into(),
+                name: RecordType::MUR(self.players).into(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing remoteness values, but there was an \
@@ -286,7 +287,7 @@ impl RecordBuffer {
 
     /// Return the bit index of the 'i'th player's utility entry start.
     #[inline(always)]
-    const fn utility_index(player: Turn) -> usize {
+    const fn utility_index(player: Player) -> usize {
         player * UTILITY_SIZE
     }
 
@@ -312,8 +313,8 @@ mod tests {
     // * `MIN_UTILITY = 0b10000000 = -128 =  -127 - 1`
     //
     // Useful: https://www.omnicalculator.com/math/twos-complement
-    const MAX_UTILITY: Utility = 2_i64.pow(UTILITY_SIZE as u32 - 1) - 1;
-    const MIN_UTILITY: Utility = (-MAX_UTILITY) - 1;
+    const MAX_UTILITY: IUtility = 2_i64.pow(UTILITY_SIZE as u32 - 1) - 1;
+    const MIN_UTILITY: IUtility = (-MAX_UTILITY) - 1;
 
     // The maximum numeric remoteness value that can be expressed with exactly
     // REMOTENESS_SIZE bits in an unsigned integer.
@@ -362,10 +363,10 @@ mod tests {
 
         let v1 = [-24; 7];
         let v2 = [113; 4];
-        let v3: [Utility; 0] = [];
+        let v3: [IUtility; 0] = [];
 
-        let v4 = [Utility::MAX; 7];
-        let v5 = [-Utility::MAX; 4];
+        let v4 = [IUtility::MAX; 7];
+        let v5 = [IUtility::MIN; 4];
         let v6 = [1];
 
         let good = Remoteness::MIN;

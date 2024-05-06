@@ -10,12 +10,12 @@
 use regex::Regex;
 
 use crate::game::error::GameError;
-use crate::game::util::pack_turn;
-use crate::game::util::unpack_turn;
 use crate::game::zero_by::Session;
 use crate::game::zero_by::NAME;
-use crate::model::State;
-use crate::model::Turn;
+use crate::model::game::Player;
+use crate::model::game::State;
+
+use super::Elements;
 
 /* ZERO-BY STATE ENCODING */
 
@@ -41,10 +41,9 @@ pub fn parse_state(
 ) -> Result<State, GameError> {
     check_state_pattern(&from)?;
     let params = parse_parameters(&from)?;
-    let (from, turn) = check_param_count(&params)?;
-    check_variant_coherence(from, turn, &session)?;
-    let state = pack_turn(from, turn, session.players);
-    Ok(state)
+    let (elements, turn) = check_param_count(&params)?;
+    check_variant_coherence(elements, turn, &session)?;
+    Ok(session.encode_state(turn, elements))
 }
 
 /* STATE STRING VERIFICATION */
@@ -77,7 +76,9 @@ fn parse_parameters(from: &String) -> Result<Vec<u64>, GameError> {
         .collect()
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(State, Turn), GameError> {
+fn check_param_count(
+    params: &Vec<u64>,
+) -> Result<(Elements, Player), GameError> {
     if params.len() != 2 {
         Err(GameError::StateMalformed {
             game_name: NAME,
@@ -92,18 +93,17 @@ fn check_param_count(params: &Vec<u64>) -> Result<(State, Turn), GameError> {
 }
 
 fn check_variant_coherence(
-    from: State,
-    turn: Turn,
+    from: Elements,
+    turn: Player,
     session: &Session,
 ) -> Result<(), GameError> {
-    let (session_from, _) = unpack_turn(session.start, session.players);
-    if from > session_from {
+    if from > session.start_elems {
         Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "Specified more starting elements ({}) than variant allows \
                 ({}).",
-                from, session.start,
+                from, session.start_elems,
             ),
         })
     } else if turn >= session.players {
@@ -147,7 +147,7 @@ mod test {
         let with_default = Session::new(None).unwrap();
 
         assert_eq!(
-            with_none.start,
+            with_none.start_state,
             parse_state(&with_default, STATE_DEFAULT.to_string()).unwrap()
         );
     }

@@ -10,7 +10,7 @@ use anyhow::Result;
 
 use std::path::{Path, PathBuf};
 
-use crate::model::{Key, RawRecord, TableID};
+use crate::model::database::{Identifier, Key, Value};
 use crate::solver::RecordType;
 
 /* RE-EXPORTS */
@@ -86,27 +86,25 @@ pub trait KVStore {
     /// Replaces the value associated with `key` with the bits of `record`,
     /// creating one if it does not already exist. Fails if under any violation
     /// of implementation-specific assumptions of record size or contents.
-    fn put<R>(&mut self, key: Key, record: &R) -> Result<()>
-    where
-        R: Record;
+    fn put<R: Record>(&mut self, key: &Key, record: &R) -> Result<()>;
 
     /// Returns the bits associated with the value of `key`, or `None` if there
     /// is no such association. Infallible due to all possible values of `key`
     /// being considered valid (but not necessarily existent).
-    fn get(&self, key: Key) -> Option<&RawRecord>;
+    fn get(&self, key: &Key) -> Option<&Value>;
 
     /// Removes the association of `key` to whatever value it is currently bound
     /// to, or does nothing if there is no such value.
-    fn delete(&mut self, key: Key);
+    fn delete(&mut self, key: &Key);
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait
 /// requires custom handling of what happens when the database is closed; if it
 /// has data on memory, then it should persist dirty data to ensure consistency
 /// via [`Drop`]. Database file structure is implementation-specific.
-pub trait Persistent<'a, T>
+pub trait Persistent<T>
 where
-    Self: Tabular<'a, T> + Drop,
+    Self: Tabular<T> + Drop,
     T: Table,
 {
     /// Interprets the contents of a directory at `path` to be the contents of
@@ -132,17 +130,17 @@ where
 /// fixed-length records that share attributes under a single [`Schema`]. This
 /// allows consumers of this implementation to have simultaneous references to
 /// different mutable tables.
-pub trait Tabular<'a, T>
+pub trait Tabular<T>
 where
     T: Table,
 {
     /// Creates a new table with `id` and `schema`. Fails if another table with
     /// the same `id` already exists, or under any I/O failure.
-    fn create_table(&self, id: &TableID, schema: Schema) -> Result<&mut T>;
+    fn create_table(&self, id: Identifier, schema: Schema) -> Result<&mut T>;
 
     /// Obtains a mutable reference to the [`Table`] with `id`. Fails if no such
     /// table exists in the underlying database, or under any I/O failure.
-    fn select_table(&self, id: &TableID) -> Result<&mut T>;
+    fn select_table(&self, id: Identifier) -> Result<&mut T>;
 
     /// Forgets about the association of `id` to any existing table, doing
     /// nothing if there is no such table. Fails under any I/O failure.
@@ -169,7 +167,7 @@ where
     fn size(&self) -> u64;
 
     /// Returns the identifier associated with `self`.
-    fn id(&self) -> &TableID;
+    fn id(&self) -> Identifier;
 }
 
 /* RECORD INTERFACE */
@@ -177,7 +175,7 @@ where
 /// Represents an in-memory sequence of bits that can be directly accessed.
 pub trait Record {
     /// Returns a reference to the sequence of bits in `self`.
-    fn raw(&self) -> &RawRecord;
+    fn raw(&self) -> &Value;
 }
 
 /* IMPLEMENTATIONS */

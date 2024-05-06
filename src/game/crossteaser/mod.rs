@@ -22,22 +22,17 @@ use anyhow::{Context, Result};
 
 use crate::game::Bounded;
 use crate::game::Codec;
-use crate::game::DTransition;
-use crate::game::Extensive;
 use crate::game::Forward;
 use crate::game::Game;
 use crate::game::GameData;
-use crate::game::GeneralSum;
+use crate::game::Transition;
 use crate::interface::IOMode;
 use crate::interface::SolutionMode;
-use crate::model::SimpleUtility;
-use crate::model::State;
-use crate::model::Turn;
-use crate::model::Utility;
+use crate::model::database::Identifier;
+use crate::model::game::State;
+use crate::model::solver::SUtility;
+use crate::solver::ClassicPuzzle;
 use variants::*;
-
-use super::ClassicPuzzle;
-use super::SimpleSum;
 
 /* SUBMODULES */
 
@@ -94,12 +89,8 @@ impl Game for Session {
         }
     }
 
-    fn id(&self) -> String {
-        if let Some(variant) = self.variant.clone() {
-            format!("{}.{}", NAME, variant)
-        } else {
-            NAME.to_owned()
-        }
+    fn id(&self) -> Identifier {
+        todo!()
     }
 
     fn info(&self) -> GameData {
@@ -113,7 +104,7 @@ impl Game for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl DTransition for Session {
+impl Transition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
         todo!()
     }
@@ -154,7 +145,7 @@ impl Forward for Session {
 /* SOLVING IMPLEMENTATIONS */
 
 impl ClassicPuzzle for Session {
-    fn utility(&self, state: State) -> SimpleUtility {
+    fn utility(&self, state: State) -> SUtility {
         todo!()
     }
 }

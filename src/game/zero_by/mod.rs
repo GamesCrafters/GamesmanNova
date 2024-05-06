@@ -13,23 +13,29 @@
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
+use bitvec::field::BitField;
 use states::*;
 
 use crate::game::error::GameError;
-use crate::game::util::unpack_turn;
 use crate::game::zero_by::variants::*;
 use crate::game::{util, Bounded, Codec, Forward};
-use crate::game::{DTransition, Extensive, Game, GameData, GeneralSum};
+use crate::game::{Game, GameData, Transition};
 use crate::interface::{IOMode, SolutionMode};
-use crate::model::PlayerCount;
-use crate::model::Utility;
-use crate::model::{State, Turn};
+use crate::model::database::Identifier;
+use crate::model::game::{Player, PlayerCount, State};
+use crate::model::solver::SUtility;
 use crate::solver::algorithm::strong;
+use crate::solver::{Extensive, SimpleUtility};
 
 /* SUBMODULES */
 
 mod states;
 mod variants;
+
+/* DEFINITIONS */
+
+/// The number of elements in the pile (see the game rules).
+type Elements = u64;
 
 /* GAME DATA */
 
@@ -46,10 +52,12 @@ currently available in the set.";
 /* GAME IMPLEMENTATION */
 
 pub struct Session {
-    variant: String,
+    start_elems: Elements,
+    start_state: State,
+    player_bits: usize,
     players: PlayerCount,
-    start: State,
-    by: Vec<u64>,
+    variant: String,
+    by: Vec<Elements>,
 }
 
 impl Game for Session {
@@ -61,8 +69,8 @@ impl Game for Session {
         }
     }
 
-    fn id(&self) -> String {
-        format!("{}.{}", NAME, self.variant)
+    fn id(&self) -> Identifier {
+        5
     }
 
     fn info(&self) -> GameData {
@@ -86,11 +94,11 @@ impl Game for Session {
     fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
         match (self.players, method) {
             (2, SolutionMode::Strong) => {
-                strong::acyclic::dynamic_solver::<2, Self>(self, mode)
+                strong::acyclic::solver::<2, 8, Self>(self, mode)
                     .context("Failed solver run.")?
             },
             (10, SolutionMode::Strong) => {
-                strong::acyclic::dynamic_solver::<10, Self>(self, mode)
+                strong::acyclic::solver::<10, 8, Self>(self, mode)
                     .context("Failed solver run.")?
             },
             _ => {
@@ -106,19 +114,15 @@ impl Game for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl DTransition for Session {
+impl Transition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
-        let (state, turn) = util::unpack_turn(state, self.players);
+        let (turn, elements) = self.decode_state(state);
         let mut next = self
             .by
             .iter()
-            .map(|&choice| if state <= choice { state } else { choice })
+            .map(|&choice| if elements <= choice { elements } else { choice })
             .map(|choice| {
-                util::pack_turn(
-                    state - choice,
-                    (turn + 1) % self.players,
-                    self.players,
-                )
+                self.encode_state((turn + 1) % self.players, elements - choice)
             })
             .collect::<Vec<State>>();
         next.sort();
@@ -127,25 +131,21 @@ impl DTransition for Session {
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
-        let (state, turn) = util::unpack_turn(state, self.players);
-        let mut next =
-            self.by
-                .iter()
-                .map(|&choice| {
-                    if state + choice <= self.start {
-                        choice
-                    } else {
-                        self.start
-                    }
-                })
-                .map(|choice| {
-                    util::pack_turn(
-                        state + choice,
-                        (turn - 1) % self.players,
-                        self.players,
-                    )
-                })
-                .collect::<Vec<State>>();
+        let (turn, elements) = self.decode_state(state);
+        let mut next = self
+            .by
+            .iter()
+            .map(|&choice| {
+                if elements + choice <= self.start_elems {
+                    choice
+                } else {
+                    self.start_elems
+                }
+            })
+            .map(|choice| {
+                self.encode_state((turn - 1) % self.players, elements + choice)
+            })
+            .collect::<Vec<State>>();
         next.sort();
         next.dedup();
         next
@@ -156,11 +156,12 @@ impl DTransition for Session {
 
 impl Bounded for Session {
     fn start(&self) -> State {
-        self.start
+        self.start_state
     }
 
     fn end(&self, state: State) -> bool {
-        state == 0
+        let (_, elements) = self.decode_state(state);
+        elements <= 0
     }
 }
 
@@ -170,14 +171,14 @@ impl Codec for Session {
     }
 
     fn encode(&self, state: State) -> String {
-        let (elements, turn) = util::unpack_turn(state, self.players);
+        let (turn, elements) = self.decode_state(state);
         format!("{}-{}", elements, turn)
     }
 }
 
 impl Forward for Session {
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
-        self.start = util::verify_history_dynamic(self, history)
+        self.start_state = util::verify_history_dynamic(self, history)
             .context("Malformed game state encoding.")?;
         Ok(())
     }
@@ -185,32 +186,35 @@ impl Forward for Session {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl Extensive<2> for Session {
-    fn turn(&self, state: State) -> Turn {
-        util::unpack_turn(state, 2).1
+impl<const N: PlayerCount> Extensive<N> for Session {
+    fn turn(&self, state: State) -> Player {
+        let (turn, _) = self.decode_state(state);
+        turn
     }
 }
 
-impl GeneralSum<2> for Session {
-    fn utility(&self, state: State) -> [Utility; 2] {
-        let (_, turn) = unpack_turn(state, 2);
-        let mut payoffs = [-1; 2];
-        payoffs[turn] = 1;
+impl<const N: PlayerCount> SimpleUtility<N> for Session {
+    fn utility(&self, state: State) -> [SUtility; N] {
+        let (turn, _) = self.decode_state(state);
+        let mut payoffs = [SUtility::LOSE; N];
+        payoffs[turn] = SUtility::WIN;
         payoffs
     }
 }
 
-impl Extensive<10> for Session {
-    fn turn(&self, state: State) -> Turn {
-        util::unpack_turn(state, 10).1
-    }
-}
+/* UTILITY FUNCTIONS */
 
-impl GeneralSum<10> for Session {
-    fn utility(&self, state: State) -> [Utility; 10] {
-        let (_, turn) = unpack_turn(state, 10);
-        let mut payoffs = [-1; 10];
-        payoffs[turn] = 9;
-        payoffs
+impl Session {
+    fn encode_state(&self, turn: Player, elements: Elements) -> State {
+        let mut state = State::ZERO;
+        state[..self.player_bits].store_be(turn);
+        state[self.player_bits..].store_be(elements);
+        state
+    }
+
+    fn decode_state(&self, state: State) -> (Player, Elements) {
+        let player = state[..self.player_bits].load_be::<Player>();
+        let elements = state[self.player_bits..].load_be::<Elements>();
+        (player, elements)
     }
 }

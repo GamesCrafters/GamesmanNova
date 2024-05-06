@@ -12,10 +12,10 @@
 //! #### Authorship
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use std::process;
+
 use anyhow::Result;
 use clap::Parser;
-
-use std::process;
 
 use crate::interface::terminal::cli::*;
 
@@ -33,21 +33,18 @@ mod test;
 
 /* PROGRAM ENTRY */
 
-fn main() {
+fn main() -> Result<()> {
     let cli = Cli::parse();
-    let ret = match &cli.command {
+    let res = match &cli.command {
         Commands::Tui(args) => tui(args),
         Commands::Info(args) => info(args),
         Commands::Solve(args) => solve(args),
         Commands::Analyze(args) => analyze(args),
     };
-    if let Err(e) = ret {
-        if !cli.quiet {
-            eprintln!("{}", e);
-        }
+    if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
     }
-    process::exit(exitcode::OK)
+    res
 }
 
 /* SUBCOMMAND EXECUTORS */
