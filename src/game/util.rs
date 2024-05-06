@@ -21,12 +21,12 @@ use crate::{
 /// `game`'s transition function. If these conditions are not met, it returns an
 /// error message signaling the pair of states that are not connected by the
 /// transition function, with a reminder of the current game variant.
-pub fn verify_history_dynamic<const K: usize, G>(
+pub fn verify_history_dynamic<const B: usize, G>(
     game: &G,
     history: Vec<String>,
-) -> Result<State<K>>
+) -> Result<State<B>>
 where
-    G: Game + Codec<K> + Bounded<K> + Transition<K>,
+    G: Game + Codec<B> + Bounded<B> + Transition<B>,
 {
     if let Some(s) = history.first() {
         let mut prev = game.decode(s.clone())?;
@@ -48,9 +48,9 @@ where
     }
 }
 
-fn empty_history_error<const K: usize, G>(game: &G) -> Result<State<K>>
+fn empty_history_error<const B: usize, G>(game: &G) -> Result<State<B>>
 where
-    G: Game + Codec<K>,
+    G: Game + Codec<B>,
 {
     Err(GameError::InvalidHistory {
         game_name: game.info().name,
@@ -59,12 +59,12 @@ where
     .context("Invalid game history.")
 }
 
-fn start_history_error<const K: usize, G>(
+fn start_history_error<const B: usize, G>(
     game: &G,
-    start: State<K>,
-) -> Result<State<K>>
+    start: State<B>,
+) -> Result<State<B>>
 where
-    G: Game + Codec<K>,
+    G: Game + Codec<B>,
 {
     Err(GameError::InvalidHistory {
         game_name: game.info().name,
@@ -78,13 +78,13 @@ where
     .context("Invalid game history.")
 }
 
-fn transition_history_error<const K: usize, G>(
+fn transition_history_error<const B: usize, G>(
     game: &G,
-    prev: State<K>,
-    next: State<K>,
-) -> Result<State<K>>
+    prev: State<B>,
+    next: State<B>,
+) -> Result<State<B>>
 where
-    G: Game + Codec<K>,
+    G: Game + Codec<B>,
 {
     Err(GameError::InvalidHistory {
         game_name: game.info().name,
