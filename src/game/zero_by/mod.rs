@@ -70,7 +70,7 @@ impl Game for Session {
     }
 
     fn id(&self) -> Identifier {
-        5
+        todo!()
     }
 
     fn info(&self) -> GameData {
