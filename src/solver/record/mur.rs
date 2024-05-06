@@ -366,7 +366,7 @@ mod tests {
         let v3: [IUtility; 0] = [];
 
         let v4 = [IUtility::MAX; 7];
-        let v5 = [IUtility::MIN; 4];
+        let v5 = [-IUtility::MAX; 4];
         let v6 = [1];
 
         let good = Remoteness::MIN;
