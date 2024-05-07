@@ -45,7 +45,7 @@ pub enum Commands {
     /// Run a query on an existing table in the system.
     Query(QueryArgs),
 
-    /// Provide information about offerings.
+    /// Provides information about the system's offerings.
     Info(InfoArgs),
 }
 
@@ -125,8 +125,8 @@ pub struct InfoArgs {
 
     /* DEFAULTS PROVIDED */
     /// Specify which of the game's attributes to provide information about.
-    #[arg(short, long)]
-    pub attributes: Option<Vec<GameAttribute>>,
+    #[arg(short, long, value_delimiter = ',')]
+    pub attributes: Vec<GameAttribute>,
 
     /// Format in which to send output to STDOUT.
     #[arg(short, long, default_value_t = InfoFormat::Legible)]

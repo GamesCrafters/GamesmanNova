@@ -16,9 +16,9 @@ use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
 
-pub const VARIANT_DEFAULT: &'static str = "2-10-1-2";
-pub const VARIANT_PATTERN: &'static str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
-pub const VARIANT_PROTOCOL: &'static str =
+pub const VARIANT_DEFAULT: &str = "2-10-1-2";
+pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
+pub const VARIANT_PROTOCOL: &str =
 "The variant string should be a dash-separated group of three or more positive \
 integers. For example, '4-232-23-6-3-6' is valid but '598', '-23-1-5', and \
 'fifteen-2-5' are not. The first integer represents the number of players in \
@@ -67,16 +67,16 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
                 .parse::<u64>()
                 .map_err(|e| GameError::VariantMalformed {
                     game_name: NAME,
-                    hint: format!("{}", e.to_string()),
+                    hint: e.to_string(),
                 })
         })
         .collect();
     params
 }
 
-fn check_variant_pattern(variant: &String) -> Result<(), GameError> {
+fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
-    if !re.is_match(&variant) {
+    if !re.is_match(variant) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
@@ -89,31 +89,30 @@ fn check_variant_pattern(variant: &String) -> Result<(), GameError> {
     }
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(), GameError> {
+fn check_param_count(params: &[u64]) -> Result<(), GameError> {
     if params.len() < 3 {
         Err(GameError::VariantMalformed {
             game_name: NAME,
-            hint: format!(
-                "String needs to have at least 3 dash-separated integers."
-            ),
+            hint: "String needs to have at least 3 dash-separated integers."
+                .to_string(),
         })
     } else {
         Ok(())
     }
 }
 
-fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
-    if params.iter().any(|&x| x <= 0) {
+fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
+    if params.iter().any(|&x| x == 0) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
-            hint: format!("All integers in the string must be positive."),
+            hint: "All integers in the string must be positive.".to_string(),
         })
     } else {
         Ok(())
     }
 }
 
-fn parse_player_count(params: &Vec<u64>) -> Result<Player, GameError> {
+fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
     if params[0] > (Player::MAX as u64) {
         Err(GameError::VariantMalformed {
             game_name: NAME,

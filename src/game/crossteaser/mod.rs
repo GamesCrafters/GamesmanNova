@@ -30,12 +30,10 @@ use crate::game::Transition;
 use crate::game::Variable;
 use crate::interface::IOMode;
 use crate::interface::Solution;
-use crate::model::database::Identifier;
 use crate::model::game::State;
 use crate::model::game::Variant;
 use crate::model::solver::SUtility;
 use crate::solver::ClassicPuzzle;
-use crate::util::Identify;
 
 /* SUBMODULES */
 

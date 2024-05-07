@@ -1,3 +1,4 @@
+#![allow(drop_bounds)]
 //! # Database Module
 //!
 //! This module contains memory and I/O mechanisms used to store and fetch

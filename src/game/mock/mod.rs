@@ -172,7 +172,7 @@ mod tests {
             .build()?;
 
         g.visualize(MODULE_NAME)?;
-        let states = vec![
+        let states = [
             g.state(&s1),
             g.state(&s2),
             g.state(&s3),

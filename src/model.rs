@@ -86,10 +86,10 @@ pub mod solver {
     /// in consideration, but this is ultimately an intuitive notion.
     #[derive(Clone, Copy)]
     pub enum SUtility {
-        WIN = 0,
-        LOSE = 1,
-        DRAW = 2,
-        TIE = 3,
+        Lose = 0,
+        Draw = 1,
+        Tie = 2,
+        Win = 3,
     }
 }
 

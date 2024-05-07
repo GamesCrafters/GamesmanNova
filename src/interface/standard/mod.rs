@@ -52,7 +52,6 @@ pub fn stdin_lines() -> Result<Vec<String>> {
     std::io::stdin()
         .lock()
         .lines()
-        .into_iter()
         .map(|l| l.map_err(|e| anyhow!(e)))
         .collect()
 }
@@ -64,15 +63,15 @@ pub fn stdin_lines() -> Result<Vec<String>> {
 /// all possible game attributes are sent to STDOUT.
 pub fn format_and_output_game_attributes(
     data: GameData,
-    attrs: Option<Vec<GameAttribute>>,
+    attrs: Vec<GameAttribute>,
     format: InfoFormat,
 ) -> Result<()> {
-    let out = if let Some(attrs) = attrs {
-        util::aggregate_and_format_attributes(data, attrs, format)
-            .context("Failed format specified game data attributes.")?
-    } else {
+    let out = if attrs.is_empty() {
         util::aggregate_and_format_all_attributes(data, format)
             .context("Failed to format game data attributes.")?
+    } else {
+        util::aggregate_and_format_attributes(data, attrs, format)
+            .context("Failed format specified game data attributes.")?
     };
     print!("{}", out);
     Ok(())

@@ -216,7 +216,7 @@ where
     G: Extensive<2, B> + ClassicGame<B>,
 {
     fn utility(&self, state: State<B>) -> [SUtility; 2] {
-        let mut sutility = [SUtility::TIE; 2];
+        let mut sutility = [SUtility::Tie; 2];
         let utility = self.utility(state);
         let turn = self.turn(state);
         let them = (turn + 1) % 2;

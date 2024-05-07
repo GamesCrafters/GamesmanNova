@@ -73,7 +73,7 @@ impl RecordBuffer {
         let len = bits.len();
         if len > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::REM.into(),
+                name: RecordType::REM.to_string(),
                 hint: format!(
                     "The record implementation operates on a buffer of {} \
                     bits, but there was an attempt to instantiate one from a \
@@ -83,7 +83,7 @@ impl RecordBuffer {
             })?
         } else if len < Self::minimum_bit_size() {
             Err(RecordViolation {
-                name: RecordType::REM.into(),
+                name: RecordType::REM.to_string(),
                 hint: format!(
                     "This record implementation stores remoteness values, but \
                     there was an attempt to instantiate one with from a buffer \
@@ -119,7 +119,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
             Err(RecordViolation {
-                name: RecordType::REM.into(),
+                name: RecordType::REM.to_string(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing remoteness values, but there was an \
@@ -163,14 +163,14 @@ mod tests {
 
     use super::*;
 
-    // The maximum numeric remoteness value that can be expressed with exactly
-    // REMOTENESS_SIZE bits in an unsigned integer.
+    /// The maximum numeric remoteness value that can be expressed with exactly
+    /// REMOTENESS_SIZE bits in an unsigned integer.
     const MAX_REMOTENESS: Remoteness = 2_u64.pow(REMOTENESS_SIZE as u32) - 1;
 
     #[test]
     fn initialize_from_valid_buffer() {
         let buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
-        for i in REMOTENESS_SIZE..BUFFER_SIZE {
+        for i in 1..BUFFER_SIZE {
             assert!(RecordBuffer::from(&buf[0..i]).is_ok());
         }
     }

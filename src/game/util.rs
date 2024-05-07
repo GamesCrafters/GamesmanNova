@@ -35,8 +35,8 @@ where
             .decode(s.clone())
             .context(format!("Failed to parse line #{}.", l))?;
         if prev == game.start() {
-            for i in 1..history.len() {
-                let (l, s) = history[i].clone();
+            for h in history.iter().skip(1) {
+                let (l, s) = h.clone();
                 let next = game
                     .decode(s)
                     .context(format!("Failed to parse line #{}.", l))?;

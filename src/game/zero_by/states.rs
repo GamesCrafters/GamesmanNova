@@ -18,9 +18,9 @@ use crate::model::game::State;
 
 /* ZERO-BY STATE ENCODING */
 
-pub const STATE_DEFAULT: &'static str = "10-0";
-pub const STATE_PATTERN: &'static str = r"^\d+-\d+$";
-pub const STATE_PROTOCOL: &'static str =
+pub const STATE_DEFAULT: &str = "10-0";
+pub const STATE_PATTERN: &str = r"^\d+-\d+$";
+pub const STATE_PROTOCOL: &str =
 "The state string should be two dash-separated positive integers without any \
 decimal points. The first integer will indicate the amount of elements left to \
 remove from the set, and the second indicates whose turn it is to remove an \
@@ -41,7 +41,7 @@ pub fn parse_state(
     check_state_pattern(&from)?;
     let params = parse_parameters(&from)?;
     let (elements, turn) = check_param_count(&params)?;
-    check_variant_coherence(elements, turn, &session)?;
+    check_variant_coherence(elements, turn, session)?;
     Ok(session.encode_state(turn, elements))
 }
 
@@ -49,7 +49,7 @@ pub fn parse_state(
 
 fn check_state_pattern(from: &String) -> Result<(), GameError> {
     let re = Regex::new(STATE_PATTERN).unwrap();
-    if !re.is_match(&from) {
+    if !re.is_match(from) {
         Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
@@ -62,22 +62,20 @@ fn check_state_pattern(from: &String) -> Result<(), GameError> {
     }
 }
 
-fn parse_parameters(from: &String) -> Result<Vec<u64>, GameError> {
+fn parse_parameters(from: &str) -> Result<Vec<u64>, GameError> {
     from.split('-')
         .map(|int_string| {
             int_string
                 .parse::<u64>()
                 .map_err(|e| GameError::StateMalformed {
                     game_name: NAME,
-                    hint: format!("{}", e.to_string()),
+                    hint: e.to_string(),
                 })
         })
         .collect()
 }
 
-fn check_param_count(
-    params: &Vec<u64>,
-) -> Result<(Elements, Player), GameError> {
+fn check_param_count(params: &[u64]) -> Result<(Elements, Player), GameError> {
     if params.len() != 2 {
         Err(GameError::StateMalformed {
             game_name: NAME,

@@ -198,21 +198,19 @@ impl<'a> SessionBuilder<'a> {
                     ),
                 })?
             }
-        } else {
-            if new.terminal() && new_count < old_count {
-                Err(anyhow! {
-                    format!(
-                        "While constructing the game '{}', a medial node was \
-                        added with a 0-indexed turn of {}, but then a new \
-                        terminal node was added with {} entries. All turn \
-                        indicators must be able to index terminal nodes'\
-                        utility entries.",
-                        self.name,
-                        old_count - 1,
-                        new_count,
-                    ),
-                })?
-            }
+        } else if new.terminal() && new_count < old_count {
+            Err(anyhow! {
+                format!(
+                    "While constructing the game '{}', a medial node was \
+                    added with a 0-indexed turn of {}, but then a new \
+                    terminal node was added with {} entries. All turn \
+                    indicators must be able to index terminal nodes'\
+                    utility entries.",
+                    self.name,
+                    old_count - 1,
+                    new_count,
+                ),
+            })?
         }
 
         if new.terminal() {
@@ -301,21 +299,13 @@ impl Node {
     /// Returns true if and only if `self` is a terminal node.
     #[inline]
     pub const fn terminal(&self) -> bool {
-        if let Node::Terminal(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Node::Terminal(_))
     }
 
     /// Returns true if and only if `self` is a medial node.
     #[inline]
     pub const fn medial(&self) -> bool {
-        if let Node::Medial(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Node::Medial(_))
     }
 }
 

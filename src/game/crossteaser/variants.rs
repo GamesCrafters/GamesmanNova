@@ -45,9 +45,9 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
 
 /* VARIANT STRING VERIFICATION */
 
-fn check_variant_pattern(variant: &String) -> Result<(), GameError> {
+fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
-    if !re.is_match(&variant) {
+    if !re.is_match(variant) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
@@ -68,13 +68,13 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
                 .parse::<u64>()
                 .map_err(|e| GameError::VariantMalformed {
                     game_name: NAME,
-                    hint: format!("{}", e.to_string()),
+                    hint: e.to_string(),
                 })
         })
         .collect()
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(), GameError> {
+fn check_param_count(params: &[u64]) -> Result<(), GameError> {
     if params.len() != 3 {
         Err(GameError::VariantMalformed {
             game_name: NAME,
@@ -86,8 +86,8 @@ fn check_param_count(params: &Vec<u64>) -> Result<(), GameError> {
     }
 }
 
-fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
-    if params.iter().any(|&x| x <= 0) {
+fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
+    if params.iter().any(|&x| x == 0) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: "All integers in the string must be positive.".to_owned(),

@@ -41,9 +41,9 @@ type Elements = u64;
 
 /* GAME DATA */
 
-const NAME: &'static str = "zero-by";
-const AUTHORS: &'static str = "Max Fierro <maxfierro@berkeley.edu>";
-const ABOUT: &'static str =
+const NAME: &str = "zero-by";
+const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
+const ABOUT: &str =
 "Many players take turns removing a number of elements from a set of arbitrary \
 size. The game variant determines how many players are in the game, how many \
 elements are in the set to begin with, and the options players have in the \
@@ -193,13 +193,13 @@ impl Bounded for Session {
 
     fn end(&self, state: State) -> bool {
         let (_, elements) = self.decode_state(state);
-        elements <= 0
+        elements == 0
     }
 }
 
 impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
-        Ok(parse_state(&self, string)?)
+        Ok(parse_state(self, string)?)
     }
 
     fn encode(&self, state: State) -> Result<String> {
@@ -226,8 +226,8 @@ impl<const N: PlayerCount> Extensive<N> for Session {
 impl<const N: PlayerCount> SimpleUtility<N> for Session {
     fn utility(&self, state: State) -> [SUtility; N] {
         let (turn, _) = self.decode_state(state);
-        let mut payoffs = [SUtility::LOSE; N];
-        payoffs[turn] = SUtility::WIN;
+        let mut payoffs = [SUtility::Lose; N];
+        payoffs[turn] = SUtility::Win;
         payoffs
     }
 }

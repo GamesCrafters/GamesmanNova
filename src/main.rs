@@ -58,12 +58,21 @@ fn solve(args: SolveArgs) -> Result<()> {
     interface::standard::confirm_potential_overwrite(args.yes, args.mode);
     match args.target {
         GameModule::ZeroBy => {
-            let mut session = game::zero_by::Session::new(args.variant)?;
+            let mut session = game::zero_by::Session::new(args.variant)
+                .context("Failed to initialize zero-by game session.")?;
+
             if args.forward {
-                let history = interface::standard::stdin_lines()?;
-                session.forward(history)?;
+                let history = interface::standard::stdin_lines()
+                    .context("Failed to read input lines from STDIN.")?;
+
+                session
+                    .forward(history)
+                    .context("Failed to forward game state.")?;
             }
-            session.solve(args.mode, args.solution)?
+
+            session
+                .solve(args.mode, args.solution)
+                .context("Failed to execute solving algorithm.")?
         },
     }
     Ok(())
