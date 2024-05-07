@@ -8,25 +8,20 @@
 
 use anyhow::{Context, Result};
 
+use crate::game::Information;
 use crate::{
-    game::{error::GameError, Bounded, Codec, Game, Transition},
+    game::{error::GameError, Bounded, Codec, Transition},
     model::game::State,
 };
 
 /* STATE HISTORY VERIFICATION */
 
-/// Returns the latest state in a sequential `history` of state string encodings
-/// by verifying that the first state in the history is the same as the `game`'s
-/// start and that each state can be reached from its predecessor through the
-/// `game`'s transition function. If these conditions are not met, it returns an
-/// error message signaling the pair of states that are not connected by the
-/// transition function, with a reminder of the current game variant.
-pub fn verify_history_dynamic<const B: usize, G>(
+pub fn verify_state_history<const B: usize, G>(
     game: &G,
     history: Vec<String>,
 ) -> Result<State<B>>
 where
-    G: Game + Codec<B> + Bounded<B> + Transition<B>,
+    G: Information + Bounded<B> + Codec<B> + Transition<B>,
 {
     if let Some(s) = history.first() {
         let mut prev = game.decode(s.clone())?;
@@ -35,28 +30,32 @@ where
                 let next = game.decode(history[i].clone())?;
                 let transitions = game.prograde(prev);
                 if !transitions.contains(&next) {
-                    return transition_history_error(game, prev, next);
+                    return transition_history_error(game, prev, next)
+                        .context("Specified invalid state transition.");
                 }
                 prev = next;
             }
             Ok(prev)
         } else {
             start_history_error(game, game.start())
+                .context("Specified invalid first state.")
         }
     } else {
-        empty_history_error(game)
+        empty_history_error::<B, G>()
+            .context("Provided state history is empty.")
     }
 }
 
-fn empty_history_error<const B: usize, G>(game: &G) -> Result<State<B>>
+/* HISTORY VERIFICATION ERRORS */
+
+fn empty_history_error<const B: usize, G>() -> Result<State<B>>
 where
-    G: Game + Codec<B>,
+    G: Information + Codec<B> + Bounded<B>,
 {
     Err(GameError::InvalidHistory {
-        game_name: game.info().name,
+        game_name: G::info().name,
         hint: format!("State history must contain at least one state."),
-    })
-    .context("Invalid game history.")
+    })?
 }
 
 fn start_history_error<const B: usize, G>(
@@ -64,18 +63,16 @@ fn start_history_error<const B: usize, G>(
     start: State<B>,
 ) -> Result<State<B>>
 where
-    G: Game + Codec<B>,
+    G: Information + Codec<B> + Bounded<B>,
 {
     Err(GameError::InvalidHistory {
-        game_name: game.info().name,
+        game_name: G::info().name,
         hint: format!(
-            "The state history must begin with the starting state for this \
-            variant ({}), which is {}.",
-            game.info().variant,
-            game.encode(start)
+            "The state history must begin with the starting state for the \
+            provided game variant, which is {}.",
+            game.encode(start)?
         ),
-    })
-    .context("Invalid game history.")
+    })?
 }
 
 fn transition_history_error<const B: usize, G>(
@@ -84,17 +81,15 @@ fn transition_history_error<const B: usize, G>(
     next: State<B>,
 ) -> Result<State<B>>
 where
-    G: Game + Codec<B>,
+    G: Information + Codec<B> + Bounded<B>,
 {
     Err(GameError::InvalidHistory {
-        game_name: game.info().name,
+        game_name: G::info().name,
         hint: format!(
-            "Transitioning from the state '{}' to the sate '{}' is \
-            illegal in the current game variant ({}).",
-            game.encode(prev),
-            game.encode(next),
-            game.info().variant
+            "Transitioning from the state '{}' to the sate '{}' is illegal in \
+            the provided game variant.",
+            game.encode(prev)?,
+            game.encode(next)?,
         ),
-    })
-    .context("Invalid game history.")
+    })?
 }

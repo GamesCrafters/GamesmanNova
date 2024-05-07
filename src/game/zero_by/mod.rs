@@ -14,18 +14,22 @@
 
 use anyhow::{Context, Result};
 use bitvec::field::BitField;
-use states::*;
 
 use crate::game::error::GameError;
+use crate::game::zero_by::states::*;
 use crate::game::zero_by::variants::*;
-use crate::game::{util, Bounded, Codec, Forward};
-use crate::game::{Game, GameData, Transition};
-use crate::interface::{IOMode, SolutionMode};
+use crate::game::Information;
+use crate::game::Variable;
+use crate::game::{Bounded, Codec, Forward};
+use crate::game::{GameData, Transition};
+use crate::interface::{IOMode, Solution};
 use crate::model::database::Identifier;
+use crate::model::game::Variant;
 use crate::model::game::{Player, PlayerCount, State};
 use crate::model::solver::SUtility;
 use crate::solver::algorithm::strong;
 use crate::solver::{Extensive, SimpleUtility};
+use crate::util::Identify;
 
 /* SUBMODULES */
 
@@ -56,27 +60,54 @@ pub struct Session {
     start_state: State,
     player_bits: usize,
     players: PlayerCount,
-    variant: String,
+    variant: Variant,
     by: Vec<Elements>,
 }
 
-impl Game for Session {
-    fn new(variant: Option<String>) -> Result<Self> {
-        if let Some(v) = variant {
-            parse_variant(v).context("Malformed game variant.")
-        } else {
-            Ok(parse_variant(VARIANT_DEFAULT.to_owned()).unwrap())
+impl Session {
+    pub fn new() -> Self {
+        parse_variant(VARIANT_DEFAULT.to_owned()).unwrap()
+    }
+
+    pub fn solve(&self, mode: IOMode, method: Solution) -> Result<()> {
+        match (self.players, method) {
+            (2, Solution::Strong) => {
+                strong::acyclic::solver::<2, 8, Self>(self, mode)
+                    .context("Failed solver run.")?
+            },
+            (10, Solution::Strong) => {
+                strong::acyclic::solver::<10, 8, Self>(self, mode)
+                    .context("Failed solver run.")?
+            },
+            _ => {
+                return Err(GameError::SolverNotFound {
+                    input_game_name: NAME,
+                })
+                .context("Solver not found.");
+            },
         }
+        Ok(())
     }
 
-    fn id(&self) -> Identifier {
-        todo!()
+    fn encode_state(&self, turn: Player, elements: Elements) -> State {
+        let mut state = State::ZERO;
+        state[..self.player_bits].store_be(turn);
+        state[self.player_bits..].store_be(elements);
+        state
     }
 
-    fn info(&self) -> GameData {
+    fn decode_state(&self, state: State) -> (Player, Elements) {
+        let player = state[..self.player_bits].load_be::<Player>();
+        let elements = state[self.player_bits..].load_be::<Elements>();
+        (player, elements)
+    }
+}
+
+/* INFORMATION IMPLEMENTATIONS */
+
+impl Information for Session {
+    fn info() -> GameData {
         GameData {
-            variant: self.variant.clone(),
-
             name: NAME,
             authors: AUTHORS,
             about: ABOUT,
@@ -90,25 +121,28 @@ impl Game for Session {
             state_protocol: STATE_PROTOCOL,
         }
     }
+}
 
-    fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
-        match (self.players, method) {
-            (2, SolutionMode::Strong) => {
-                strong::acyclic::solver::<2, 8, Self>(self, mode)
-                    .context("Failed solver run.")?
-            },
-            (10, SolutionMode::Strong) => {
-                strong::acyclic::solver::<10, 8, Self>(self, mode)
-                    .context("Failed solver run.")?
-            },
-            _ => {
-                return Err(GameError::SolverNotFound {
-                    input_game_name: NAME,
-                })
-                .context("Solver not found.");
-            },
+impl Identify for Session {
+    fn id(&self) -> Identifier {
+        todo!()
+    }
+}
+
+/* VARIANCE IMPLEMENTATION */
+
+impl Variable for Session {
+    fn into_variant(self, variant: Option<Variant>) -> Result<Self> {
+        if let Some(v) = variant {
+            parse_variant(v).context("Malformed game variant.")
+        } else {
+            parse_variant(VARIANT_DEFAULT.to_owned())
+                .context("Failed to parse default game variant.")
         }
-        Ok(())
+    }
+
+    fn variant(&self) -> Variant {
+        self.variant.clone()
     }
 }
 
@@ -170,17 +204,15 @@ impl Codec for Session {
         Ok(parse_state(&self, string)?)
     }
 
-    fn encode(&self, state: State) -> String {
+    fn encode(&self, state: State) -> Result<String> {
         let (turn, elements) = self.decode_state(state);
-        format!("{}-{}", elements, turn)
+        Ok(format!("{}-{}", elements, turn))
     }
 }
 
 impl Forward for Session {
-    fn forward(&mut self, history: Vec<String>) -> Result<()> {
-        self.start_state = util::verify_history_dynamic(self, history)
-            .context("Malformed game state encoding.")?;
-        Ok(())
+    fn set_verified_start(&mut self, state: State) {
+        self.start_state = state;
     }
 }
 
@@ -199,22 +231,5 @@ impl<const N: PlayerCount> SimpleUtility<N> for Session {
         let mut payoffs = [SUtility::LOSE; N];
         payoffs[turn] = SUtility::WIN;
         payoffs
-    }
-}
-
-/* UTILITY FUNCTIONS */
-
-impl Session {
-    fn encode_state(&self, turn: Player, elements: Elements) -> State {
-        let mut state = State::ZERO;
-        state[..self.player_bits].store_be(turn);
-        state[self.player_bits..].store_be(elements);
-        state
-    }
-
-    fn decode_state(&self, state: State) -> (Player, Elements) {
-        let player = state[..self.player_bits].load_be::<Player>();
-        let elements = state[self.player_bits..].load_be::<Elements>();
-        (player, elements)
     }
 }

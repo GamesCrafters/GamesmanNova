@@ -36,7 +36,7 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
     check_param_count(&params)?;
     check_params_are_positive(&params)?;
     Ok(Session {
-        variant: Some(variant),
+        variant,
         length: params[0],
         width: params[1],
         free: params[2],
@@ -111,8 +111,9 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
 #[cfg(test)]
 mod test {
 
+    use crate::game::Variable;
+
     use super::*;
-    use crate::game::Game;
 
     #[test]
     fn variant_pattern_is_valid_regex() {
@@ -127,44 +128,45 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() {
-        let with_none = Session::new(None);
-        let with_default = Session::new(Some(VARIANT_DEFAULT.to_owned()));
-
-        assert!(with_none.is_ok());
+        let _ = Session::new();
+        let with_default =
+            Session::new().into_variant(Some(VARIANT_DEFAULT.to_owned()));
         assert!(with_default.is_ok());
     }
 
     #[test]
     fn invalid_variants_fail_checks() {
-        let some_variant_1 = Session::new(Some("None".to_owned()));
-        let some_variant_2 = Session::new(Some("x4-".to_owned()));
-        let some_variant_3 = Session::new(Some("-".to_owned()));
-        let some_variant_4 = Session::new(Some("1x2-5".to_owned()));
-        let some_variant_5 = Session::new(Some("0x2-5".to_owned()));
-        let some_variant_6 = Session::new(Some("1x1-1".to_owned()));
-        let some_variant_7 = Session::new(Some("8x2.6-5".to_owned()));
-        let some_variant_8 = Session::new(Some("3x4-0".to_owned()));
+        let v = vec![
+            Some("None".to_owned()),
+            Some("x4-".to_owned()),
+            Some("-".to_owned()),
+            Some("1x2-5".to_owned()),
+            Some("0x2-5".to_owned()),
+            Some("1x1-1".to_owned()),
+            Some("8x2.6-5".to_owned()),
+            Some("3x4-0".to_owned()),
+        ];
 
-        assert!(some_variant_1.is_err());
-        assert!(some_variant_2.is_err());
-        assert!(some_variant_3.is_err());
-        assert!(some_variant_4.is_err());
-        assert!(some_variant_5.is_err());
-        assert!(some_variant_6.is_err());
-        assert!(some_variant_7.is_err());
-        assert!(some_variant_8.is_err());
+        for variant in v {
+            assert!(Session::new()
+                .into_variant(variant)
+                .is_err());
+        }
     }
 
     #[test]
     fn valid_variants_pass_checks() {
-        let some_variant_1 = Session::new(Some("4x3-2".to_owned()));
-        let some_variant_2 = Session::new(Some("5x4-2".to_owned()));
-        let some_variant_3 = Session::new(Some("2x4-1".to_owned()));
-        let some_variant_4 = Session::new(Some("4x2-1".to_owned()));
+        let v = vec![
+            Some("4x3-2".to_owned()),
+            Some("5x4-2".to_owned()),
+            Some("2x4-1".to_owned()),
+            Some("4x2-1".to_owned()),
+        ];
 
-        assert!(some_variant_1.is_ok());
-        assert!(some_variant_2.is_ok());
-        assert!(some_variant_3.is_ok());
-        assert!(some_variant_4.is_ok());
+        for variant in v {
+            assert!(Session::new()
+                .into_variant(variant)
+                .is_ok());
+        }
     }
 }

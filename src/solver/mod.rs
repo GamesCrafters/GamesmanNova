@@ -18,14 +18,6 @@ use crate::model::{
     solver::{IUtility, RUtility, SUtility},
 };
 
-/* CONSTANTS */
-
-/// Describes the maximum number of states that are one move away from any state
-/// within a game. Used to allocate statically-sized arrays on the stack for
-/// faster execution of solving algorithms. If this limit is violated by a game
-/// implementation, this program should panic.
-pub const MAX_TRANSITIONS: usize = 512 / 8;
-
 /* MODULES */
 
 /// Implementations of records that can be used by solving algorithms to store
@@ -194,7 +186,13 @@ where
     G: IntegerUtility<N, B>,
 {
     fn utility(&self, state: State<B>) -> [RUtility; N] {
-        todo!()
+        let iutility = self.utility(state);
+        let mut rutility = [0.0; N];
+        rutility
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, u)| *u = iutility[i] as RUtility);
+        rutility
     }
 }
 
@@ -203,16 +201,28 @@ where
     G: SimpleUtility<N, B>,
 {
     fn utility(&self, state: State<B>) -> [IUtility; N] {
-        todo!()
+        let sutility = self.utility(state);
+        let mut iutility = [0; N];
+        iutility
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, u)| *u = sutility[i].into());
+        iutility
     }
 }
 
 impl<const B: usize, G> SimpleUtility<2, B> for G
 where
-    G: ClassicGame<B>,
+    G: Extensive<2, B> + ClassicGame<B>,
 {
     fn utility(&self, state: State<B>) -> [SUtility; 2] {
-        todo!()
+        let mut sutility = [SUtility::TIE; 2];
+        let utility = self.utility(state);
+        let turn = self.turn(state);
+        let them = (turn + 1) % 2;
+        sutility[them] = !utility;
+        sutility[turn] = utility;
+        sutility
     }
 }
 
@@ -221,6 +231,6 @@ where
     G: ClassicPuzzle<B>,
 {
     fn utility(&self, state: State<B>) -> [SUtility; 1] {
-        todo!()
+        [self.utility(state)]
     }
 }

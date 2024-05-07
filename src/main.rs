@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+#![warn(missing_docs, deprecated)]
 //! # Execution Module
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
@@ -14,10 +14,12 @@
 
 use std::process;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
+use game::Variable;
 
 use crate::interface::terminal::cli::*;
+use crate::model::game::GameModule;
 
 /* MODULES */
 
@@ -36,10 +38,9 @@ mod test;
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let res = match &cli.command {
-        Commands::Tui(args) => tui(args),
         Commands::Info(args) => info(args),
         Commands::Solve(args) => solve(args),
-        Commands::Analyze(args) => analyze(args),
+        Commands::Query(args) => query(args),
     };
     if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
@@ -49,26 +50,26 @@ fn main() -> Result<()> {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs) -> Result<()> {
+fn tui(args: &QueryArgs) -> Result<()> {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs) -> Result<()> {
+fn query(args: &QueryArgs) -> Result<()> {
     todo!()
 }
 
 fn solve(args: &SolveArgs) -> Result<()> {
     util::confirm_potential_overwrite(args.yes, args.mode);
-    let game = util::find_game(
-        args.target,
-        args.variant.to_owned(),
-        args.from.to_owned(),
-    )?;
-    game.solve(args.mode, args.solver)?;
+    match args.target {
+        GameModule::ZeroBy => {
+            let session = game::zero_by::Session::new()
+                .into_variant(args.variant.clone())
+                .context("Failed to initialize zero-by game session.")?;
+        },
+    }
     Ok(())
 }
 
 fn info(args: &InfoArgs) -> Result<()> {
-    util::print_game_info(args.target, args.output)?;
     Ok(())
 }

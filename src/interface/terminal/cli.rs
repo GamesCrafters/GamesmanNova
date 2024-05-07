@@ -1,24 +1,27 @@
 //! # Command Line Module
 //!
 //! This module offers UNIX-like CLI tooling in order to facilitate scripting
-//! and ergonomic use of GamesmanNova. This uses the [clap](https://docs.rs/clap/latest/clap/)
-//! crate to provide standard behavior, which is outlined in
-//! [this](https://clig.dev/) great guide.
+//! and ergonomic use of GamesmanNova. This uses the
+//! [clap](https://docs.rs/clap/latest/clap/) crate to provide standard
+//! behavior, which is outlined in [this](https://clig.dev/) great guide.
 //!
 //! #### Authorship
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use clap::{Args, Parser, Subcommand};
 
-use crate::interface::{IOMode, OutputMode, SolutionMode};
-use crate::util::GameModule;
+use crate::interface::{
+    GameAttribute, IOMode, InfoFormat, QueryFormat, Solution,
+};
+use crate::model::database::Identifier;
+use crate::model::game::GameModule;
 
 /* COMMAND LINE INTERFACE */
 
-/// GamesmanNova is a project for solving finite-state, deterministic, abstract
-/// strategy games. In addition to being able to solve implemented games, Nova
-/// provides analyzers and databases to generate insights about games and to
-/// persist their full solutions efficiently.
+/// GamesmanNova is a project for searching sequential games. In addition to
+/// being able to analyze games whose implementations are included distributed
+/// along with the binary, the project also has database implementations that
+/// can persist these analyses, which can later be queried.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None, propagate_version = true)]
 pub struct Cli {
@@ -36,14 +39,11 @@ pub struct Cli {
 /// Subcommand choices, specified as `nova <subcommand>`.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Start the terminal user interface.
-    Tui(TuiArgs),
-
-    /// Solve a game from the start position.
+    /// Solve some game through some specific method.
     Solve(SolveArgs),
 
-    /// Analyze a game's state graph.
-    Analyze(AnalyzeArgs),
+    /// Run a query on an existing table in the system.
+    Query(QueryArgs),
 
     /// Provide information about offerings.
     Info(InfoArgs),
@@ -51,35 +51,16 @@ pub enum Commands {
 
 /* ARGUMENT AND OPTION DEFINITIONS */
 
-/// Specifies the way in which the TUI is initialized. By default, this will
-/// open a main menu which allows the user to choose which game to play among
-/// the list of available games, in addition to other miscellaneous offerings,
-/// and prompt the user for confirmation before executing any potentially
-/// destructive operations.
-#[derive(Args)]
-pub struct TuiArgs {
-    /* DEFAULTS PROVIDED */
-    /// Game to display (optional).
-    #[arg(short, long)]
-    pub target: Option<GameModule>,
-    /// Enter TUI in debug mode.
-    #[arg(short, long)]
-    pub debug: bool,
-    /// Skips prompts for confirming destructive operations.
-    #[arg(short, long)]
-    pub yes: bool,
-}
-
 /// Ensures a specific game variant's solution set exists. Default behavior:
 ///
 /// - Uses the target's default variant (see `variant` argument).
 /// - Attempts to read from a database file, computing and writing one only if
-/// needed (see `cli::IOMode` for specifics).
+///   needed (see [`IOMode`] for specifics).
 /// - Formats output aesthetically (see `output` argument).
-/// - Uses the game's default solver to create state graph (see `solver`
-/// argument).
+/// - Finds an existing solution table to the game (see `solution` argument).
+/// - Does not forward the game's starting state (see `from` argument).
 /// - Prompts the user before executing any potentially destructive operations
-/// such as overwriting a database file (see `yes` flag).
+///   such as overwriting a database file (see `yes` flag).
 #[derive(Args)]
 pub struct SolveArgs {
     /* REQUIRED ARGUMENTS */
@@ -90,58 +71,64 @@ pub struct SolveArgs {
     /// Solve a specific variant of target.
     #[arg(short, long)]
     pub variant: Option<String>,
-    /// Compute solution starting after a file-provided state history.
-    #[arg(short, long)]
-    pub from: Option<String>,
+
     /// Specify what type of solution to compute.
-    #[arg(short, long, default_value_t = SolutionMode::Strong)]
-    pub solver: SolutionMode,
-    /// Specify whether the solution should be fetched or generated.
-    #[arg(short, long, default_value_t = IOMode::Find)]
+    #[arg(short, long, default_value_t = Solution::Strong)]
+    pub solution: Solution,
+
+    /// Specify whether the solution should be fetched or re-generated.
+    #[arg(short, long, default_value_t = IOMode::Constructive)]
     pub mode: IOMode,
+
+    /// Compute solution starting after a state history read from STDIN.
+    #[arg(short, long)]
+    pub forward: bool,
+
     /// Skips prompts for confirming destructive operations.
     #[arg(short, long)]
     pub yes: bool,
 }
 
-/// Specifies the way in which a game's analysis happens. Uses the provided
-/// `analyzer` to analyze the `target` game. This uses the same logic on finding
-/// or generating missing data as the solving routine; see `cli::IOMode` for
-/// specifics.
-#[derive(Args)]
-pub struct AnalyzeArgs {
-    /* REQUIRED ARGUMENTS */
-    /// Target game name.
-    pub target: GameModule,
-
-    /* DEFAULTS PROVIDED */
-    /// Analyzer module to use.
-    #[arg(short, long)]
-    pub analyzer: Option<String>,
-    /// Analyze a specific variant of target.
-    #[arg(short, long)]
-    pub variant: Option<String>,
-    /// Set output in a specific format.
-    #[arg(short, long, default_value_t = OutputMode::Extra)]
-    pub output: OutputMode,
-    /// Skips prompts for confirming destructive operations.
-    #[arg(short, long)]
-    pub yes: bool,
-}
-
-/// Provides information about available games (or about their specifications,
-/// if provided a `--target` argument). Default behavior:
+/// Accepts a query string to be compiled and ran on a specific database table,
+/// whose output table is printed to STDOUT. High-level behavior:
 ///
-/// - Provides a list of implemented games (which are valid `--target`s).
-/// - Provides output unformatted.
+/// - `nova query` outputs the the global catalog table in `output` format.
+/// - `nova query -t <T>` outputs the schema of table `<T>` in `output` format.
+/// - `nova query -t <T> -q <Q>` outputs the result of the query `<Q>` on table
+///   `<T>` in `output` format (but does not store it as a table).
+#[derive(Args)]
+pub struct QueryArgs {
+    /* DEFAULTS PROVIDED */
+    /// Numeric identifier for the table that the query should be run on.
+    #[arg(short, long)]
+    pub table: Option<Identifier>,
+
+    /// Query specification string, conforming to ExQL syntax.
+    #[arg(short, long)]
+    pub query: Option<String>,
+
+    /// Format in which to send output to STDOUT.
+    #[arg(short, long, default_value_t = QueryFormat::CSV)]
+    pub output: QueryFormat,
+}
+
+/// Provides information about games in the system. High-level behavior:
+///
+/// - `nova info <G>` outputs all known information about game `<G>` in
+///   `output` format.
+/// - `nova info <G> -a <A>` outputs the game `<G>`'s `<A>` attribute in
+///   `output` format.
 #[derive(Args)]
 pub struct InfoArgs {
-    /* REQUIRED ARGUMENTS */
-    /// Specify game for which to provide information about.
+    /// Dump all information about a target game.
     pub target: GameModule,
 
     /* DEFAULTS PROVIDED */
-    /// Set output in a specific format.
-    #[arg(short, long, default_value_t = OutputMode::Extra)]
-    pub output: OutputMode,
+    /// Specify which of the game's attributes to provide information about.
+    #[arg(short, long)]
+    pub attribute: Option<GameAttribute>,
+
+    /// Format in which to send output to STDOUT.
+    #[arg(short, long, default_value_t = InfoFormat::Legible)]
+    pub output: InfoFormat,
 }

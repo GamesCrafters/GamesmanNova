@@ -133,7 +133,7 @@ fn parse_player_count(params: &Vec<u64>) -> Result<Player, GameError> {
 mod test {
 
     use super::*;
-    use crate::game::Game;
+    use crate::game::*;
 
     #[test]
     fn variant_pattern_is_valid_regex() {
@@ -148,20 +148,21 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() {
-        let with_none = Session::new(None);
-        let with_default = Session::new(Some(VARIANT_DEFAULT.to_owned()));
-        assert!(with_none.is_ok());
+        let _ = Session::new();
+        let with_default =
+            Session::new().into_variant(Some(VARIANT_DEFAULT.to_owned()));
         assert!(with_default.is_ok());
     }
 
     #[test]
-    fn no_variant_equals_default_variant() {
-        let with_none = Session::new(None).unwrap();
+    fn no_variant_equals_default_variant() -> Result<()> {
+        let with_none = Session::new();
         let with_default =
-            Session::new(Some(VARIANT_DEFAULT.to_owned())).unwrap();
+            Session::new().into_variant(Some(VARIANT_DEFAULT.to_owned()))?;
         assert_eq!(with_none.variant, with_default.variant);
         assert_eq!(with_none.start_state, with_default.start_state);
         assert_eq!(with_none.by, with_default.by);
+        Ok(())
     }
 
     #[test]

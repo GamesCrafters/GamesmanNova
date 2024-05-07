@@ -9,12 +9,13 @@ use anyhow::{Context, Result};
 
 use crate::database::volatile;
 use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, Game, Transition};
+use crate::game::{Bounded, Transition};
 use crate::interface::IOMode;
 use crate::model::game::PlayerCount;
 use crate::model::solver::{IUtility, Remoteness};
 use crate::solver::record::mur::RecordBuffer;
 use crate::solver::{Extensive, IntegerUtility, RecordType};
+use crate::util::Identify;
 
 /* SOLVERS */
 
@@ -27,7 +28,7 @@ where
         + Bounded<B>
         + IntegerUtility<N, B>
         + Extensive<N, B>
-        + Game,
+        + Identify,
 {
     let db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
@@ -51,7 +52,7 @@ fn volatile_database<const N: usize, const B: usize, G>(
     game: &G,
 ) -> Result<volatile::Database>
 where
-    G: Extensive<N, B> + Game,
+    G: Extensive<N, B> + Identify,
 {
     let id = game.id();
     let db = volatile::Database::initialize();

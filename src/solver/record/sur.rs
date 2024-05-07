@@ -16,7 +16,7 @@ use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
 use crate::model::game::{Player, PlayerCount};
-use crate::model::solver::{Remoteness, SUtility};
+use crate::model::solver::{IUtility, Remoteness, SUtility};
 use crate::solver::error::SolverError::RecordViolation;
 use crate::solver::RecordType;
 use crate::util;
@@ -182,7 +182,7 @@ impl RecordBuffer {
         } else {
             let start = Self::utility_index(player);
             let end = start + UTILITY_SIZE;
-            let val = self.buf[start..end].load_be::<u64>();
+            let val = self.buf[start..end].load_be::<IUtility>();
             if let Ok(utility) = SUtility::try_from(val) {
                 Ok(utility)
             } else {
