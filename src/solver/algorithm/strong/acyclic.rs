@@ -14,7 +14,7 @@ use crate::interface::IOMode;
 use crate::model::game::PlayerCount;
 use crate::model::solver::{IUtility, Remoteness};
 use crate::solver::record::mur::RecordBuffer;
-use crate::solver::{Extensive, IntegerUtility, RecordType};
+use crate::solver::{IntegerUtility, RecordType, Sequential};
 use crate::util::Identify;
 
 /* SOLVERS */
@@ -27,7 +27,7 @@ where
     G: Transition<B>
         + Bounded<B>
         + IntegerUtility<N, B>
-        + Extensive<N, B>
+        + Sequential<N, B>
         + Identify,
 {
     let db = volatile_database(game, mode)
@@ -53,7 +53,7 @@ fn volatile_database<const N: usize, const B: usize, G>(
     mode: IOMode,
 ) -> Result<volatile::Database>
 where
-    G: Extensive<N, B> + Identify,
+    G: Sequential<N, B> + Identify,
 {
     let id = game.id();
     let db = volatile::Database::initialize();
@@ -80,7 +80,7 @@ fn backward_induction<const N: PlayerCount, const B: usize, D, G>(
 ) -> Result<()>
 where
     D: KVStore,
-    G: Transition<B> + Bounded<B> + IntegerUtility<N, B> + Extensive<N, B>,
+    G: Transition<B> + Bounded<B> + IntegerUtility<N, B> + Sequential<N, B>,
 {
     let mut stack = Vec::new();
     stack.push(game.start());

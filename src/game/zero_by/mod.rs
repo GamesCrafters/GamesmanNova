@@ -27,7 +27,7 @@ use crate::model::game::Variant;
 use crate::model::game::{Player, PlayerCount, State};
 use crate::model::solver::SUtility;
 use crate::solver::algorithm::strong;
-use crate::solver::{Extensive, SimpleUtility};
+use crate::solver::{Sequential, SimpleUtility};
 
 /* SUBMODULES */
 
@@ -216,7 +216,7 @@ impl Forward for Session {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl<const N: PlayerCount> Extensive<N> for Session {
+impl<const N: PlayerCount> Sequential<N> for Session {
     fn turn(&self, state: State) -> Player {
         let (turn, _) = self.decode_state(state);
         turn
