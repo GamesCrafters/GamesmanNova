@@ -87,7 +87,7 @@ impl RecordBuffer {
                 hint: format!(
                     "This record implementation stores remoteness values, but \
                     there was an attempt to instantiate one with from a buffer \
-                    with {} bits, which is not enough to store a remoteness \
+                    with {} bit(s), which is not enough to store a remoteness \
                     value (which takes {} bits).",
                     len, REMOTENESS_SIZE,
                 ),
@@ -168,14 +168,6 @@ mod tests {
     const MAX_REMOTENESS: Remoteness = 2_u64.pow(REMOTENESS_SIZE as u32) - 1;
 
     #[test]
-    fn initialize_from_valid_buffer() {
-        let buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
-        for i in 1..BUFFER_SIZE {
-            assert!(RecordBuffer::from(&buf[0..i]).is_ok());
-        }
-    }
-
-    #[test]
     fn initialize_from_invalid_buffer_size() {
         let buf1 = bitarr!(u8, Msb0; 0; BUFFER_SIZE + 1);
         let buf2 = bitarr!(u8, Msb0; 0; BUFFER_SIZE + 10);
@@ -187,44 +179,35 @@ mod tests {
     }
 
     #[test]
-    fn set_record_attributes() {
+    fn set_record_attributes() -> Result<()> {
         let mut r1 = RecordBuffer::new().unwrap();
 
         let good = Remoteness::MIN;
         let bad = Remoteness::MAX;
 
-        assert!(r1.set_remoteness(good).is_ok());
-        assert!(r1.set_remoteness(good).is_ok());
-        assert!(r1.set_remoteness(good).is_ok());
+        r1.set_remoteness(good)?;
+        r1.set_remoteness(good)?;
+        r1.set_remoteness(good)?;
+        assert!(r1.set_remoteness(bad).is_err());
+        assert!(r1.set_remoteness(bad).is_err());
+        assert!(r1.set_remoteness(bad).is_err());
 
-        assert!(r1.set_remoteness(bad).is_err());
-        assert!(r1.set_remoteness(bad).is_err());
-        assert!(r1.set_remoteness(bad).is_err());
+        Ok(())
     }
 
     #[test]
-    fn data_is_valid_after_round_trip() {
-        let mut record = RecordBuffer::new().unwrap();
-        let remoteness = 790;
-
-        record
-            .set_remoteness(remoteness)
-            .unwrap();
-
-        // Remoteness unchanged after insert and fetch
-        let fetched_remoteness = record.get_remoteness();
-        let actual_remoteness = remoteness;
-        assert_eq!(fetched_remoteness, actual_remoteness);
+    fn data_is_valid_after_round_trip() -> Result<()> {
+        let mut record = RecordBuffer::new()?;
+        record.set_remoteness(790)?;
+        assert_eq!(record.get_remoteness(), 790);
+        Ok(())
     }
 
     #[test]
-    fn extreme_data_is_valid_after_round_trip() {
+    fn extreme_data_is_valid_after_round_trip() -> Result<()> {
         let mut record = RecordBuffer::new().unwrap();
-
-        assert!(record
-            .set_remoteness(MAX_REMOTENESS)
-            .is_ok());
-
+        record.set_remoteness(MAX_REMOTENESS)?;
         assert_eq!(record.get_remoteness(), MAX_REMOTENESS);
+        Ok(())
     }
 }

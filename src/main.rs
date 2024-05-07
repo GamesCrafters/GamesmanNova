@@ -86,7 +86,6 @@ fn info(args: InfoArgs) -> Result<()> {
         data,
         args.attributes,
         args.output,
-    )
-    .context("Failed to format and output game attributes.")?;
+    )?;
     Ok(())
 }
