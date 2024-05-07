@@ -29,8 +29,8 @@ pub enum SolverError {
     /// into another incompatible measure. Provides hints about the input type,
     /// output type, and the reason behind the incompatibility.
     InvalidConversion {
-        input_t: String,
         output_t: String,
+        input_t: String,
         hint: String,
     },
 }
@@ -57,15 +57,15 @@ impl fmt::Display for SolverError {
                 )
             },
             Self::InvalidConversion {
-                input_t: input,
-                output_t: output,
+                output_t,
+                input_t,
                 hint,
             } => {
                 write!(
                     f,
                     "There was an attempt to translate a value of type '{}' \
                     into a value of type '{}': {}",
-                    input, output, hint,
+                    input_t, output_t, hint,
                 )
             },
         }

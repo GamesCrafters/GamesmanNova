@@ -6,9 +6,9 @@
 //! #### Authorship
 //! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use std::process;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::{interface::IOMode, model::database::Identifier};
+use crate::{game::Variable, model::database::Identifier};
 
 /* INTERFACES */
 
@@ -21,31 +21,15 @@ pub trait Identify {
     fn id(&self) -> Identifier;
 }
 
-/* USER INPUT */
-
-/// Prompts the user to confirm their operation as appropriate according to
-/// the arguments of the solve command. Only asks for confirmation for
-/// potentially destructive operations.
-pub fn confirm_potential_overwrite(yes: bool, mode: IOMode) {
-    if match mode {
-        IOMode::Overwrite => !yes,
-        IOMode::Constructive => false,
-    } {
-        println!(
-            "This may overwrite an existing solution database. Are you sure? \
-            [y/n]: "
-        );
-        let mut yn: String = "".to_owned();
-        while !["n", "N", "y", "Y"].contains(&&yn[..]) {
-            yn = String::new();
-            std::io::stdin()
-                .read_line(&mut yn)
-                .expect("Failed to read user confirmation.");
-            yn = yn.trim().to_string();
-        }
-        if yn == "n" || yn == "N" {
-            process::exit(exitcode::OK)
-        }
+impl<G> Identify for G
+where
+    G: Variable,
+{
+    fn id(&self) -> Identifier {
+        let mut hasher = DefaultHasher::new();
+        self.variant_string()
+            .hash(&mut hasher);
+        hasher.finish()
     }
 }
 

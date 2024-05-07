@@ -84,11 +84,6 @@ pub struct Session {
 }
 
 impl Session {
-    fn new() -> Self {
-        parse_variant(VARIANT_DEFAULT.to_owned())
-            .expect("Failed to parse default game variant.")
-    }
-
     fn solve(&self, mode: IOMode, method: Solution) -> Result<()> {
         todo!()
     }
@@ -102,25 +97,21 @@ impl Information for Session {
     }
 }
 
-impl Identify for Session {
-    fn id(&self) -> Identifier {
-        todo!()
+/* VARIANCE IMPLEMENTATION */
+
+impl Default for Session {
+    fn default() -> Self {
+        parse_variant(VARIANT_DEFAULT.to_owned())
+            .expect("Failed to parse default game variant.")
     }
 }
 
-/* VARIANCE IMPLEMENTATION */
-
 impl Variable for Session {
-    fn into_variant(self, variant: Option<Variant>) -> Result<Self> {
-        if let Some(v) = variant {
-            parse_variant(v).context("Malformed game variant.")
-        } else {
-            parse_variant(VARIANT_DEFAULT.to_owned())
-                .context("Failed to parse default game variant.")
-        }
+    fn variant(variant: Variant) -> Result<Self> {
+        parse_variant(variant).context("Malformed game variant.")
     }
 
-    fn variant(&self) -> Variant {
+    fn variant_string(&self) -> Variant {
         self.variant.to_owned()
     }
 }

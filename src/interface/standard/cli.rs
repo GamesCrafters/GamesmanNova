@@ -120,13 +120,13 @@ pub struct QueryArgs {
 ///   `output` format.
 #[derive(Args)]
 pub struct InfoArgs {
-    /// Dump all information about a target game.
+    /// Specify the game to provide information about.
     pub target: GameModule,
 
     /* DEFAULTS PROVIDED */
     /// Specify which of the game's attributes to provide information about.
     #[arg(short, long)]
-    pub attribute: Option<GameAttribute>,
+    pub attributes: Option<Vec<GameAttribute>>,
 
     /// Format in which to send output to STDOUT.
     #[arg(short, long, default_value_t = InfoFormat::Legible)]

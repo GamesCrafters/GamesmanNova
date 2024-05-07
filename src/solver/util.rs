@@ -89,6 +89,27 @@ impl TryFrom<RUtility> for SUtility {
     }
 }
 
+impl TryFrom<u64> for SUtility {
+    type Error = SolverError;
+
+    fn try_from(v: u64) -> Result<Self, Self::Error> {
+        match v {
+            v if v as i64 == SUtility::LOSE as i64 => Ok(SUtility::LOSE),
+            v if v as i64 == SUtility::DRAW as i64 => Ok(SUtility::DRAW),
+            v if v as i64 == SUtility::TIE as i64 => Ok(SUtility::TIE),
+            v if v as i64 == SUtility::WIN as i64 => Ok(SUtility::WIN),
+            _ => Err(SolverError::InvalidConversion {
+                input_t: "Real Utility".into(),
+                output_t: "Simple Utility".into(),
+                hint:
+                    "Simple Utility values can only have pre-specified values \
+                    (which are subject to change)."
+                        .into(),
+            }),
+        }
+    }
+}
+
 /* CONVERSIONS FROM SIMPLE UTILITY */
 
 impl Into<IUtility> for SUtility {

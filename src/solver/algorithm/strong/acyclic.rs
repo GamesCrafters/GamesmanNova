@@ -30,7 +30,7 @@ where
         + Extensive<N, B>
         + Identify,
 {
-    let db = volatile_database(game)
+    let db = volatile_database(game, mode)
         .context("Failed to initialize volatile database.")?;
 
     let table = db
@@ -50,6 +50,7 @@ where
 /// to that table before returning the database handle.
 fn volatile_database<const N: usize, const B: usize, G>(
     game: &G,
+    mode: IOMode,
 ) -> Result<volatile::Database>
 where
     G: Extensive<N, B> + Identify,

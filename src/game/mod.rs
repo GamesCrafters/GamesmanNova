@@ -281,12 +281,12 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
 /// Provides methods to obtain a working instance of a game variant and to
 /// retrieve a [`String`]-encoded specification of the variant.
 pub trait Variable {
-    /// Returns a version of the underlying game as the specified `variant`,
-    /// resetting to the default variant if it is `None`.
+    /// Initializes a version of the underlying game as the specified `variant`.
     ///
-    /// This does not preserve any kind of state held by the game object,
-    /// including the starting state (even if it was set through [`Forward`]).
-    /// In this sense, game variants specify starting states.
+    /// A variant is a member of a family of games whose structure is very
+    /// similar. It is convenient to be able to express this because it saves
+    /// a lot of needless re-writing of game logic, while allowing for a lot
+    /// of generality in game implementations.
     ///
     /// # Example
     ///
@@ -296,14 +296,12 @@ pub trait Variable {
     /// ```
     /// use crate::game::zero_by;
     ///
+    /// let default = zero_by::Session::new();
+    /// assert_ne!(default.encode(default.start())?, state);
+    ///
     /// let state = "100-0".into();
-    /// let variant = "3-100-3-4".into();
-    ///
-    /// let default_variant = zero_by::Session::new();
-    /// assert_ne!(default_variant.encode(default_variant.start())?, state);
-    ///
-    /// let custom_variant = session.into_variant(variant)?;
-    /// assert_eq!(custom_variant.encode(custom_variant.start())?, state);
+    /// let variant = zero_by::Session::variant("3-100-3-4".into())?;
+    /// assert_eq!(variant.encode(variant.start())?, state);
     /// ```
     ///
     /// # Errors
@@ -311,7 +309,7 @@ pub trait Variable {
     /// Fails if `variant` does not conform to the game's protocol for encoding
     /// variants as strings, or if the game does not support variants in the
     /// first place (but has a placeholder [`Variable`] implementation).
-    fn into_variant(self, variant: Option<Variant>) -> Result<Self>
+    fn variant(variant: Variant) -> Result<Self>
     where
         Self: Sized;
 
@@ -336,7 +334,7 @@ pub trait Variable {
     /// let custom_variant = session.into_variant(variant.clone())?;
     /// assert_eq!(custom_variant.variant(), variant);
     /// ```
-    fn variant(&self) -> Variant;
+    fn variant_string(&self) -> Variant;
 }
 
 /// Provides methods to safely fast-forward the starting state of a game to
@@ -380,10 +378,10 @@ where
 
     /// Advances the game's starting state to the last state in `history`.
     ///
-    /// This function needs an implementation of [`Forward::set_verified_start`]
-    /// to ultimately change the starting state after `history` is verified. It
-    /// consumes `self` with the intent of making it difficult to make errors
-    /// regarding variant incoherency, and to make the semantics clearer.
+    /// This can be useful for skipping a significant amount of computation in
+    /// the process of performing subgame analysis. Requires an implementation
+    /// of [`Forward::set_verified_start`] to ultimately change the starting
+    /// state after `history` is verified.
     ///
     /// # Example
     ///
@@ -407,17 +405,17 @@ where
     /// # Errors
     ///
     /// Here are some of the reasons this could fail:
-    /// * `history` is empty.
-    /// * A state encoding in `history` is not valid.
-    /// * The provided `history` plays beyond a terminal state.
-    /// * `history` begins at a state other than the variant's starting state.
     /// * An invalid transition is made between subsequent states in `history`.
+    /// * `history` begins at a state other than the variant's starting state.
+    /// * The provided `history` plays beyond a terminal state.
+    /// * A state encoding in `history` is not valid.
+    /// * `history` is empty.
     #[allow(deprecated)]
-    fn forward(mut self, history: Vec<String>) -> Result<Self> {
-        let to = util::verify_state_history(&self, history)
+    fn forward(&mut self, history: Vec<String>) -> Result<()> {
+        let to = util::verify_state_history(self, history)
             .context("Specified invalid state history.")?;
         self.set_verified_start(to);
-        Ok(self)
+        Ok(())
     }
 }
 

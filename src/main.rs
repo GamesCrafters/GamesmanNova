@@ -16,9 +16,9 @@ use std::process;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use game::Variable;
 
-use crate::interface::terminal::cli::*;
+use crate::game::{Forward, Information};
+use crate::interface::standard::cli::*;
 use crate::model::game::GameModule;
 
 /* MODULES */
@@ -37,7 +37,7 @@ mod test;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let res = match &cli.command {
+    let res = match cli.command {
         Commands::Info(args) => info(args),
         Commands::Solve(args) => solve(args),
         Commands::Query(args) => query(args),
@@ -50,26 +50,34 @@ fn main() -> Result<()> {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &QueryArgs) -> Result<()> {
+fn query(args: QueryArgs) -> Result<()> {
     todo!()
 }
 
-fn query(args: &QueryArgs) -> Result<()> {
-    todo!()
-}
-
-fn solve(args: &SolveArgs) -> Result<()> {
-    util::confirm_potential_overwrite(args.yes, args.mode);
+fn solve(args: SolveArgs) -> Result<()> {
+    interface::standard::confirm_potential_overwrite(args.yes, args.mode);
     match args.target {
         GameModule::ZeroBy => {
-            let session = game::zero_by::Session::new()
-                .into_variant(args.variant.clone())
-                .context("Failed to initialize zero-by game session.")?;
+            let mut session = game::zero_by::Session::new(args.variant)?;
+            if args.forward {
+                let history = interface::standard::stdin_lines()?;
+                session.forward(history)?;
+            }
+            session.solve(args.mode, args.solution)?
         },
     }
     Ok(())
 }
 
-fn info(args: &InfoArgs) -> Result<()> {
+fn info(args: InfoArgs) -> Result<()> {
+    let data = match args.target {
+        GameModule::ZeroBy => game::zero_by::Session::info(),
+    };
+    interface::standard::format_and_output_game_attributes(
+        data,
+        args.attributes,
+        args.output,
+    )
+    .context("Failed to format and output game attributes.")?;
     Ok(())
 }

@@ -17,9 +17,7 @@ mod util;
 
 /* INTERFACE IMPLEMENTATIONS */
 
-pub mod terminal {
-    pub mod cli;
-}
+pub mod standard;
 
 /* DEFINITIONS */
 

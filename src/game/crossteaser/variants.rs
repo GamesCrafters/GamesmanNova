@@ -111,9 +111,8 @@ fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
 #[cfg(test)]
 mod test {
 
-    use crate::game::Variable;
-
     use super::*;
+    use crate::game::Variable;
 
     #[test]
     fn variant_pattern_is_valid_regex() {
@@ -128,45 +127,40 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() {
-        let _ = Session::new();
-        let with_default =
-            Session::new().into_variant(Some(VARIANT_DEFAULT.to_owned()));
+        let _ = Session::default();
+        let with_default = Session::variant(VARIANT_DEFAULT.to_owned());
         assert!(with_default.is_ok());
     }
 
     #[test]
     fn invalid_variants_fail_checks() {
         let v = vec![
-            Some("None".to_owned()),
-            Some("x4-".to_owned()),
-            Some("-".to_owned()),
-            Some("1x2-5".to_owned()),
-            Some("0x2-5".to_owned()),
-            Some("1x1-1".to_owned()),
-            Some("8x2.6-5".to_owned()),
-            Some("3x4-0".to_owned()),
+            "None".to_owned(),
+            "x4-".to_owned(),
+            "-".to_owned(),
+            "1x2-5".to_owned(),
+            "0x2-5".to_owned(),
+            "1x1-1".to_owned(),
+            "8x2.6-5".to_owned(),
+            "3x4-0".to_owned(),
         ];
 
         for variant in v {
-            assert!(Session::new()
-                .into_variant(variant)
-                .is_err());
+            assert!(Session::variant(variant).is_err());
         }
     }
 
     #[test]
     fn valid_variants_pass_checks() {
         let v = vec![
-            Some("4x3-2".to_owned()),
-            Some("5x4-2".to_owned()),
-            Some("2x4-1".to_owned()),
-            Some("4x2-1".to_owned()),
+            "4x3-2".to_owned(),
+            "5x4-2".to_owned(),
+            "2x4-1".to_owned(),
+            "4x2-1".to_owned(),
         ];
 
         for variant in v {
-            assert!(Session::new()
-                .into_variant(variant)
-                .is_ok());
+            assert!(Session::variant(variant).is_ok());
         }
     }
 }

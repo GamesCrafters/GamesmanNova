@@ -16,7 +16,7 @@ use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
 use crate::model::game::{Player, PlayerCount};
-use crate::model::solver::{IUtility, Remoteness, SUtility};
+use crate::model::solver::{Remoteness, SUtility};
 use crate::solver::error::SolverError::RecordViolation;
 use crate::solver::RecordType;
 use crate::util;
@@ -182,19 +182,8 @@ impl RecordBuffer {
         } else {
             let start = Self::utility_index(player);
             let end = start + UTILITY_SIZE;
-            let val = self.buf[start..end].load_be::<IUtility>();
-            if let Ok(utility) = SUtility::try_from(val) {
-                Ok(utility)
-            } else {
-                Err(RecordViolation {
-                    name: RecordType::SUR(self.players).into(),
-                    hint: format!(
-                        "There was an attempt to deserialize a utility value \
-                        of '{}' into a simple utility type.",
-                        val,
-                    ),
-                })?
-            }
+            let val = self.buf[start..end].load_be::<u64>();
+            Ok(SUtility::try_from(val)?)
         }
     }
 
@@ -368,10 +357,10 @@ mod tests {
     }
 
     #[test]
-    fn set_record_attributes() {
-        let mut r1 = RecordBuffer::new(7).unwrap();
-        let mut r2 = RecordBuffer::new(4).unwrap();
-        let mut r3 = RecordBuffer::new(0).unwrap();
+    fn set_record_attributes() -> Result<()> {
+        let mut r1 = RecordBuffer::new(7)?;
+        let mut r2 = RecordBuffer::new(4)?;
+        let mut r3 = RecordBuffer::new(0)?;
 
         let v1 = [SUtility::WIN; 7];
         let v2 = [SUtility::TIE; 4];
@@ -399,11 +388,13 @@ mod tests {
         assert!(r1.set_remoteness(bad).is_err());
         assert!(r2.set_remoteness(bad).is_err());
         assert!(r3.set_remoteness(bad).is_err());
+
+        Ok(())
     }
 
     #[test]
-    fn data_is_valid_after_round_trip() {
-        let mut record = RecordBuffer::new(5).unwrap();
+    fn data_is_valid_after_round_trip() -> Result<()> {
+        let mut record = RecordBuffer::new(5)?;
         let payoffs = [
             SUtility::LOSE,
             SUtility::WIN,
@@ -413,17 +404,13 @@ mod tests {
         ];
         let remoteness = 790;
 
-        record
-            .set_utility(payoffs)
-            .unwrap();
+        record.set_utility(payoffs)?;
 
-        record
-            .set_remoteness(remoteness)
-            .unwrap();
+        record.set_remoteness(remoteness)?;
 
         // Utilities unchanged after insert and fetch
         for i in 0..5 {
-            let fetched_utility = record.get_utility(i).unwrap();
+            let fetched_utility = record.get_utility(i)?;
             let actual_utility = payoffs[i];
             assert!(matches!(fetched_utility, actual_utility));
         }
@@ -436,11 +423,12 @@ mod tests {
         // Fetching utility entries of invalid players
         assert!(record.get_utility(5).is_err());
         assert!(record.get_utility(10).is_err());
+        Ok(())
     }
 
     #[test]
-    fn extreme_data_is_valid_after_round_trip() {
-        let mut record = RecordBuffer::new(6).unwrap();
+    fn extreme_data_is_valid_after_round_trip() -> Result<()> {
+        let mut record = RecordBuffer::new(6)?;
 
         let good = [
             SUtility::WIN,
@@ -459,12 +447,13 @@ mod tests {
             .is_ok());
 
         for i in 0..6 {
-            let fetched_utility = record.get_utility(i).unwrap();
+            let fetched_utility = record.get_utility(i)?;
             let actual_utility = good[i];
             assert!(matches!(fetched_utility, actual_utility));
         }
 
         assert_eq!(record.get_remoteness(), MAX_REMOTENESS);
         assert!(record.set_utility(bad).is_err());
+        Ok(())
     }
 }
