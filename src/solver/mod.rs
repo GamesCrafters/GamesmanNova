@@ -85,14 +85,11 @@ pub enum RecordType {
 /// Indicates that a discrete game is played sequentially, which allows for
 /// representing histories as discrete [`State`]s.
 pub trait Sequential<const N: PlayerCount, const B: usize = DBYTES> {
-    /// Returns the player `i` whose turn it is at the given `state`, with
-    /// Player 0 always going first.
+    /// Returns the player `i` whose turn it is at the given `state`.
     ///
-    /// TODO
-    ///
-    /// # Example
-    ///
-    /// TODO
+    /// In general, it can be assumed that the player whose turn it is at there
+    /// starting state is Player 0, with the sole exception of games whose state
+    /// has been forwarded.
     ///
     /// # Warning
     ///
