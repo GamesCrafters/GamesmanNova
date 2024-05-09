@@ -109,17 +109,31 @@ pub trait Sequential<const N: PlayerCount, const B: usize = DBYTES> {
     }
 }
 
-/// Indicates that a game can be partitioned into subsets that are convenient
-/// for computation purposes.
+/// Indicates that a game can be partitioned into sub-games that can be solved
+/// somewhat independently of each other.
 pub trait Composite<const N: PlayerCount, const B: usize = DBYTES> {
     /// Returns an identifier for a subset of the space of states which `state`
     /// belongs to.
     ///
-    /// TODO
+    /// This method is generally useful for computing different sub-games in
+    /// parallel, which is why it is desireable that partitions are independent
+    /// of each other (meaning that we do not need to know information about one
+    /// to generate information about the other).
+    ///
+    /// Additional properties are desirable. For example, we can try to create
+    /// partitions of low "conductance," or in other words, which have a lot of
+    /// states within partitions, but not many state transitions between them.
+    /// Knowing how to do this effectively is hard, and it is an active area of
+    /// research when talking about general graphs.
     ///
     /// # Example
     ///
-    /// TODO
+    /// Consider a standard game of Tic-Tac-Toe. Here, the rules prevent players
+    /// from removing any pieces placed on the board. This tells us that there
+    /// are no transitions between states with the same number of pieces on the
+    /// board. Hence, one way to implement this function would be to simply
+    /// return the number of pieces left on the board. (This is an illustrative
+    /// example; it would not provide very much of a computational benefit.)
     fn partition(&self, state: State<B>) -> Partition;
 
     /// Returns an estimate of the number of states in `partition`.
