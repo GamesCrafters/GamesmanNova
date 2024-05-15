@@ -136,7 +136,7 @@ impl Display for Datatype {
             Datatype::ENUM => "Enumeration",
             Datatype::BOOL => "Boolean",
         };
-        write!(f, "{}", content)
+        write!(f, "{content}")
     }
 }
 

@@ -73,6 +73,6 @@ pub fn format_and_output_game_attributes(
         util::aggregate_and_format_attributes(data, attrs, format)
             .context("Failed format specified game data attributes.")?
     };
-    print!("{}", out);
+    print!("{out}");
     Ok(())
 }

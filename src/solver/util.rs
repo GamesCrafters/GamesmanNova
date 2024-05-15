@@ -20,13 +20,12 @@ impl Display for RecordType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RecordType::MUR(players) => {
-                write!(f, "Real Utility Remoteness ({} players)", players)
+                write!(f, "Real Utility Remoteness ({players} players)")
             },
             RecordType::SUR(players) => {
                 write!(
                     f,
-                    "Simple Utility Remoteness ({}  players)",
-                    players
+                    "Simple Utility Remoteness ({players}  players)",
                 )
             },
             RecordType::REM => write!(f, "Remoteness (no utility)"),

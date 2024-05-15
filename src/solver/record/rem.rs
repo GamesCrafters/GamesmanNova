@@ -6,7 +6,7 @@
 //!
 //! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use bitvec::slice::BitSlice;
@@ -72,26 +72,24 @@ impl RecordBuffer {
     pub fn from(bits: &BitSlice<u8, Msb0>) -> Result<Self> {
         let len = bits.len();
         if len > BUFFER_SIZE {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::REM.to_string(),
                 hint: format!(
-                    "The record implementation operates on a buffer of {} \
-                    bits, but there was an attempt to instantiate one from a \
-                    buffer of {} bits.",
-                    BUFFER_SIZE, len,
+                    "The record implementation operates on a buffer of \
+                    {BUFFER_SIZE} bits, but there was an attempt to \
+                    instantiate one from a buffer of {len} bits.",
                 ),
-            })?
+            })
         } else if len < Self::minimum_bit_size() {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::REM.to_string(),
                 hint: format!(
                     "This record implementation stores remoteness values, but \
                     there was an attempt to instantiate one with from a buffer \
-                    with {} bit(s), which is not enough to store a remoteness \
-                    value (which takes {} bits).",
-                    len, REMOTENESS_SIZE,
+                    with {len} bit(s), which is not enough to store a \
+                    remoteness value (which takes {REMOTENESS_SIZE} bits).",
                 ),
-            })?
+            })
         } else {
             let mut buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
             buf[..len].copy_from_bitslice(bits);
@@ -118,16 +116,15 @@ impl RecordBuffer {
     pub fn set_remoteness(&mut self, value: Remoteness) -> Result<()> {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::REM.to_string(),
                 hint: format!(
-                    "This record implementation uses {} bits to store unsigned \
-                    integers representing remoteness values, but there was an \
-                    attempt to store a remoteness value of {}, which requires \
-                    at least {} bits to store.",
-                    REMOTENESS_SIZE, value, size,
+                    "This record implementation uses {REMOTENESS_SIZE} bits to \
+                    store unsigned integers representing remoteness values, \
+                    but there was an attempt to store a remoteness value of \
+                    {value}, which requires at least {size} bits to store.",
                 ),
-            })?
+            })
         } else {
             let start = Self::remoteness_index();
             let end = start + REMOTENESS_SIZE;

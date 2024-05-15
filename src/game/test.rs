@@ -69,7 +69,7 @@ impl Display for mock::Session<'_> {
                     let mut attrs = String::new();
                     match node {
                         mock::Node::Medial(turn) => {
-                            attrs += &format!("label=P{} ", turn);
+                            attrs += &format!("label=P{turn} ");
                             attrs += "style=filled  ";
                             if self.start() == self.state(node).unwrap() {
                                 attrs += "shape=doublecircle ";
