@@ -21,7 +21,7 @@ use std::path::Path;
 
 use crate::{
     database::{self, KVStore, Persistent, Record, Schema, Tabular},
-    model::{Key, RawRecord, TableID},
+    model::database::{Identifier, Key, Value},
 };
 
 /* DEFINITIONS */
@@ -32,7 +32,7 @@ pub struct Table {}
 
 /* IMPLEMENTATIONS */
 
-impl<'a> Persistent<'a, Table> for Database {
+impl Persistent<Table> for Database {
     fn from(path: &Path) -> Result<Self>
     where
         Self: Sized,
@@ -55,12 +55,16 @@ impl Drop for Database {
     }
 }
 
-impl<'a> Tabular<'a, Table> for Database {
-    fn create_table(&self, id: &TableID, schema: Schema) -> Result<&mut Table> {
+impl Tabular<Table> for Database {
+    fn create_table(
+        &self,
+        id: Identifier,
+        schema: Schema,
+    ) -> Result<&mut Table> {
         todo!()
     }
 
-    fn select_table(&self, id: &TableID) -> Result<&mut Table> {
+    fn select_table(&self, id: Identifier) -> Result<&mut Table> {
         todo!()
     }
 
@@ -82,24 +86,24 @@ impl database::Table for Table {
         todo!()
     }
 
-    fn id(&self) -> &TableID {
+    fn id(&self) -> Identifier {
         todo!()
     }
 }
 
 impl KVStore for Table {
-    fn put<R>(&mut self, key: Key, value: &R) -> Result<()>
+    fn put<R>(&mut self, key: &Key, value: &R) -> Result<()>
     where
         R: Record,
     {
         todo!()
     }
 
-    fn get(&self, key: Key) -> Option<&RawRecord> {
+    fn get(&self, key: &Key) -> Option<&Value> {
         todo!()
     }
 
-    fn delete(&mut self, key: Key) {
+    fn delete(&mut self, key: &Key) {
         todo!()
     }
 }

@@ -65,24 +65,24 @@ impl fmt::Display for GameError {
             Self::VariantMalformed { game_name, hint } => {
                 write!(
                     f,
-                    "{}\n\n\tMore information on how the game expects you to \
-                    format it can be found with 'nova info {} --output extra'.",
+                    "{}\n\nMore information on how the game expects you to \
+                    format variant encodings can be found with 'nova info {}'.",
                     hint, game_name
                 )
             },
             Self::StateMalformed { game_name, hint } => {
                 write!(
                     f,
-                    "{}\n\n\tMore information on how the game expects you to \
-                    format it can be found with 'nova info {} --output extra'.",
+                    "{}\n\nMore information on how the game expects you to \
+                    format state encodings can be found with 'nova info {}'.",
                     hint, game_name
                 )
             },
             Self::InvalidHistory { game_name, hint } => {
                 write!(
                     f,
-                    "{}\n\n\tMore information on the game's rules can be found \
-                    with 'nova info {} --output extra'.",
+                    "{}\n\nMore information on the game's rules can be found \
+                    with 'nova info {}'.",
                     hint, game_name
                 )
             },

@@ -20,24 +20,20 @@
 
 use anyhow::{Context, Result};
 
+use crate::game::crossteaser::variants::*;
 use crate::game::Bounded;
 use crate::game::Codec;
-use crate::game::DTransition;
-use crate::game::Extensive;
 use crate::game::Forward;
-use crate::game::Game;
 use crate::game::GameData;
-use crate::game::GeneralSum;
+use crate::game::Information;
+use crate::game::Transition;
+use crate::game::Variable;
 use crate::interface::IOMode;
-use crate::interface::SolutionMode;
-use crate::model::SimpleUtility;
-use crate::model::State;
-use crate::model::Turn;
-use crate::model::Utility;
-use variants::*;
-
-use super::ClassicPuzzle;
-use super::SimpleSum;
+use crate::interface::Solution;
+use crate::model::game::State;
+use crate::model::game::Variant;
+use crate::model::solver::SUtility;
+use crate::solver::ClassicPuzzle;
 
 /* SUBMODULES */
 
@@ -79,41 +75,48 @@ enum Orientation {
 /// Represents an instance of a Crossteaser game session, which is specific to
 /// a valid variant of the game.
 pub struct Session {
-    variant: Option<String>,
+    variant: String,
     length: u64,
     width: u64,
     free: u64,
 }
 
-impl Game for Session {
-    fn new(variant: Option<String>) -> Result<Self> {
-        if let Some(v) = variant {
-            parse_variant(v).context("Malformed game variant.")
-        } else {
-            Ok(parse_variant(VARIANT_DEFAULT.to_owned()).unwrap())
-        }
-    }
-
-    fn id(&self) -> String {
-        if let Some(variant) = self.variant.clone() {
-            format!("{}.{}", NAME, variant)
-        } else {
-            NAME.to_owned()
-        }
-    }
-
-    fn info(&self) -> GameData {
+impl Session {
+    fn solve(&self, mode: IOMode, method: Solution) -> Result<()> {
         todo!()
     }
+}
 
-    fn solve(&self, mode: IOMode, method: SolutionMode) -> Result<()> {
+/* INFORMATION IMPLEMENTATIONS */
+
+impl Information for Session {
+    fn info() -> GameData {
         todo!()
+    }
+}
+
+/* VARIANCE IMPLEMENTATION */
+
+impl Default for Session {
+    fn default() -> Self {
+        parse_variant(VARIANT_DEFAULT.to_owned())
+            .expect("Failed to parse default game variant.")
+    }
+}
+
+impl Variable for Session {
+    fn variant(variant: Variant) -> Result<Self> {
+        parse_variant(variant).context("Malformed game variant.")
+    }
+
+    fn variant_string(&self) -> Variant {
+        self.variant.to_owned()
     }
 }
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl DTransition for Session {
+impl Transition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
         todo!()
     }
@@ -140,13 +143,13 @@ impl Codec for Session {
         todo!()
     }
 
-    fn encode(&self, state: State) -> String {
+    fn encode(&self, state: State) -> Result<String> {
         todo!()
     }
 }
 
 impl Forward for Session {
-    fn forward(&mut self, history: Vec<String>) -> Result<()> {
+    fn set_verified_start(&mut self, state: State) {
         todo!()
     }
 }
@@ -154,7 +157,7 @@ impl Forward for Session {
 /* SOLVING IMPLEMENTATIONS */
 
 impl ClassicPuzzle for Session {
-    fn utility(&self, state: State) -> SimpleUtility {
+    fn utility(&self, state: State) -> SUtility {
         todo!()
     }
 }

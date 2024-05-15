@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+#![warn(missing_docs, deprecated)]
 //! # Execution Module
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
@@ -12,12 +12,14 @@
 //! #### Authorship
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
-use anyhow::Result;
-use clap::Parser;
-
 use std::process;
 
-use crate::interface::terminal::cli::*;
+use anyhow::{Context, Result};
+use clap::Parser;
+
+use crate::game::{Forward, Information};
+use crate::interface::standard::cli::*;
+use crate::model::game::GameModule;
 
 /* MODULES */
 
@@ -33,45 +35,57 @@ mod test;
 
 /* PROGRAM ENTRY */
 
-fn main() {
+fn main() -> Result<()> {
     let cli = Cli::parse();
-    let ret = match &cli.command {
-        Commands::Tui(args) => tui(args),
+    let res = match cli.command {
         Commands::Info(args) => info(args),
         Commands::Solve(args) => solve(args),
-        Commands::Analyze(args) => analyze(args),
+        Commands::Query(args) => query(args),
     };
-    if let Err(e) = ret {
-        if !cli.quiet {
-            eprintln!("{}", e);
-        }
+    if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
     }
-    process::exit(exitcode::OK)
+    res
 }
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs) -> Result<()> {
+fn query(args: QueryArgs) -> Result<()> {
     todo!()
 }
 
-fn analyze(args: &AnalyzeArgs) -> Result<()> {
-    todo!()
-}
+fn solve(args: SolveArgs) -> Result<()> {
+    interface::standard::confirm_potential_overwrite(args.yes, args.mode);
+    match args.target {
+        GameModule::ZeroBy => {
+            let mut session = game::zero_by::Session::new(args.variant)
+                .context("Failed to initialize zero-by game session.")?;
 
-fn solve(args: &SolveArgs) -> Result<()> {
-    util::confirm_potential_overwrite(args.yes, args.mode);
-    let game = util::find_game(
-        args.target,
-        args.variant.to_owned(),
-        args.from.to_owned(),
-    )?;
-    game.solve(args.mode, args.solver)?;
+            if args.forward {
+                let history = interface::standard::stdin_lines()
+                    .context("Failed to read input lines from STDIN.")?;
+
+                session
+                    .forward(history)
+                    .context("Failed to forward game state.")?;
+            }
+
+            session
+                .solve(args.mode, args.solution)
+                .context("Failed to execute solving algorithm.")?
+        },
+    }
     Ok(())
 }
 
-fn info(args: &InfoArgs) -> Result<()> {
-    util::print_game_info(args.target, args.output)?;
+fn info(args: InfoArgs) -> Result<()> {
+    let data = match args.target {
+        GameModule::ZeroBy => game::zero_by::Session::info(),
+    };
+    interface::standard::format_and_output_game_attributes(
+        data,
+        args.attributes,
+        args.output,
+    )?;
     Ok(())
 }

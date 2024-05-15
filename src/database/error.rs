@@ -110,11 +110,7 @@ impl fmt::Display for DatabaseError {
                     Datatype::SPFP => "of exactly 32 bits",
                     Datatype::SINT => "greater than 1 bit",
                     Datatype::CSTR => "divisible by 8 bits",
-                    Datatype::UINT | Datatype::ENUM => {
-                        unreachable!(
-                            "UINTs and ENUMs can be of any nonzero size."
-                        )
-                    },
+                    Datatype::UINT | Datatype::ENUM => "greater than 0 bits",
                 };
                 let data = data.to_string();
                 if let Some(t) = table {
