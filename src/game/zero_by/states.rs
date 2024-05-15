@@ -53,8 +53,8 @@ fn check_state_pattern(from: &String) -> Result<(), GameError> {
         Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
-                "Input string '{}' does not match the pattern '{}'.",
-                from, STATE_PATTERN
+                "Input string '{from}' does not match the pattern \
+                '{STATE_PATTERN}'.",
             ),
         })
     } else {
@@ -98,18 +98,18 @@ fn check_variant_coherence(
         Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
-                "Specified more starting elements ({}) than variant allows \
+                "Specified more starting elements ({from}) than variant allows \
                 ({}).",
-                from, session.start_elems,
+                session.start_elems,
             ),
         })
     } else if turn >= session.players {
         Err(GameError::StateMalformed {
             game_name: NAME,
             hint: format!(
-                "Specified a turn ({}) too high for this ({}-player) game \
+                "Specified a turn ({turn}) too high for this ({}-player) game \
                 variant.",
-                turn, session.players,
+                session.players,
             ),
         })
     } else {

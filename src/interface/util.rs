@@ -41,7 +41,7 @@ pub fn aggregate_and_format_attributes(
         InfoFormat::Legible => {
             let mut output = String::new();
             attrs.iter().for_each(|&a| {
-                output += &format!("\t{}:\n{}\n\n", a, data.find(a))
+                output += &format!("\t{a}:\n{}\n\n", data.find(a))
             });
             Ok(output)
         },

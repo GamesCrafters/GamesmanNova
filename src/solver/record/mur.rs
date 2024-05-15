@@ -7,7 +7,7 @@
 //! #### Authorship
 //! - Max Fierro, 3/30/2024 (maxfierro@berkeley.edu)
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use bitvec::slice::BitSlice;
@@ -37,21 +37,20 @@ pub const UTILITY_SIZE: usize = 8;
 /// a specific number of `players` under this record implementation.
 pub fn schema(players: PlayerCount) -> Result<Schema> {
     if RecordBuffer::bit_size(players) > BUFFER_SIZE {
-        Err(RecordViolation {
+        bail!(RecordViolation {
             name: RecordType::MUR(players).to_string(),
             hint: format!(
                 "This record can only hold utility values for up to {} \
                 players, but there was an attempt to create a schema that \
-                would represent one holding {} players.",
+                would represent one holding {players} players.",
                 RecordBuffer::player_count(BUFFER_SIZE),
-                players
             ),
-        })?
+        })
     } else {
         let mut schema = SchemaBuilder::new().of(RecordType::MUR(players));
 
         for i in 0..players {
-            let name = &format!("P{} utility", i);
+            let name = &format!("P{i} utility");
             let data = Datatype::SINT;
             let size = UTILITY_SIZE;
             schema = schema
@@ -110,16 +109,15 @@ impl RecordBuffer {
     #[inline(always)]
     pub fn new(players: PlayerCount) -> Result<Self> {
         if Self::bit_size(players) > BUFFER_SIZE {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::MUR(players).to_string(),
                 hint: format!(
                     "The record can only hold utility values for up to {} \
                     players, but there was an attempt to instantiate one for \
-                    {} players.",
+                    {players} players.",
                     Self::player_count(BUFFER_SIZE),
-                    players
                 ),
-            })?
+            })
         } else {
             Ok(Self {
                 buf: bitarr!(u8, Msb0; 0; BUFFER_SIZE),
@@ -134,26 +132,24 @@ impl RecordBuffer {
     pub fn from(bits: &BitSlice<u8, Msb0>) -> Result<Self> {
         let len = bits.len();
         if len > BUFFER_SIZE {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::MUR(0).to_string(),
                 hint: format!(
-                    "The record implementation operates on a buffer of {} \
-                    bits, but there was an attempt to instantiate one from a \
-                    buffer of {} bits.",
-                    BUFFER_SIZE, len,
+                    "The record implementation operates on a buffer of \
+                    {BUFFER_SIZE} bits, but there was an attempt to \
+                    instantiate one from a buffer of {len} bits.",
                 ),
-            })?
+            })
         } else if len < Self::minimum_bit_size() {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::MUR(0).to_string(),
                 hint: format!(
                     "This record implementation stores utility values, but \
                     there was an attempt to instantiate one with from a buffer \
-                    with {} bits, which is not enough to store a remoteness \
-                    value (which takes {} bits).",
-                    len, REMOTENESS_SIZE,
+                    with {len} bits, which is not enough to store a remoteness \
+                    value (which takes {REMOTENESS_SIZE} bits).",
                 ),
-            })?
+            })
         } else {
             let players = Self::player_count(len);
             let mut buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
@@ -169,15 +165,15 @@ impl RecordBuffer {
     #[inline(always)]
     pub fn get_utility(&self, player: Player) -> Result<IUtility> {
         if player >= self.players {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::MUR(self.players).to_string(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
-                    there was an attempt to fetch the utility of player {} \
-                    (0-indexed) from that record instance.",
-                    self.players, player,
+                    there was an attempt to fetch the utility of player \
+                    {player} (0-indexed) from that record instance.",
+                    self.players,
                 ),
-            })?
+            })
         } else {
             let start = Self::utility_index(player);
             let end = start + UTILITY_SIZE;
@@ -206,30 +202,30 @@ impl RecordBuffer {
         v: [IUtility; N],
     ) -> Result<()> {
         if N != self.players {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::MUR(self.players).to_string(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
-                    there was an attempt to use a {}-entry utility list to \
+                    there was an attempt to use a {N}-entry utility list to \
                     update the record utility values.",
-                    self.players, N,
+                    self.players,
                 ),
-            })?
+            })
         } else {
             for player in 0..self.players {
                 let utility = v[player];
                 let size = util::min_sbits(utility);
                 if size > UTILITY_SIZE {
-                    Err(RecordViolation {
+                    bail!(RecordViolation {
                         name: RecordType::MUR(self.players).to_string(),
                         hint: format!(
-                            "This record implementation uses {} bits to store \
-                            signed integers representing utility values, but \
-                            there was an attempt to store a utility of {}, \
-                            which requires at least {} bits to store.",
-                            UTILITY_SIZE, utility, size,
+                            "This record implementation uses {UTILITY_SIZE} \
+                            bits to store signed integers representing utility \
+                            values, but there was an attempt to store a \
+                            utility of {utility}, which requires at least \
+                            {size} bits to store.",
                         ),
-                    })?
+                    })
                 }
 
                 let start = Self::utility_index(player);
@@ -246,16 +242,15 @@ impl RecordBuffer {
     pub fn set_remoteness(&mut self, value: Remoteness) -> Result<()> {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
-            Err(RecordViolation {
+            bail!(RecordViolation {
                 name: RecordType::MUR(self.players).to_string(),
                 hint: format!(
-                    "This record implementation uses {} bits to store unsigned \
-                    integers representing remoteness values, but there was an \
-                    attempt to store a remoteness value of {}, which requires \
-                    at least {} bits to store.",
-                    REMOTENESS_SIZE, value, size,
+                    "This record implementation uses {REMOTENESS_SIZE} bits to \
+                    store unsigned integers representing remoteness values, \
+                    but there was an attempt to store a remoteness value of \
+                    {value}, which requires at least {size} bits to store.",
                 ),
-            })?
+            })
         } else {
             let start = Self::remoteness_index(self.players);
             let end = start + REMOTENESS_SIZE;

@@ -51,8 +51,7 @@ fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
         Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
-                "String does not match the pattern '{}'.",
-                VARIANT_PATTERN
+                "String does not match the pattern '{VARIANT_PATTERN}'.",
             ),
         })
     } else {

@@ -12,6 +12,7 @@
 //! #### Authorship
 //! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use anyhow::bail;
 use anyhow::{Context, Result};
 use bitvec::field::BitField;
 
@@ -81,12 +82,9 @@ impl Session {
                 strong::acyclic::solver::<10, 8, Self>(self, mode)
                     .context("Failed solver run.")?
             },
-            _ => {
-                return Err(GameError::SolverNotFound {
-                    input_game_name: NAME,
-                })
-                .context("Solver not found.");
-            },
+            _ => bail!(GameError::SolverNotFound {
+                input_game_name: NAME,
+            }),
         }
         Ok(())
     }
@@ -204,7 +202,7 @@ impl Codec for Session {
 
     fn encode(&self, state: State) -> Result<String> {
         let (turn, elements) = self.decode_state(state);
-        Ok(format!("{}-{}", elements, turn))
+        Ok(format!("{elements}-{turn}"))
     }
 }
 

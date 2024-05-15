@@ -43,17 +43,15 @@ impl fmt::Display for SolverError {
             Self::RecordViolation { name, hint } => {
                 write!(
                     f,
-                    "A limitation set by the record implementation '{}' was \
-                    violated at runtime: {}",
-                    name, hint,
+                    "A limitation set by the record implementation '{name}' \
+                    was violated at runtime: {hint}",
                 )
             },
             Self::SolverViolation { name, hint } => {
                 write!(
                     f,
-                    "An assumption set by the solver '{}' was violated at \
-                    runtime: {}",
-                    name, hint,
+                    "An assumption set by the solver '{name}' was violated at \
+                    runtime: {hint}",
                 )
             },
             Self::InvalidConversion {
@@ -63,9 +61,8 @@ impl fmt::Display for SolverError {
             } => {
                 write!(
                     f,
-                    "There was an attempt to translate a value of type '{}' \
-                    into a value of type '{}': {}",
-                    input_t, output_t, hint,
+                    "There was an attempt to translate a value of type \
+                    '{input_t}' into a value of type '{output_t}': {hint}",
                 )
             },
         }

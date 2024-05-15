@@ -53,16 +53,14 @@ impl fmt::Display for DatabaseError {
                 if let Some(t) = table {
                     write!(
                         f,
-                        "The attribute name '{}' was observed more than once \
-                        while deserializing the schema of table '{}'.",
-                        name, t,
+                        "The attribute name '{name}' was observed more than \
+                        once while deserializing the schema of table '{t}'.",
                     )
                 } else {
                     write!(
                         f,
                         "Attempted to build a schema with more than one \
-                        attribute named '{}'.",
-                        name,
+                        attribute named '{name}'.",
                     )
                 }
             },
@@ -71,8 +69,7 @@ impl fmt::Display for DatabaseError {
                     write!(
                         f,
                         "Encountered empty attribute name while deserializing \
-                        the schema of table '{}'.",
-                        t,
+                        the schema of table '{t}'.",
                     )
                 } else {
                     write!(
@@ -87,8 +84,7 @@ impl fmt::Display for DatabaseError {
                     write!(
                         f,
                         "Encountered zero-sized attribute while deserializing \
-                        the schema of table '{}'.",
-                        t,
+                        the schema of table '{t}'.",
                     )
                 } else {
                     write!(
@@ -117,17 +113,17 @@ impl fmt::Display for DatabaseError {
                     write!(
                         f,
                         "Encountered an attribute with inconsistent datatype \
-                        and size while deserializing the schema of table '{}'. \
-                        The attribute '{}' was found to have size {}, but \
-                        attributes of type '{}' should have a size {}.",
-                        t, name, size, data, rule,
+                        and size while deserializing the schema of table \
+                        '{t}'. The attribute '{name}' was found to have size \
+                        {size}, but attributes of type '{data}' should have a \
+                        size {rule}.",
                     )
                 } else {
                     write!(
                         f,
-                        "The attribute '{}' was found to have size {}, but \
-                        attributes of type '{}' should have a size {}.",
-                        name, size, data, rule,
+                        "The attribute '{name}' was found to have size {size}, \
+                        but attributes of type '{data}' should have a size \
+                        {rule}.",
                     )
                 }
             },

@@ -8,6 +8,7 @@
 
 use std::fmt::Display;
 
+use anyhow::bail;
 use anyhow::{Context, Result};
 
 use crate::game::GameData;
@@ -33,40 +34,50 @@ where
     if let Some((l, s)) = history.first() {
         let mut prev = game
             .decode(s.clone())
-            .context(format!("Failed to parse line #{}.", l))?;
+            .context(format!("Failed to parse line #{l}."))?;
         if prev == game.start() {
             for h in history.iter().skip(1) {
                 let (l, s) = h.clone();
                 let next = game
                     .decode(s)
-                    .context(format!("Failed to parse line #{}.", l))?;
+                    .context(format!("Failed to parse line #{l}."))?;
                 if game.end(prev) {
-                    return terminal_history_error(game, prev, next).context(
-                        format!(
-                            "Invalid state transition found at line #{}.",
-                            l
-                        ),
-                    );
+                    bail!(
+                        terminal_history_error(game, prev, next)?.context(
+                            format!(
+                                "Invalid state transition found at line #{l}.",
+                            ),
+                        )
+                    )
                 }
                 let transitions = game.prograde(prev);
                 if !transitions.contains(&next) {
-                    return transition_history_error(game, prev, next).context(
-                        format!(
-                            "Invalid state transition found at line #{}.",
-                            l
-                        ),
-                    );
+                    bail!(
+                        transition_history_error(game, prev, next)?.context(
+                            format!(
+                                "Invalid state transition found at line #{l}."
+                            ),
+                        )
+                    )
                 }
                 prev = next;
             }
             Ok(prev)
         } else {
-            start_history_error(game, game.start())
-                .context("Specified invalid first state.")
+            bail!(GameError::InvalidHistory {
+                game_name: G::info().name,
+                hint: format!(
+                    "The state history must begin with the starting state for \
+                    the provided game variant, which is {}.",
+                    game.encode(game.start())?
+                ),
+            })
         }
     } else {
-        empty_history_error::<B, G>()
-            .context("Provided state history is empty.")
+        bail!(GameError::InvalidHistory {
+            game_name: G::info().name,
+            hint: "State history must contain at least one state.".into(),
+        })
     }
 }
 
@@ -82,42 +93,15 @@ fn sanitize_input(mut input: Vec<String>) -> Vec<(usize, String)> {
 
 /* HISTORY VERIFICATION ERRORS */
 
-fn empty_history_error<const B: usize, G>() -> Result<State<B>>
-where
-    G: Information + Codec<B> + Bounded<B>,
-{
-    Err(GameError::InvalidHistory {
-        game_name: G::info().name,
-        hint: "State history must contain at least one state.".into(),
-    })?
-}
-
-fn start_history_error<const B: usize, G>(
-    game: &G,
-    start: State<B>,
-) -> Result<State<B>>
-where
-    G: Information + Codec<B> + Bounded<B>,
-{
-    Err(GameError::InvalidHistory {
-        game_name: G::info().name,
-        hint: format!(
-            "The state history must begin with the starting state for the \
-            provided game variant, which is {}.",
-            game.encode(start)?
-        ),
-    })?
-}
-
 fn transition_history_error<const B: usize, G>(
     game: &G,
     prev: State<B>,
     next: State<B>,
-) -> Result<State<B>>
+) -> Result<anyhow::Error>
 where
     G: Information + Codec<B> + Bounded<B>,
 {
-    Err(GameError::InvalidHistory {
+    bail!(GameError::InvalidHistory {
         game_name: G::info().name,
         hint: format!(
             "Transitioning from the state '{}' to the sate '{}' is illegal in \
@@ -125,18 +109,18 @@ where
             game.encode(prev)?,
             game.encode(next)?,
         ),
-    })?
+    })
 }
 
 fn terminal_history_error<const B: usize, G>(
     game: &G,
     prev: State<B>,
     next: State<B>,
-) -> Result<State<B>>
+) -> Result<anyhow::Error>
 where
     G: Information + Codec<B> + Bounded<B>,
 {
-    Err(GameError::InvalidHistory {
+    bail!(GameError::InvalidHistory {
         game_name: G::info().name,
         hint: format!(
             "Transitioning from the state '{}' to the sate '{}' is illegal in \
@@ -145,7 +129,7 @@ where
             game.encode(next)?,
             game.encode(prev)?,
         ),
-    })?
+    })
 }
 
 /* GAME DATA UTILITIES */
@@ -163,7 +147,7 @@ impl Display for GameAttribute {
             GameAttribute::About => "about",
             GameAttribute::Name => "name",
         };
-        write!(f, "{}", content)
+        write!(f, "{content}")
     }
 }
 

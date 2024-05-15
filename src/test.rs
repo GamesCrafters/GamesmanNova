@@ -7,7 +7,7 @@
 //! #### Authorship
 //! - Max Fierro, 4/09/2024 (maxfierro@berkeley.edu)
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use strum_macros::Display;
 
 use std::{
@@ -54,12 +54,7 @@ pub fn test_setting() -> Result<TestSetting> {
         match &setting[..] {
             "0" => Ok(TestSetting::Correctness),
             "1" => Ok(TestSetting::Development),
-            _ => Err(anyhow! {
-                format!(
-                    "TEST_SETTING assignment '{}' not recognized.",
-                    setting
-                )
-            }),
+            _ => bail!("TEST_SETTING assignment '{setting}' not recognized."),
         }
     } else {
         Ok(TestSetting::Development)
@@ -78,7 +73,7 @@ pub fn get_directory(
 
     let directory = root
         .join(DEV_DIRECTORY)
-        .join(format!("{}", data))
+        .join(format!("{data}"))
         .join(module);
 
     let guard = {
@@ -116,7 +111,5 @@ fn find_cargo_lock_directory() -> Result<path::PathBuf> {
             break;
         }
     }
-    Err(anyhow!(
-        "Could not find any parent directory with a Cargo.lock file."
-    ))
+    bail!("Could not find any parent directory with a Cargo.lock file.")
 }
