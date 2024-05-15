@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::game::mock::Node;
 use crate::game::mock::Session;
-use crate::model::PlayerCount;
+use crate::model::game::PlayerCount;
 
 /* DEFINITIONS */
 
@@ -137,7 +137,7 @@ impl<'a> SessionBuilder<'a> {
     pub fn build(self) -> Result<Session<'a>> {
         let start = self.check_starting_state()?;
         self.check_terminal_state(start)?;
-        self.check_outgoing_edges(start)?;
+        self.check_outgoing_edges()?;
         let (players, _) = self.players;
         Ok(Session {
             inserted: self.inserted,
@@ -198,21 +198,19 @@ impl<'a> SessionBuilder<'a> {
                     ),
                 })?
             }
-        } else {
-            if new.terminal() && new_count < old_count {
-                Err(anyhow! {
-                    format!(
-                        "While constructing the game '{}', a medial node was \
-                        added with a 0-indexed turn of {}, but then a new \
-                        terminal node was added with {} entries. All turn \
-                        indicators must be able to index terminal nodes'\
-                        utility entries.",
-                        self.name,
-                        old_count - 1,
-                        new_count,
-                    ),
-                })?
-            }
+        } else if new.terminal() && new_count < old_count {
+            Err(anyhow! {
+                format!(
+                    "While constructing the game '{}', a medial node was \
+                    added with a 0-indexed turn of {}, but then a new \
+                    terminal node was added with {} entries. All turn \
+                    indicators must be able to index terminal nodes'\
+                    utility entries.",
+                    self.name,
+                    old_count - 1,
+                    new_count,
+                ),
+            })?
         }
 
         if new.terminal() {
@@ -273,7 +271,7 @@ impl<'a> SessionBuilder<'a> {
 
     /// Fails if there exists a node marked as medial in the game graph which
     /// does not have any outgoing edges.
-    fn check_outgoing_edges(&self, start: NodeIndex) -> Result<()> {
+    fn check_outgoing_edges(&self) -> Result<()> {
         if self.game.node_indices().any(|i| {
             self.game[i].medial()
                 && self
@@ -301,21 +299,13 @@ impl Node {
     /// Returns true if and only if `self` is a terminal node.
     #[inline]
     pub const fn terminal(&self) -> bool {
-        if let Node::Terminal(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Node::Terminal(_))
     }
 
     /// Returns true if and only if `self` is a medial node.
     #[inline]
     pub const fn medial(&self) -> bool {
-        if let Node::Medial(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Node::Medial(_))
     }
 }
 

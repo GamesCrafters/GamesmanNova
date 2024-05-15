@@ -17,24 +17,30 @@ mod util;
 
 /* INTERFACE IMPLEMENTATIONS */
 
-pub mod terminal {
-    pub mod cli;
-}
+pub mod standard;
 
 /* DEFINITIONS */
 
-/// Allows calls to return output in different formats for different purposes,
-/// such as web API calls, scripting, or human-readable output.
+/// Describes the format in which calls to the `info` CLI command to the binary
+/// should print its output, which should be mostly human-readable.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum OutputMode {
-    /// Extra content or formatting where appropriate.
-    Extra,
+pub enum InfoFormat {
+    /// Legible output intended for human eyes.
+    Legible,
 
     /// Multi-platform compatible JSON format.
     Json,
+}
 
-    /// Output nothing (side-effects only).
-    None,
+/// Describes the format in which calls to the `query` CLI command to the binary
+/// should print its output.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum QueryFormat {
+    /// Comma-separated list of record attributes separated by line breaks.
+    CSV,
+
+    /// JSON list of record objects containing attribute sub-objects.
+    Json,
 }
 
 /// Specifies how exhaustive a solving algorithm should be when computing a
@@ -46,12 +52,49 @@ pub enum OutputMode {
 /// strong alternative. The relative convenience of a weak solution relies on
 /// the structure of the underlying game.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum SolutionMode {
+pub enum Solution {
     /// Minimally prove an optimal strategy beginning from a starting state.
     Weak,
 
     /// Provide a strategy for all game states reachable from starting state.
     Strong,
+}
+
+/// Specifies a category of information kept about a game. Used for finding
+/// specific information about game implementations through the `info` CLI
+/// command. See [`crate::game::GameData`] for the provider data structure.
+///
+/// This level of granularity is supported for clients to automate
+/// the creation of custom objects containing any choice of these without the
+/// need to mangle this program's output.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum GameAttribute {
+    /// The conventional name of the game, formatted to be unique.
+    Name,
+
+    /// The people involved in adding the game to the system.
+    Authors,
+
+    /// General introduction to the game's rules and setup.
+    About,
+
+    /// Explanation of how to encode a variant for the game.
+    VariantProtocol,
+
+    /// Regex pattern that all encodings of the game's variants must satisfy.
+    VariantPattern,
+
+    /// Default variant encoding the game uses when none is specified.
+    VariantDefault,
+
+    /// Explanation of how to encode a state for the game.
+    StateProtocol,
+
+    /// Regex pattern all encodings of the game's states must satisfy.
+    StatePattern,
+
+    /// The encoding of the game's default starting state.
+    StateDefault,
 }
 
 /// Specifies a mode of operation for solving algorithms in regard to database
@@ -85,11 +128,11 @@ pub enum SolutionMode {
 /// computed again up to the number of states associated with the request.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum IOMode {
-    /// Attempt to find an existing solution set to use or expand upon.
-    Find,
+    /// Use existing resources and compute whatever is missing.
+    Constructive,
 
-    /// Overwrite any existing solution set that could contain the request.
-    Write,
+    /// Compute request from scratch overwriting existing resources.
+    Overwrite,
 }
 
 /* AUXILIARY IMPLEMENTATIONS */
@@ -97,27 +140,35 @@ pub enum IOMode {
 impl fmt::Display for IOMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IOMode::Find => write!(f, "find"),
-            IOMode::Write => write!(f, "write"),
+            IOMode::Constructive => write!(f, "constructive"),
+            IOMode::Overwrite => write!(f, "overwrite"),
         }
     }
 }
 
-impl fmt::Display for SolutionMode {
+impl fmt::Display for Solution {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SolutionMode::Weak => write!(f, "weak"),
-            SolutionMode::Strong => write!(f, "strong"),
+            Solution::Strong => write!(f, "strong"),
+            Solution::Weak => write!(f, "weak"),
         }
     }
 }
 
-impl fmt::Display for OutputMode {
+impl fmt::Display for InfoFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OutputMode::Json => write!(f, "json"),
-            OutputMode::Extra => write!(f, "extra"),
-            OutputMode::None => write!(f, "none"),
+            InfoFormat::Legible => write!(f, "legible"),
+            InfoFormat::Json => write!(f, "json"),
+        }
+    }
+}
+
+impl fmt::Display for QueryFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            QueryFormat::Json => write!(f, "json"),
+            QueryFormat::CSV => write!(f, "csv"),
         }
     }
 }

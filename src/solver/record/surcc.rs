@@ -17,10 +17,11 @@ use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
-use crate::model::{PlayerCount, Remoteness, SimpleUtility, Turn};
+use crate::model::game::{Player, PlayerCount};
+use crate::model::solver::{Remoteness, SUtility};
 use crate::solver::error::SolverError::RecordViolation;
-use crate::solver::util;
 use crate::solver::RecordType;
+use crate::util;
 
 /* CONSTANTS */
 
@@ -47,7 +48,7 @@ pub type ChildCount = u64;
 pub fn schema(players: PlayerCount) -> Result<Schema> {
     if RecordBuffer::bit_size(players) > BUFFER_SIZE {
         Err(RecordViolation {
-            name: RecordType::SURCC(players).into(),
+            name: RecordType::SURCC(players).to_string(),
             hint: format!(
                 "This record can only hold utility values for up to {} \
                 players, but there was an attempt to create a schema that \
@@ -130,7 +131,7 @@ impl RecordBuffer {
     pub fn new(players: PlayerCount) -> Result<Self> {
         if Self::bit_size(players) > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::SURCC(players).into(),
+                name: RecordType::SURCC(players).to_string(),
                 hint: format!(
                     "The record can only hold utility values for up to {} \
                     players, but there was an attempt to instantiate one for \
@@ -154,7 +155,7 @@ impl RecordBuffer {
         let len = bits.len();
         if len > BUFFER_SIZE {
             Err(RecordViolation {
-                name: RecordType::SURCC(0).into(),
+                name: RecordType::SURCC(0).to_string(),
                 hint: format!(
                     "The record implementation operates on a buffer of {} \
                     bits, but there was an attempt to instantiate one from a \
@@ -164,7 +165,7 @@ impl RecordBuffer {
             })?
         } else if len < Self::minimum_bit_size() {
             Err(RecordViolation {
-                name: RecordType::SURCC(0).into(),
+                name: RecordType::SURCC(0).to_string(),
                 hint: format!(
                     "This record implementation stores utility values, but \
                     there was an attempt to instantiate one with from a buffer \
@@ -187,10 +188,10 @@ impl RecordBuffer {
     /// Parse and return the utility value corresponding to `player`. Fails if
     /// the `player` index passed in is incoherent with player count.
     #[inline(always)]
-    pub fn get_utility(&self, player: Turn) -> Result<SimpleUtility> {
+    pub fn get_utility(&self, player: Player) -> Result<SUtility> {
         if player >= self.players {
             Err(RecordViolation {
-                name: RecordType::SURCC(self.players).into(),
+                name: RecordType::SURCC(self.players).to_string(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to fetch the utility of player {} \
@@ -202,11 +203,11 @@ impl RecordBuffer {
             let start = Self::utility_index(player);
             let end = start + UTILITY_SIZE;
             let val = self.buf[start..end].load_be::<u64>();
-            if let Ok(utility) = SimpleUtility::try_from(val) {
+            if let Ok(utility) = SUtility::try_from(val) {
                 Ok(utility)
             } else {
                 Err(RecordViolation {
-                    name: RecordType::SURCC(self.players).into(),
+                    name: RecordType::SURCC(self.players).to_string(),
                     hint: format!(
                         "There was an attempt to deserialize a utility value \
                         of '{}' into a simple utility type.",
@@ -244,11 +245,11 @@ impl RecordBuffer {
     #[inline(always)]
     pub fn set_utility<const N: usize>(
         &mut self,
-        v: [SimpleUtility; N],
+        v: [SUtility; N],
     ) -> Result<()> {
         if N != self.players {
             Err(RecordViolation {
-                name: RecordType::SURCC(self.players).into(),
+                name: RecordType::SURCC(self.players).to_string(),
                 hint: format!(
                     "A record was instantiated with {} utility entries, and \
                     there was an attempt to use a {}-entry utility list to \
@@ -262,7 +263,7 @@ impl RecordBuffer {
                 let size = util::min_ubits(utility);
                 if size > UTILITY_SIZE {
                     Err(RecordViolation {
-                        name: RecordType::SURCC(self.players).into(),
+                        name: RecordType::SURCC(self.players).to_string(),
                         hint: format!(
                             "This record implementation uses {} bits to store \
                             signed integers representing utility values, but \
@@ -288,7 +289,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
             Err(RecordViolation {
-                name: RecordType::SURCC(self.players).into(),
+                name: RecordType::SURCC(self.players).to_string(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing remoteness values, but there was an \
@@ -312,7 +313,7 @@ impl RecordBuffer {
         let size = util::min_ubits(value);
         if size > CHILD_COUNT_SIZE {
             Err(RecordViolation {
-                name: RecordType::SURCC(self.players).into(),
+                name: RecordType::SURCC(self.players).to_string(),
                 hint: format!(
                     "This record implementation uses {} bits to store unsigned \
                     integers representing child count values, but there was an \
@@ -352,7 +353,7 @@ impl RecordBuffer {
 
     /// Return the bit index of the 'i'th player's utility entry start.
     #[inline(always)]
-    const fn utility_index(player: Turn) -> usize {
+    const fn utility_index(player: Player) -> usize {
         player * UTILITY_SIZE
     }
 
@@ -383,8 +384,8 @@ mod tests {
     // * `MIN_UTILITY = 0b10000000 = -128 =  -127 - 1`
     //
     // Useful: https://www.omnicalculator.com/math/twos-complement
-    const MAX_UTILITY: SimpleUtility = SimpleUtility::TIE;
-    const MIN_UTILITY: SimpleUtility = SimpleUtility::WIN;
+    const MAX_UTILITY: SUtility = SUtility::Tie;
+    const MIN_UTILITY: SUtility = SUtility::Win;
 
     // The maximum numeric remoteness value that can be expressed with exactly
     // REMOTENESS_SIZE bits in an unsigned integer.
@@ -432,13 +433,13 @@ mod tests {
         let mut r2 = RecordBuffer::new(4).unwrap();
         let mut r3 = RecordBuffer::new(0).unwrap();
 
-        let v1 = [SimpleUtility::WIN; 7];
-        let v2 = [SimpleUtility::TIE; 4];
-        let v3: [SimpleUtility; 0] = [];
+        let v1 = [SUtility::WIN; 7];
+        let v2 = [SUtility::TIE; 4];
+        let v3: [SUtility; 0] = [];
 
         let v4 = [MAX_UTILITY; 7];
         let v5 = [MIN_UTILITY; 4];
-        let v6 = [SimpleUtility::DRAW];
+        let v6 = [SUtility::DRAW];
 
         let good = Remoteness::MIN;
         let bad = Remoteness::MAX;
@@ -464,11 +465,11 @@ mod tests {
     fn data_is_valid_after_round_trip() {
         let mut record = RecordBuffer::new(5).unwrap();
         let payoffs = [
-            SimpleUtility::LOSE,
-            SimpleUtility::WIN,
-            SimpleUtility::LOSE,
-            SimpleUtility::LOSE,
-            SimpleUtility::LOSE,
+            SUtility::LOSE,
+            SUtility::WIN,
+            SUtility::LOSE,
+            SUtility::LOSE,
+            SUtility::LOSE,
         ];
         let remoteness = 790;
 
@@ -502,19 +503,15 @@ mod tests {
         let mut record = RecordBuffer::new(6).unwrap();
 
         let good = [
-            SimpleUtility::WIN,
-            SimpleUtility::LOSE,
-            SimpleUtility::TIE,
-            SimpleUtility::TIE,
-            SimpleUtility::DRAW,
-            SimpleUtility::WIN,
+            SUtility::WIN,
+            SUtility::LOSE,
+            SUtility::TIE,
+            SUtility::TIE,
+            SUtility::DRAW,
+            SUtility::WIN,
         ];
 
-        let bad = [
-            SimpleUtility::DRAW,
-            SimpleUtility::WIN,
-            SimpleUtility::TIE,
-        ];
+        let bad = [SUtility::DRAW, SUtility::WIN, SUtility::TIE];
 
         assert!(record.set_utility(good).is_ok());
         assert!(record

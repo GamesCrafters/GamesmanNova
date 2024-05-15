@@ -24,6 +24,15 @@ pub enum SolverError {
     /// An error to indicate that the assumptions of a solving algorithm were
     /// detectably violated during execution.
     SolverViolation { name: String, hint: String },
+
+    /// An error to indicate that there was an attempt to translate one measure
+    /// into another incompatible measure. Provides hints about the input type,
+    /// output type, and the reason behind the incompatibility.
+    InvalidConversion {
+        output_t: String,
+        input_t: String,
+        hint: String,
+    },
 }
 
 impl Error for SolverError {}
@@ -45,6 +54,18 @@ impl fmt::Display for SolverError {
                     "An assumption set by the solver '{}' was violated at \
                     runtime: {}",
                     name, hint,
+                )
+            },
+            Self::InvalidConversion {
+                output_t,
+                input_t,
+                hint,
+            } => {
+                write!(
+                    f,
+                    "There was an attempt to translate a value of type '{}' \
+                    into a value of type '{}': {}",
+                    input_t, output_t, hint,
                 )
             },
         }

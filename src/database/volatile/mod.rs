@@ -7,51 +7,73 @@
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
-use bitvec::{order::Msb0, slice::BitSlice, store::BitStore};
-
-use std::collections::HashMap;
+use bitvec::{order::Msb0, slice::BitSlice};
 
 use crate::{
-    database::{KVStore, Record, Schema, Tabular},
-    model::State,
+    database::{self, KVStore, Record, Schema, Tabular},
+    model::database::{Identifier, Key},
 };
 
-pub struct Database<'a> {
-    memory: HashMap<State, &'a [u8]>,
-}
+/* DEFINITIONS */
 
-impl Database<'_> {
+pub struct Database {}
+
+pub struct Table {}
+
+/* IMPLEMENTATIONS */
+
+impl Database {
     pub fn initialize() -> Self {
-        Self {
-            memory: HashMap::new(),
-        }
+        Database {}
     }
 }
 
-impl KVStore for Database<'_> {
-    fn put<R: Record>(&mut self, key: State, value: &R) {
+impl Tabular<Table> for Database {
+    fn create_table(
+        &self,
+        id: Identifier,
+        schema: Schema,
+    ) -> Result<&mut Table> {
         todo!()
     }
 
-    fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>> {
+    fn select_table(&self, id: Identifier) -> Result<&mut Table> {
         todo!()
     }
 
-    fn del(&mut self, key: State) {
+    fn delete_table(&self, id: &mut Table) -> Result<()> {
         todo!()
     }
 }
 
-impl Tabular for Database<'_> {
-    fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
+impl database::Table for Table {
+    fn schema(&self) -> &Schema {
         todo!()
     }
 
-    fn select_table(&self, id: &str) -> Result<()> {
+    fn count(&self) -> u64 {
         todo!()
     }
 
-    fn delete_table(&self, id: &str) -> Result<()> {
+    fn size(&self) -> u64 {
+        todo!()
+    }
+
+    fn id(&self) -> Identifier {
+        todo!()
+    }
+}
+
+impl KVStore for Table {
+    fn put<R: Record>(&mut self, key: &Key, value: &R) -> Result<()> {
+        todo!()
+    }
+
+    fn get(&self, key: &Key) -> Option<&BitSlice<u8, Msb0>> {
+        todo!()
+    }
+
+    fn delete(&mut self, key: &Key) {
         todo!()
     }
 }
