@@ -8,17 +8,17 @@
 //! - Max Fierro, 3/7/2023 (maxfierro@berkeley.edu)
 //! - Michael Setchko Palmerlee, 4/18/2024 (michaelsp@berkeley.edu)
 
-pub const STATE_DEFAULT: &'static str = "|0-0-0|0-X-0|0-0-0|";
-pub const STATE_PATTERN: &'static str = r"^([|]([\dX]+-)+[\dX]+)+[|]";
-pub const STATE_PROTOCOL: &'static str =
-    "Rows are separated by |, columns are separated by -, empty space is X. \
-Integers 0-23 are a piece orientation as defined by ORIENTATION_MAP";
-
 use regex::Regex;
 
 use crate::game::crossteaser::*;
 use crate::game::error::GameError;
 use crate::model::State;
+
+pub const STATE_DEFAULT: &'static str = "|0-0-0|0-X-0|0-0-0|";
+pub const STATE_PATTERN: &'static str = r"^([|]([\dX]+-)+[\dX]+)+[|]";
+pub const STATE_PROTOCOL: &'static str = "Rows are separated by |, columns \
+are separated by -, empty space is X. Integers 0-23 are a piece orientation \
+as defined by ORIENTATION_MAP";
 
 pub fn parse_state(
     state: String,
@@ -39,7 +39,7 @@ pub fn parse_state(
             Err(_) => empty = i as u64,
         }
     }
-    Ok(session.hash(&UnhashedState {
+    Ok(session.hash(UnhashedState {
         pieces: rep,
         free: empty,
     }))
@@ -133,6 +133,7 @@ mod test {
             length: 3,
             width: 3,
             free: 1,
+            num_pieces: 8,
         };
         let state: String = "|0-0-0|0-X-0|0-0-0|".to_owned();
         match parse_state(state, &session) {

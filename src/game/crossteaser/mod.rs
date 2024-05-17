@@ -20,6 +20,7 @@
 //! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
 
 use anyhow::{Context, Result};
+use bitvec::field::BitField;
 use bitvec::prelude::{BitArray, Msb0};
 use bitvec::view::BitView;
 use bitvec::{bitarr, bitvec};
@@ -43,8 +44,6 @@ use crate::solver::ClassicPuzzle;
 
 mod states;
 mod variants;
-#[cfg(test)]
-mod test;
 
 /* GAME DATA */
 
@@ -101,7 +100,7 @@ const ORIENTATION_MAP: [u16; 24] = [
 /// abc: axis on which the rotation is performed.
 /// de: direction of the rotation. 0b01 = cw, 0b10 = 180, 0b11 = ccw.
 /// Order of transformations is right to left. Used for symmetries.
-const TRANSFORM_MAP: [u64; 24] = [
+const TRANSFORM_MAP: [u16; 24] = [
     0b0,             // 0
     0b000_01,        // 1
     0b000_11,        // 2
@@ -128,6 +127,16 @@ const TRANSFORM_MAP: [u64; 24] = [
     0b000_01_011_10, // 23
 ];
 
+/// List of move directions for transitions.
+const MOVES: [Move; 4] = [Move::Left, Move::Right, Move::Down, Move::Up];
+
+const SYMMETRIES: [Symmetry; 4] = [
+    Symmetry::Original,
+    Symmetry::Rotate180,
+    Symmetry::FlipRotate90,
+    Symmetry::FlipRotate270,
+];
+
 const FACE_BITS: u64 = 3;
 const PIECE_SIZE: u64 = 24;
 
@@ -147,6 +156,7 @@ const PIECE_SIZE: u64 = 24;
 /// and is at index 0 in the ORIENTATION_MAP array.
 /// All 24 orientations will be some rotation of this structure. The relative
 /// positions of faces does not change.
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct Orientation {
     front: u64,
     top: u64,
@@ -156,6 +166,7 @@ struct Orientation {
 /// Unhashed representation of a game state
 /// It is simply a vector of (# pieces) Orientations
 /// and an integer representing the location of the free space
+#[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct UnhashedState {
     pieces: Vec<Orientation>,
     free: u64,
@@ -173,21 +184,20 @@ pub struct Session {
     num_pieces: u64,
 }
 
-impl Session {
-    fn new(
-        variant: Option<String>,
-        length: u64,
-        width: u64,
-        free: u64,
-    ) -> Self {
-        Session {
-            variant,
-            length,
-            width,
-            free,
-            num_pieces: length * width - free,
-        }
-    }
+/// Possible move directions for transitions.
+enum Move {
+    Left,
+    Right,
+    Down,
+    Up,
+}
+
+/// Possible symmetries in crossteaser board.
+enum Symmetry {
+    Original,
+    Rotate180,
+    FlipRotate90,
+    FlipRotate270,
 }
 
 /// Converts an Orientation struct into its corresponding orientation hash,
@@ -202,271 +212,12 @@ const fn hash_orientation(o: &Orientation) -> u64 {
 /// Converts an orientation hash into an Orientation struct
 /// Makes use of ORIENTATION_UNMAP for the conversion
 #[inline]
-const fn unhash_orientation(h: u64) -> Orientation {
+fn unhash_orientation(h: u64) -> Orientation {
     let packed = ORIENTATION_MAP[h as usize].view_bits::<Msb0>();
     Orientation {
-        front: packed[..3],
-        top: packed[3..6],
-        right: packed[6..],
-    }
-}
-
-impl Clone for UnhashedState {
-    fn clone(&self) -> UnhashedState {
-        let new_pieces = self
-            .pieces
-            .iter()
-            .map(|o| o.clone())
-            .collect();
-        UnhashedState {
-            pieces: new_pieces,
-            free: self.free,
-        }
-    }
-}
-
-impl Session {
-    /// Returns the total number of game pieces in the current game variant
-    /// based on Session
-    fn get_pieces(&self) -> u64 {
-        return self.length * self.width - self.free;
-    }
-
-    /// Simple hash function that converts a vector of piece
-    /// orientations and an empty space represented by an integer into a 64 bit
-    /// integer (State) which uniquely represents that state.
-    /// Uses minimal space for all theoretical states, does not optimize
-    /// for obtainable states. There will be a lot of unused hashes here
-    /// because fewer than half of the theoretical states are obtainable in
-    /// 3x3 crossteaser.
-    fn hash(&self, s: UnhashedState) -> State {
-        let mut hashed_state: State = s.free;
-        let mut mult: u64 = self.width * self.length;
-        for o in s.pieces {
-            hashed_state += hash_orientation(&o) * mult;
-            mult *= PIECE_SIZE;
-        }
-        return hashed_state;
-    }
-
-    /// Reverse of hash(), extracts the orientation vector and empty space from
-    /// a State.
-    fn unhash(&self, s: State) -> UnhashedState {
-        let num_pieces: u64 = self.get_pieces();
-        let mut curr_piece: u64;
-        let mut temp_state: u64 = s;
-        let space_count: u64 = self.width * self.length;
-        let empty: u64 = s % space_count;
-        temp_state /= space_count;
-        let mut rep: Vec<Orientation> = Vec::new();
-        for _ in 0..num_pieces {
-            curr_piece = temp_state % PIECE_SIZE;
-            temp_state /= PIECE_SIZE;
-            rep.push(unhash_orientation(curr_piece));
-        }
-        return UnhashedState {
-            pieces: rep,
-            free: empty,
-        };
-    }
-
-    /// Adjusts the entire board with a "right" move
-    /// Adjusts empty space accordingly
-    /// Makes use of mov::right()
-    fn board_right(&self, s: &UnhashedState) -> UnhashedState {
-        let mut new_state = s.clone();
-        if s.free % self.width != 0 {
-            let to_move: usize = s.free as usize - 1;
-            new_state.pieces[to_move].right();
-            new_state.free = to_move as u64;
-        }
-        return new_state;
-    }
-
-    /// Adjusts the entire board with a "left" move
-    /// Adjusts empty space accordingly
-    /// Makes use of mov::left()
-    fn board_left(&self, s: &UnhashedState) -> UnhashedState {
-        let mut new_state = s.clone();
-        if s.free % self.width != self.width - 1 {
-            let to_move: usize = s.free as usize;
-            new_state.pieces[to_move].left();
-            new_state.free = s.free + 1;
-        }
-        return new_state;
-    }
-
-    /// Adjusts the entire board with a "up" move
-    /// Adjusts empty space accordingly
-    /// Makes use of mov::up()
-    fn board_up(&self, s: &UnhashedState) -> UnhashedState {
-        let mut new_state = s.clone();
-        if s.free / self.width != self.length - 1 {
-            let to_move: usize = (s.free + self.width) as usize;
-            let dest: usize = s.free as usize;
-            let mut piece: Orientation = new_state
-                .pieces
-                .remove(to_move - 1);
-            piece.up();
-            new_state
-                .pieces
-                .insert(dest, piece);
-            new_state.free = to_move as u64;
-        }
-        return new_state;
-    }
-
-    /// Adjusts the entire board with a "down" move
-    /// Adjusts empty space accordingly
-    /// Makes use of mov::down()
-    fn board_down(&self, s: &UnhashedState) -> UnhashedState {
-        let mut new_state = s.clone();
-        if s.free / self.width != 0 {
-            let to_move: usize = (s.free - self.width) as usize;
-            let dest: usize = s.free as usize - 1;
-            let mut piece: Orientation = new_state.pieces.remove(to_move);
-            piece.down();
-            new_state
-                .pieces
-                .insert(dest, piece);
-            new_state.free = to_move as u64;
-        }
-        return new_state;
-    }
-
-    /// Rotates entire board clockwise 90 degrees. Used only for
-    /// combined flip board + rotate 90 symmetry.
-    fn board_cw(&self, s: &UnhashedState) -> UnhashedState {
-        if self.width != self.length {
-            panic!("Cannot rotate board with unequal dimensions 90 degrees");
-        }
-        let mut pieces: Vec<Orientation> = Vec::new();
-        for col in 0..self.width {
-            for row in (0..self.length).rev() {
-                let mut pos: u64 = row * self.width + col;
-                if pos != s.free {
-                    if pos > s.free {
-                        pos -= 1;
-                    }
-                    let mut piece = s.pieces[pos as usize].clone();
-                    piece.cw_front();
-                    pieces.push(piece);
-                }
-            }
-        }
-        let row: u64 = s.free / self.width;
-        let col: u64 = s.free % self.width;
-        UnhashedState {
-            pieces,
-            free: col * self.width + self.width - row - 1,
-        }
-    }
-
-    /// Rotates entire board 180 degrees
-    fn board_180(&self, s: &UnhashedState) -> UnhashedState {
-        let num_pieces: u64 = self.get_pieces();
-        let pieces = s
-            .pieces
-            .iter()
-            .rev()
-            .map(|o| {
-                let mut new_piece = o.clone();
-                new_piece.front_180();
-                new_piece
-            })
-            .collect();
-        let f: u64 = num_pieces - s.free;
-        UnhashedState { pieces, free: f }
-    }
-
-    /// Flips board over from left to right
-    fn flip_board(&self, s: &UnhashedState) -> UnhashedState {
-        let mut rep: Vec<Orientation> = Vec::new();
-        for row in 0..self.length {
-            for col in (0..self.width).rev() {
-                let mut pos: u64 = row * self.width + col;
-                if pos != s.free {
-                    if pos > s.free {
-                        pos -= 1;
-                    }
-                    rep.push(mov::top_180(&s.pieces[pos as usize]));
-                }
-            }
-        }
-        let new_free: u64 = self.width - (s.free % self.width) - 1
-            + (s.free / self.width) * self.width;
-        return UnhashedState {
-            pieces: rep,
-            free: new_free,
-        };
-    }
-
-    /// Combines flipping board plus 90 degree rotation, this is a
-    /// valid symmetry due to the perpedicular slot orentation on front and back
-    fn flip_90(&self, s: &UnhashedState) -> UnhashedState {
-        if self.width == self.length {
-            return self.board_cw(&self.flip_board(s));
-        } else {
-            return s.clone();
-        }
-    }
-
-    /// Reduces the state to one with last piece orientation of 0
-    /// and adjusting the rest of the pieces equivalently
-    /// Note that this does not mean applying the exact same transformation
-    /// to every piece.
-    /// See apply_transformation() for additional details.
-    fn reduce(&self, s: &mut UnhashedState) {
-        let pos: u64 = hash_orientation(&s.pieces.last().unwrap());
-        if pos != 0 {
-            let transform: u64 = TRANSFORM_MAP[pos as usize];
-            s.pieces
-                .iter_mut()
-                .for_each(|piece| piece.apply_transforms(transform));
-        }
-    }
-
-    /// Applies 4 physical board symmetries and finds the canonical of the set
-    /// -Rotate 180
-    /// -Flip board & rotate 90
-    /// -Flip board & rotate 270
-    /// NOTE: for boards with unequal dimensions, cannot apply
-    /// Flip board & rotate 90 or flip board & rotate 270 symmetries.
-    /// Not Currently in use.
-    fn board_sym(&self, s: &UnhashedState) -> UnhashedState {
-        let mut sym_list: Vec<UnhashedState> = Vec::new();
-        sym_list.push(s.clone());
-        sym_list.push(self.board_180(s));
-        if self.width == self.length {
-            let flipped: UnhashedState = self.flip_90(s);
-            sym_list.push(flipped.clone());
-            sym_list.push(self.board_180(&flipped));
-        }
-        let mut min: u64 = self.hash(sym_list[0]);
-        let mut min_i: usize = 0;
-        for i in 0..sym_list.len() {
-            let curr: u64 = self.hash(sym_list[i]);
-            if curr < min {
-                min_i = i;
-                min = curr;
-            }
-        }
-        return sym_list.remove(min_i);
-    }
-
-    /// Applies 4 board symmetries and then reduces state to canonical
-    fn canonical(&self, s: &mut UnhashedState) {
-        self.reduce(s);
-    }
-}
-
-impl Clone for Orientation {
-    fn clone(&self) -> Orientation {
-        Orientation {
-            front: self.front,
-            top: self.top,
-            right: self.right,
-        }
+        front: packed[7..10].load_be::<u64>(),
+        top: packed[10..13].load_be::<u64>(),
+        right: packed[13..].load_be::<u64>(),
     }
 }
 
@@ -501,71 +252,80 @@ impl Orientation {
 
     /// Transforms an individual piece orientation as if it was rotated
     /// clockwise along the front-bottom axis. Used for symmetries
-    fn cw_front(&mut self) {
+    fn cw_front(&mut self) -> &mut Self {
         let top = self.top;
         self.top = 5 - self.right;
         self.right = top;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// counter-clockwise along the front-back axis. Used for symmetries
-    fn ccw_front(&mut self) {
+    fn ccw_front(&mut self) -> &mut Self {
         let right = self.right;
         self.right = 5 - self.top;
         self.top = right;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// clockwise along the top-bottom axis. Used for symmetries
-    fn cw_top(&mut self) {
+    fn cw_top(&mut self) -> &mut Self {
         let right = self.right;
         self.right = 5 - self.front;
         self.front = right;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// counter-clockwise along the top-bottom axis. Used for symmetries
-    fn ccw_top(&mut self) {
+    fn ccw_top(&mut self) -> &mut Self {
         let front = self.front;
         self.front = 5 - self.right;
         self.right = front;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// clockwise along the right-left. Used for symmetries
-    fn cw_right(&mut self) {
+    fn cw_right(&mut self) -> &mut Self {
         let front = self.front;
         self.front = 5 - self.top;
         self.top = front;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// counter-clockwise along the right-left axis. Used for symmetries
-    fn ccw_right(&mut self) {
+    fn ccw_right(&mut self) -> &mut Self {
         let top = self.top;
         self.top = 5 - self.front;
         self.front = top;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// 180 degrees along the front-back axis. Used for symmetries.
-    fn front_180(&mut self) {
+    fn front_180(&mut self) -> &mut Self {
         self.top = 5 - self.top;
         self.right = 5 - self.right;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// 180 degrees along the top-bottom axis. Used for symmetries.
-    fn top_180(&mut self) {
+    fn top_180(&mut self) -> &mut Self {
         self.front = 5 - self.front;
         self.right = 5 - self.right;
+        self
     }
 
     /// Transforms an individual piece orientation as if it was rotated
     /// 180 degrees along the right-left axis. Used for symmetries.
-    fn right_180(&mut self) {
+    fn right_180(&mut self) -> &mut Self {
         self.front = 5 - self.front;
         self.top = 5 - self.top;
+        self
     }
 
     /// Performs a clowckwise rotation on an orientation
@@ -611,15 +371,16 @@ impl Orientation {
     /// This allows us to reduce to an equivalent state
     /// Where equivalent means the same sequence of moves will reach a
     /// terminal state.
-    fn apply_transforms(&mut self, t: u64) {
-        let mut t_list: u64 = t;
-        let mut transform: u64;
-        let mut axis: u64;
-        while t_list & 0b11 != 0 {
-            transform = t_list & 0b11;
-            t_list >>= 2;
-            axis = t_list & 0b111;
-            t_list >>= 3;
+    fn apply_transforms(&mut self, t: u16) {
+        let mut t_list = t.view_bits::<Msb0>();
+        let index: usize = t_list.len() - 2;
+        let mut transform: u16;
+        let mut axis: u16;
+        while t_list.load_be::<u16>() != 0 {
+            transform = t_list[index..(index + 2)].load_be::<u16>();
+            index -= 3;
+            axis = t_list[index..(index + 3)].load_be::<u16>();
+            index -= 2;
             if transform == 0b01 {
                 self.cw_on_axis(axis);
             } else if transform == 0b10 {
@@ -628,6 +389,263 @@ impl Orientation {
                 self.cw_on_axis(5 - axis);
             }
         }
+    }
+}
+
+impl UnhashedState {
+    fn transition(
+        &self,
+        session: &Session,
+        direction: &Move,
+    ) -> Option<UnhashedState> {
+        match direction {
+            Move::Left => self.board_left(session),
+            Move::Right => self.board_right(session),
+            Move::Down => self.board_down(session),
+            Move::Up => self.board_up(session),
+        }
+    }
+
+    /// Adjusts the entire board with a "right" move
+    /// Adjusts empty space accordingly
+    fn board_right(&self, session: &Session) -> Option<UnhashedState> {
+        if self.free % session.width != 0 {
+            let mut new_state = self.clone();
+            let to_move: usize = self.free as usize - 1;
+            new_state.pieces[to_move].right();
+            new_state.free = to_move as u64;
+            Some(new_state)
+        } else {
+            None
+        }
+    }
+
+    /// Adjusts the entire board with a "left" move
+    /// Adjusts empty space accordingly
+    fn board_left(&self, session: &Session) -> Option<UnhashedState> {
+        if self.free % session.width != session.width - 1 {
+            let mut new_state = self.clone();
+            let to_move: usize = self.free as usize;
+            new_state.pieces[to_move].left();
+            new_state.free += 1;
+            Some(new_state)
+        } else {
+            None
+        }
+    }
+
+    /// Adjusts the entire board with a "up" move
+    /// Adjusts empty space accordingly
+    fn board_up(&self, session: &Session) -> Option<UnhashedState> {
+        if self.free / session.width != session.length - 1 {
+            let mut new_state = self.clone();
+            let to_move: usize = (self.free + session.width) as usize;
+            let dest: usize = self.free as usize;
+            let mut piece: Orientation = new_state
+                .pieces
+                .remove(to_move - 1);
+            piece.up();
+            new_state
+                .pieces
+                .insert(dest, piece);
+            new_state.free = to_move as u64;
+            Some(new_state)
+        } else {
+            None
+        }
+    }
+
+    /// Adjusts the entire board with a "down" move
+    /// Adjusts empty space accordingly
+    fn board_down(&self, session: &Session) -> Option<UnhashedState> {
+        if self.free / session.width != 0 {
+            let mut new_state = self.clone();
+            let to_move: usize = (self.free - session.width) as usize;
+            let dest: usize = self.free as usize - 1;
+            let mut piece: Orientation = new_state.pieces.remove(to_move);
+            piece.down();
+            new_state
+                .pieces
+                .insert(dest, piece);
+            new_state.free = to_move as u64;
+            Some(new_state)
+        } else {
+            None
+        }
+    }
+
+    /// Rotates entire board clockwise 90 degrees by updating piece positions
+    /// and orientations.
+    fn board_cw(&self, session: &Session) -> Option<UnhashedState> {
+        if session.width == session.length {
+            let mut pieces: Vec<Orientation> = Vec::new();
+            for col in 0..session.width {
+                for row in (0..session.length).rev() {
+                    let mut pos: u64 = row * session.width + col;
+                    if pos != self.free {
+                        if pos > self.free {
+                            pos -= 1;
+                        }
+                        let mut piece = self.pieces[pos as usize].clone();
+                        piece.cw_front();
+                        pieces.push(piece);
+                    }
+                }
+            }
+            let row: u64 = self.free / session.width;
+            let col: u64 = self.free % session.width;
+            Some(UnhashedState {
+                pieces,
+                free: col * session.width + session.width - row - 1,
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Rotates entire board 180 degrees
+    fn board_180(&self, session: &Session) -> Option<UnhashedState> {
+        let num_pieces: u64 = session.num_pieces;
+        let pieces = self
+            .pieces
+            .iter()
+            .rev()
+            .map(|o| {
+                let mut new_o = o.clone();
+                new_o.front_180();
+                new_o
+            })
+            .collect();
+        let f: u64 = num_pieces - self.free;
+        Some(UnhashedState { pieces, free: f })
+    }
+
+    /// Flips board over from left to right
+    fn flip_board(&mut self, session: &Session) {
+        let mut rep: Vec<Orientation> = Vec::new();
+        for row in 0..session.length {
+            for col in (0..session.width).rev() {
+                let mut pos: u64 = row * session.width + col;
+                if pos != self.free {
+                    if pos > self.free {
+                        pos -= 1;
+                    }
+                    let mut new_piece = self.pieces[pos as usize].clone();
+                    new_piece.top_180();
+                    rep.push(new_piece);
+                }
+            }
+        }
+        self.free = session.width - (self.free % session.width) - 1
+            + (self.free / session.width) * session.width;
+        self.pieces = rep;
+    }
+
+    /// Combines flipping board plus 90 degree rotation, this is a
+    /// valid symmetry due to the perpedicular slot orentation on front and back
+    fn flip_90(&self, session: &Session) -> Option<UnhashedState> {
+        if let Some(mut rotated) = self.board_cw(session) {
+            rotated.flip_board(session);
+            Some(rotated)
+        } else {
+            None
+        }
+    }
+
+    fn flip_270(&self, session: &Session) -> Option<UnhashedState> {
+        if let Some(mut flipped_90) = self.flip_90(session) {
+            flipped_90.board_180(session)
+        } else {
+            None
+        }
+    }
+
+    fn apply_symmetry(
+        &self,
+        session: &Session,
+        sym: &Symmetry,
+    ) -> Option<UnhashedState> {
+        match sym {
+            Symmetry::Original => Some(self.clone()),
+            Symmetry::Rotate180 => self.board_180(session),
+            Symmetry::FlipRotate90 => self.flip_90(session),
+            Symmetry::FlipRotate270 => self.flip_270(session),
+        }
+    }
+
+    /// Applies 4 physical board symmetries and finds the canonical of the set:
+    /// Original, Rotate 180, Flip board & rotate 90, Flip board & rotate 270.
+    /// For boards with unequal dimensions, cannot apply
+    /// flip board & rotate 90 or flip board & rotate 270 symmetries.
+    fn board_sym(&self, session: &Session) -> UnhashedState {
+        SYMMETRIES
+            .iter()
+            .map(|sym| self.apply_symmetry(session, sym))
+            .filter(|s| s.is_some())
+            .map(|s| s.unwrap())
+            .min()
+            .unwrap()
+    }
+
+    /// Reduces the state to one with last piece orientation of 0
+    /// and adjusting the rest of the pieces equivalently
+    /// Note that this does not mean applying the exact same transformation
+    /// to every piece.
+    /// See apply_transformation() for additional details.
+    fn reduce(mut self) -> Self {
+        let pos: u64 = hash_orientation(&self.pieces.last().unwrap());
+        if pos != 0 {
+            let transform: u64 = TRANSFORM_MAP[pos as usize];
+            self.pieces
+                .iter_mut()
+                .for_each(|piece| piece.apply_transforms(transform));
+        }
+        self
+    }
+
+    /// Applies 4 board symmetries and then reduces state to canonical
+    fn canonical(mut self) -> Self {
+        self.reduce()
+    }
+}
+
+impl Session {
+    /// Simple hash function that converts a vector of piece
+    /// orientations and an empty space represented by an integer into a 64 bit
+    /// integer (State) which uniquely represents that state.
+    /// Uses minimal space for all theoretical states, does not optimize
+    /// for obtainable states. There will be a lot of unused hashes here
+    /// because fewer than half of the theoretical states are obtainable in
+    /// 3x3 crossteaser.
+    fn hash(&self, s: UnhashedState) -> State {
+        let mut hashed_state: State = s.free;
+        let mut mult: u64 = self.width * self.length;
+        for o in s.pieces {
+            hashed_state += hash_orientation(&o) * mult;
+            mult *= PIECE_SIZE;
+        }
+        return hashed_state;
+    }
+
+    /// Reverse of hash(), extracts the orientation vector and empty space from
+    /// a State.
+    fn unhash(&self, s: State) -> UnhashedState {
+        let num_pieces: u64 = self.num_pieces;
+        let mut curr_piece: u64;
+        let mut temp_state: u64 = s;
+        let space_count: u64 = self.width * self.length;
+        let empty: u64 = s % space_count;
+        temp_state /= space_count;
+        let mut rep: Vec<Orientation> = Vec::new();
+        for _ in 0..num_pieces {
+            curr_piece = temp_state % PIECE_SIZE;
+            temp_state /= PIECE_SIZE;
+            rep.push(unhash_orientation(curr_piece));
+        }
+        return UnhashedState {
+            pieces: rep,
+            free: empty,
+        };
     }
 }
 
@@ -668,23 +686,14 @@ impl Variable for Session {
 
 impl Transition for Session {
     fn prograde(&self, state: State) -> Vec<State> {
-        let s: UnhashedState = self.unhash(state);
-        let mut states: Vec<State> = Vec::new();
-        if s.free / self.width != self.length - 1 {
-            let mut s_up = self.board_up(&s);
-            self.canonical(&mut s_up);
-            states.push(self.hash(s_up));
-        }
-        if s.free / self.width != 0 {
-            states.push(self.hash(&self.canonical(&self.board_down(&s))));
-        }
-        if s.free % self.width != 0 {
-            states.push(self.hash(&self.canonical(&self.board_right(&s))));
-        }
-        if s.free % self.width != self.width - 1 {
-            states.push(self.hash(&self.canonical(&self.board_left(&s))));
-        }
-        return states;
+        let unhashed: UnhashedState = self.unhash(state);
+        MOVES
+            .iter()
+            .map(|m| unhashed.transition(&self, m))
+            .filter(|s| s.is_some())
+            .map(|s| s.unwrap().canonical())
+            .map(|s| self.hash(s))
+            .collect()
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
@@ -696,63 +705,22 @@ impl Transition for Session {
 
 impl Bounded for Session {
     fn start(&self) -> State {
-        // Orientations for each piece in the final (solved) position
-        let pieces = vec![
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            }, // Initial state with all pieces aligned
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            },
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            },
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            },
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            },
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            },
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            },
-            Orientation {
-                front: 0,
-                top: 1,
-                right: 2,
-            },
-        ];
-        let unhashed_state = UnhashedState { pieces, free: 4 };
-        let moved_state = self.board_up(&unhashed_state);
-
-        self.hash(&self.canonical(&moved_state))
+        let pieces = (0..self.num_pieces)
+            .map(|_| unhash_orientation(0))
+            .collect();
+        let unhashed_state = UnhashedState {
+            pieces,
+            free: self.num_pieces / 2,
+        };
+        let moved_state = unhashed_state.board_up(&self);
+        self.hash(moved_state.unwrap())
     }
 
     fn end(&self, state: State) -> bool {
         let current_state = self.unhash(state);
-
-        // Check if the free space is in the middle
         if current_state.free != 4 {
             return false;
         }
-        // Check if all pieces have the same front, top, and right orientation
         if let Some(first_piece) = current_state.pieces.first() {
             let front = first_piece.front;
             let top = first_piece.top;
@@ -763,7 +731,7 @@ impl Bounded for Session {
                 .iter()
                 .all(|p| p.front == front && p.top == top && p.right == right)
         } else {
-            false // Return false if there are no pieces, or handle differently if needed
+            false
         }
     }
 }
@@ -817,4 +785,144 @@ impl ClassicPuzzle for Session {
     fn utility(&self, state: State) -> SUtility {
         todo!()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use crate::game::crossteaser::*;
+
+    #[test]
+    fn test_start_end() {
+        let session = Session {
+            variant: None,
+            length: 3,
+            width: 3,
+            free: 1,
+            num_pieces: 8,
+        };
+        let start_state = session.start();
+        let moved_state = session
+            .unhash(start_state)
+            .board_down(&session)
+            .unwrap();
+        assert_eq!(
+            moved_state.free, 4,
+            "Free space should move up to the center."
+        );
+        assert!(
+            session.end(session.hash(moved_state)),
+            "This should be a valid end state."
+        );
+    }
+
+    #[test]
+    fn test_transition() {
+        let session: Session = Session {
+            variant: None,
+            length: 2,
+            width: 3,
+            free: 1,
+            num_pieces: 5,
+        };
+        let mut s: UnhashedState = UnhashedState {
+            pieces: Vec::new(),
+            free: 4,
+        };
+        for _i in 0..5 {
+            s.pieces
+                .push(unhash_orientation(0));
+        }
+        let mut found: HashSet<State> = HashSet::new();
+        let mut unsolved: Vec<State> = Vec::new();
+        unsolved.push(session.hash(s));
+        while !unsolved.is_empty() {
+            let s: State = unsolved.pop().unwrap();
+            found.insert(s);
+            let f: Vec<State> = session.prograde(s);
+            for state in f {
+                if !found.contains(&state) {
+                    unsolved.push(state);
+                }
+            }
+            if found.len() % 100000 == 0 {
+                println!("found: {}", found.len());
+            }
+        }
+        println!("total: {}", found.len());
+    }
+
+    #[test]
+    fn test_bit_array() {}
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use crate::game::crossteaser::*;
+
+    #[test]
+    fn test_start_end() {
+        let session = Session {
+            variant: None,
+            length: 3,
+            width: 3,
+            free: 1,
+            num_pieces: 8,
+        };
+        let start_state = session.start();
+        let moved_state = session
+            .unhash(start_state)
+            .board_down(&session)
+            .unwrap();
+        assert_eq!(
+            moved_state.free, 4,
+            "Free space should move up to the center."
+        );
+        assert!(
+            session.end(session.hash(moved_state)),
+            "This should be a valid end state."
+        );
+    }
+
+    #[test]
+    fn test_transition() {
+        let session: Session = Session {
+            variant: None,
+            length: 2,
+            width: 3,
+            free: 1,
+            num_pieces: 5,
+        };
+        let mut s: UnhashedState = UnhashedState {
+            pieces: Vec::new(),
+            free: 4,
+        };
+        for _i in 0..5 {
+            s.pieces
+                .push(unhash_orientation(0));
+        }
+        let mut found: HashSet<State> = HashSet::new();
+        let mut unsolved: Vec<State> = Vec::new();
+        unsolved.push(session.hash(s));
+        while !unsolved.is_empty() {
+            let s: State = unsolved.pop().unwrap();
+            found.insert(s);
+            let f: Vec<State> = session.prograde(s);
+            for state in f {
+                if !found.contains(&state) {
+                    unsolved.push(state);
+                }
+            }
+            if found.len() % 100000 == 0 {
+                println!("found: {}", found.len());
+            }
+        }
+        println!("total: {}", found.len());
+    }
+
+    #[test]
+    fn test_bit_array() {}
 }
