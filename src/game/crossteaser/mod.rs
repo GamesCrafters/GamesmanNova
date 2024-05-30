@@ -18,6 +18,7 @@
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Cindy Xu, 11/28/2023
 //! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
+//! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
 
 use anyhow::{Context, Result};
 use bitvec::field::BitField;
@@ -44,6 +45,8 @@ use crate::solver::ClassicPuzzle;
 
 mod states;
 mod variants;
+#[cfg(test)]
+mod test;
 
 /* GAME DATA */
 
@@ -174,6 +177,8 @@ struct UnhashedState {
 
 /// Represents an instance of a Crossteaser game session, which is specific to
 /// a valid variant of the game.
+/// length is number of rows
+/// width is number of columns
 /// length is number of rows
 /// width is number of columns
 pub struct Session {
@@ -682,6 +687,25 @@ impl Variable for Session {
     }
 }
 
+/* VARIANCE IMPLEMENTATION */
+
+impl Default for Session {
+    fn default() -> Self {
+        parse_variant(VARIANT_DEFAULT.to_owned())
+            .expect("Failed to parse default game variant.")
+    }
+}
+
+impl Variable for Session {
+    fn variant(variant: Variant) -> Result<Self> {
+        parse_variant(variant).context("Malformed game variant.")
+    }
+
+    fn variant_string(&self) -> Variant {
+        self.variant.to_owned()
+    }
+}
+
 /* TRAVERSAL IMPLEMENTATIONS */
 
 impl Transition for Session {
@@ -697,7 +721,7 @@ impl Transition for Session {
     }
 
     fn retrograde(&self, state: State) -> Vec<State> {
-        todo!()
+        return self.prograde(state);
     }
 }
 
