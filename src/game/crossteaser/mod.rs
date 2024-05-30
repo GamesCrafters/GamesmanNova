@@ -18,7 +18,6 @@
 //! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
 //! - Cindy Xu, 11/28/2023
 //! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
-//! - Michael Setchko Palmerlee, 3/22/2024 (michaelsp@berkeley.edu)
 
 use anyhow::{Context, Result};
 use bitvec::field::BitField;
@@ -807,7 +806,11 @@ impl Forward for Session {
 
 impl ClassicPuzzle for Session {
     fn utility(&self, state: State) -> SUtility {
-        todo!()
+        if self.end(state) {
+            SUtility::Win
+        } else {
+            panic!("Cannot assess utility of non-terminal state!")
+        }
     }
 }
 
