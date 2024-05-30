@@ -8,30 +8,18 @@
 //! - Max Fierro, 3/7/2023 (maxfierro@berkeley.edu)
 //! - Michael Setchko Palmerlee, 4/18/2024 (michaelsp@berkeley.edu)
 
-<<<<<<< HEAD
-=======
-pub const STATE_DEFAULT: &'static str = "|0-0-0|0-X-0|0-0-0|";
-pub const STATE_PATTERN: &'static str = r"^([|]([\dX]+-)+[\dX]+)+[|]";
-pub const STATE_PROTOCOL: &'static str =
-    "Rows are separated by |, columns are separated by -, empty space is X. \
-Integers 0-23 are a piece orientation as defined by ORIENTATION_MAP";
-
->>>>>>> c465f037f9f6eb7326f363118f2d3431801068a7
 use regex::Regex;
 
 use crate::game::crossteaser::*;
 use crate::game::error::GameError;
 use crate::model::State;
 
-<<<<<<< HEAD
 pub const STATE_DEFAULT: &'static str = "|0-0-0|0-X-0|0-0-0|";
 pub const STATE_PATTERN: &'static str = r"^([|]([\dX]+-)+[\dX]+)+[|]";
 pub const STATE_PROTOCOL: &'static str = "Rows are separated by |, columns \
 are separated by -, empty space is X. Integers 0-23 are a piece orientation \
 as defined by ORIENTATION_MAP";
 
-=======
->>>>>>> c465f037f9f6eb7326f363118f2d3431801068a7
 pub fn parse_state(
     state: String,
     session: &Session,
@@ -51,11 +39,7 @@ pub fn parse_state(
             Err(_) => empty = i as u64,
         }
     }
-<<<<<<< HEAD
-    Ok(session.hash(UnhashedState {
-=======
     Ok(session.hash(&UnhashedState {
->>>>>>> c465f037f9f6eb7326f363118f2d3431801068a7
         pieces: rep,
         free: empty,
     }))
