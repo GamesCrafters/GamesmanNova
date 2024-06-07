@@ -27,6 +27,7 @@ pub mod record {
     pub mod mur;
     pub mod sur;
     pub mod rem;
+    pub mod surcc;
 }
 
 /// Implementations of algorithms that can consume game implementations and
@@ -48,6 +49,7 @@ pub mod algorithm {
     pub mod strong {
         pub mod acyclic;
         pub mod cyclic;
+        pub mod puzzle;
     }
 
     /// Solving algorithms for deterministic complete-information games that
@@ -78,6 +80,9 @@ pub enum RecordType {
     SUR(PlayerCount),
     /// Remoteness record (no utilities).
     REM,
+    /// Simple Utility Remoteness with Child Counts records for a specific
+    /// number of players
+    SURCC(PlayerCount),
 }
 
 /* STRUCTURAL INTERFACES */

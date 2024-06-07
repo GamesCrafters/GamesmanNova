@@ -7,112 +7,222 @@
 
 use anyhow::{Context, Result};
 
-use crate::database::volatile;
-use crate::database::{KVStore, Tabular};
-use crate::game::{Bounded, DTransition, GeneralSum, Playable, STransition};
+use std::collections::VecDeque;
+
+use crate::database::KVStore;
+use crate::game::{Bounded, Transition};
 use crate::interface::IOMode;
-use crate::model::{PlayerCount, Remoteness, State, Utility};
-use crate::solver::record::mur::RecordBuffer;
-use crate::solver::{RecordType, MAX_TRANSITIONS};
+use crate::model::game::State;
+use crate::model::solver::{Remoteness, SUtility};
+use crate::solver::record::surcc::{ChildCount, RecordBuffer};
+use crate::solver::{ClassicPuzzle, SimpleUtility};
 
-pub fn dynamic_solver<const N: usize, G>(game: &G, mode: IOMode) -> Result<()>
+/* SOLVER */
+
+pub fn dynamic_solver<const B: usize, G>(game: &G, mode: IOMode) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + Playable<N> + GeneralSum<N>,
+    G: Transition<B> + Bounded<B> + ClassicPuzzle<B>,
 {
-    let mut db = volatile_database(game)
-        .context("Failed to initialize volatile database.")?;
+    todo!()
+}
 
-    bfs(&mut db, game)
-        .context("Failed solving algorithm execution.")?;
+/* DATABASE INITIALIZATION */
+
+// TODO
+
+/* SOLVING ALGORITHM */
+
+/// Runs BFS starting from the ending primitive positions of a game, working its
+/// way up the game tree in reverse. Assigns a remoteness and simple utiliity to
+/// every winning and losing position. Draws (positions where winning is
+/// impossible, but it is possible to play forever without losing) not assigned
+/// a remoteness. This implementation uses the SURCC record to store child count
+/// along with utility and remoteness.
+fn reverse_bfs_solver<const B: usize, G, D>(db: &mut D, game: &G) -> Result<()>
+where
+    G: Transition<B> + Bounded<B> + ClassicPuzzle<B>,
+    D: KVStore,
+{
+    let end_states = discover_child_counts(db, game)?;
+
+    let mut winning_queue: VecDeque<State<B>> = VecDeque::new();
+    let mut losing_queue: VecDeque<State<B>> = VecDeque::new();
+    for end_state in end_states {
+        let utility = game.utility(end_state);
+        match utility {
+            SUtility::Win => winning_queue.push_back(end_state),
+            SUtility::Lose => losing_queue.push_back(end_state),
+            SUtility::Tie => todo!(),
+            SUtility::Draw => todo!(),
+        };
+        update_db_record(db, end_state, utility, 0, 0)?;
+    }
+
+    reverse_bfs_winning_states(db, game, &mut winning_queue)?;
+    reverse_bfs_losing_states(db, game, &mut losing_queue)?;
 
     Ok(())
 }
 
-
-fn bfs<G, D>(game: &G, db: &mut D)
+/// Performs BFS on winning states, marking visited states as a win
+fn reverse_bfs_winning_states<const B: usize, G, D>(
+    db: &mut D,
+    game: &G,
+    winning_queue: &mut VecDeque<State<B>>,
+) -> Result<()>
 where
-    G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
+    G: Transition<B> + Bounded<B>,
+    D: KVStore,
 {
-    let end_states = discover_end_states_helper(db, game);
+    while let Some(state) = winning_queue.pop_front() {
+        let buf = RecordBuffer::from(db.get(&state).unwrap())?;
+        let child_remoteness = buf.get_remoteness();
 
-    for state in end_states {
-        let mut buf = RecordBuffer::new()
-            .context("Failed to create placeholder record.")?;
-        buf.set_remoteness(0)
-            .context("Failed to set remoteness for end state.")?;
-        db.put(state, &buf);
-
-        bfs_state(db, game, state); 
-    }
-}
-
-fn bfs_state<G, D>(db: &mut D, game: &G)
-where
-    G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
-{
-
-}
-
-fn discover_end_states<G, D>(db: &mut D, game: &G) -> Vec<State> 
-where
-    G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
-{
-    let visited = HashSet::new();
-    let end_states = Vec::new();
-
-    discover_end_states(db, game, game.start(), visited, end_states);
-
-    end_states
-}
-
-fn discover_end_states_helper<G, D>(db: &mut D, game: &G, state: State, visited: HashSet<State>, end_states: Vec<State>)
-where
-    G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
-{
-    visited.insert(state);
-
-    if game.end(state) {
-        end_states.insert(state);
-    }
-
-    for child in game.prograde(state) {
-        if !visted.contains(child) {
-            discover_end_states(db, game, child, visited, end_states);
+        for parent in game.retrograde(state) {
+            let child_count =
+                RecordBuffer::from(db.get(&parent).unwrap())?.get_child_count();
+            if child_count > 0 {
+                winning_queue.push_back(parent);
+                update_db_record(
+                    db,
+                    parent,
+                    SUtility::Win,
+                    1 + child_remoteness,
+                    0,
+                )?;
+            }
         }
     }
-}
-/* DATABASE INITIALIZATION */
 
-/// Initializes a volatile database, creating a table schema according to the
-/// solver record layout, initializing a table with that schema, and switching
-/// to that table before returning the database handle.
-fn volatile_database<const N: usize, G>(game: &G) -> Result<volatile::Database>
+    Ok(())
+}
+
+/// Performs BFS on losing states, marking visited states as a loss. Remoteness
+/// is the shortest path to a primitive losing position.
+fn reverse_bfs_losing_states<const B: usize, G, D>(
+    db: &mut D,
+    game: &G,
+    losing_queue: &mut VecDeque<State<B>>,
+) -> Result<()>
 where
-    G: Playable<N>,
+    G: Transition<B> + Bounded<B>,
+    D: KVStore,
 {
-    let id = game.id();
-    let db = volatile::Database::initialize();
+    while let Some(state) = losing_queue.pop_front() {
+        let parents = game.retrograde(state);
+        let child_remoteness =
+            RecordBuffer::from(db.get(&state).unwrap())?.get_remoteness();
 
-    let schema = RecordType::REMOTE(N)
-        .try_into()
-        .context("Failed to create table schema for solver records.")?;
-    db.create_table(&id, schema)
-        .context("Failed to create database table for solution set.")?;
-    db.select_table(&id)
-        .context("Failed to select solution set database table.")?;
+        for parent in parents {
+            let child_count =
+                RecordBuffer::from(db.get(&parent).unwrap())?.get_child_count();
+            if child_count > 0 {
+                // Update child count
+                let mut buf = RecordBuffer::from(db.get(&parent).unwrap())
+                    .context("Failed to get record for middle state")?;
+                let new_child_count = buf.get_child_count() - 1;
+                buf.set_child_count(new_child_count)?;
+                db.put(&parent, &buf);
 
-    Ok(db)
+                // If all children have been solved, set this state as a losing
+                // state
+                if new_child_count == 0 {
+                    losing_queue.push_back(parent);
+                    update_db_record(
+                        db,
+                        parent,
+                        SUtility::Lose,
+                        1 + child_remoteness,
+                        0,
+                    )?;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
+/// Updates the database record for a puzzle with given simple utility,
+/// remoteness, and child count
+fn update_db_record<const B: usize, D>(
+    db: &mut D,
+    state: State<B>,
+    utility: SUtility,
+    remoteness: Remoteness,
+    child_count: ChildCount,
+) -> Result<()>
+where
+    D: KVStore,
+{
+    let mut buf = RecordBuffer::from(db.get(&state).unwrap())
+        .context("Failed to create record for middle state")?;
+    buf.set_utility([utility])
+        .context("Failed to set utility for state.")?;
+    buf.set_remoteness(remoteness)
+        .context("Failed to set remoteness for state.")?;
+    buf.set_child_count(child_count)
+        .context("Failed to set child count for state.")?;
+    db.put(&state, &buf);
+
+    Ok(())
+}
+
+fn discover_child_counts<const B: usize, G, D>(
+    db: &mut D,
+    game: &G,
+) -> Result<Vec<State<B>>>
+where
+    G: Transition<B> + Bounded<B>,
+    D: KVStore,
+{
+    let mut end_states = Vec::new();
+    discover_child_counts_from_state(db, game, game.start(), &mut end_states)?;
+
+    Ok(end_states)
+}
+
+fn discover_child_counts_from_state<const B: usize, G, D>(
+    db: &mut D,
+    game: &G,
+    state: State<B>,
+    end_states: &mut Vec<State<B>>,
+) -> Result<()>
+where
+    G: Transition<B> + Bounded<B>,
+    D: KVStore,
+{
+    let child_count = game.prograde(state).len() as ChildCount;
+
+    if child_count == 0 {
+        end_states.push(state);
+    }
+
+    let mut buf =
+        RecordBuffer::new(1).context("Failed to create record for state")?;
+    buf.set_utility([SUtility::Draw])
+        .context("Failed to set remoteness for state")?;
+    buf.set_child_count(child_count)
+        .context("Failed to set child count for state.")?;
+    db.put(&state, &buf);
+
+    for &child in game
+        .prograde(state)
+        .iter()
+        .chain(game.retrograde(state).iter())
+    {
+        if db.get(&child).is_none() {
+            discover_child_counts_from_state(db, game, child, end_states)?;
+        }
+    }
+
+    Ok(())
+}
 
 #[cfg(test)]
-mod test {
-    #[test]
-    fn test() {
-        assert!(false);
-    }
+mod tests {
+
+    use super::*;
+
+    // TODO
 }

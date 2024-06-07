@@ -28,7 +28,16 @@ impl Display for RecordType {
                     "Simple Utility Remoteness ({players}  players)",
                 )
             },
-            RecordType::REM => write!(f, "Remoteness (no utility)"),
+            RecordType::SURCC(players) => {
+                write!(
+                    f,
+                    "Simple Utility Remoteness with Child Count ({}  players)",
+                    players
+                )
+            },
+            RecordType::REM => {
+                write!(f, "Remoteness Only")
+            },
         }
     }
 }
@@ -38,6 +47,7 @@ impl TryInto<Schema> for RecordType {
 
     fn try_into(self) -> Result<Schema, Self::Error> {
         match self {
+            RecordType::SURCC(players) => record::surcc::schema(players),
             RecordType::MUR(players) => record::mur::schema(players),
             RecordType::SUR(players) => record::sur::schema(players),
             RecordType::REM => record::rem::schema(),
