@@ -3,9 +3,6 @@
 //!
 //! This module contains memory and I/O mechanisms used to store and fetch
 //! analysis data, hopefully in an efficient and scalable way.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
 

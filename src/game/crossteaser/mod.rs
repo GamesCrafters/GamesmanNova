@@ -13,10 +13,6 @@
 //! matching orientation.
 //!
 //! [1]: https://www.jaapsch.net/puzzles/crosstsr.htm
-//!
-//! #### Authorship
-//! - Max Fierro, 11/5/2023 (maxfierro@berkeley.edu)
-//! - Cindy Xu, 11/28/2023
 
 use anyhow::{Context, Result};
 

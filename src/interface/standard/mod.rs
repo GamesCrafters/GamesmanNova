@@ -2,9 +2,6 @@
 //!
 //! This module defines the behavior of the project's standard (STDIN/STDOUT)
 //! interfaces. The CLI module is the primary entry point for the program.
-//!
-//! #### Authorship
-//! - Max Fierro, 7/5/2024
 
 use anyhow::{anyhow, Context, Result};
 

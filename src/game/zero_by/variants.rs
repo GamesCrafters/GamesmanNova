@@ -2,9 +2,6 @@
 //!
 //! This module helps parse the variant string provided to the Zero-By game
 //! into parameters that can help build a game session.
-//!
-//! #### Authorship
-//! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use bitvec::field::BitField;
 use regex::Regex;

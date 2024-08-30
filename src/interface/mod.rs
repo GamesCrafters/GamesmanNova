@@ -2,9 +2,6 @@
 //!
 //! This module provides all the available behavior used to interact with the
 //! project in different ways, such as the command line.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use clap::ValueEnum;
 

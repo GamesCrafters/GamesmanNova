@@ -2,9 +2,6 @@
 //!
 //! This module provides some common utilities used in the implementation of
 //! more than a single game.
-//!
-//! #### Authorship
-//! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use std::fmt::Display;
 

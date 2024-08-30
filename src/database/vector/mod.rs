@@ -11,9 +11,6 @@
 //! of the in-memory vector. Table logic is handled by switching which of these
 //! files is currently being targeted, with the understanding that the contents
 //! of memory may be materialized on arbitrary operations.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
 
 use anyhow::Result;
 

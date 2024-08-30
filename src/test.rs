@@ -3,9 +3,6 @@
 //! This module provides utility functions which tests or other utilities depend
 //! on throughout the project, and defines the structure of the development
 //! resources that are generated through tests.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/09/2024 (maxfierro@berkeley.edu)
 
 use anyhow::{anyhow, bail, Context, Result};
 use strum_macros::Display;

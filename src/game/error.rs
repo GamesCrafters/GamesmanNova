@@ -2,9 +2,6 @@
 //!
 //! This module defines possible errors that could happen as a result of user
 //! input or an incomplete game implementation.
-//!
-//! #### Authorship
-//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};
 

@@ -75,10 +75,6 @@
 //!    to implement anything that requires non-trivial logic, you should make
 //!    sure to test it. This includes any kind of verification of encodings.
 //!    Taking a look at existing unit tests will help significantly.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
-//! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
 use anyhow::{Context, Result};
 

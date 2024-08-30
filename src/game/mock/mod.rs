@@ -4,9 +4,6 @@
 //! the game via a graph and assigning special conditions to nodes. This makes
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
-//!
-//! #### Authorship
-//! - Max Fierro 3/31/2024 (maxfierro@berkeley.edu)
 
 use bitvec::field::BitField;
 use petgraph::csr::DefaultIx;

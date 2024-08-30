@@ -3,10 +3,6 @@
 //! Implementation of a database record buffer for storing simple utilities
 //! information of different amounts of players and the remoteness value
 //! associated with a particular game state.
-//!
-//! #### Authorship
-//!
-//! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
 use anyhow::{bail, Context, Result};
 use bitvec::field::BitField;

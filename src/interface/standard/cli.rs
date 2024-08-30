@@ -4,9 +4,6 @@
 //! and ergonomic use of GamesmanNova. This uses the
 //! [clap](https://docs.rs/clap/latest/clap/) crate to provide standard
 //! behavior, which is outlined in [this](https://clig.dev/) great guide.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use clap::{Args, Parser, Subcommand};
 

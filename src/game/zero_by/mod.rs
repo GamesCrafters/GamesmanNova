@@ -8,9 +8,6 @@
 //! This module encapsulates the commonalities for all Zero-By games, allowing
 //! users to specify which abstract instance of the Zero-By game they wish to
 //! emulate.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
 use anyhow::bail;
 use anyhow::{Context, Result};

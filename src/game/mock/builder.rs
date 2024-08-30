@@ -3,9 +3,6 @@
 //! This module provides an implementation of a declarative builder pattern for
 //! an extensive-form game `Session`, which allows the construction of a graph
 //! of nodes representing game states.
-//!
-//! #### Authorship
-//! - Max Fierro, 3/31/2024 (maxfierro@gmail.com)
 
 use anyhow::bail;
 use anyhow::Result;

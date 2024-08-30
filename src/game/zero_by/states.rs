@@ -3,9 +3,6 @@
 //! This module helps parse the a string encoding of a zero-by game state into
 //! a more efficient binary representation, performing a series of checks which
 //! partially ensure compatibility with a game variant.
-//!
-//! #### Authorship
-//! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
 use regex::Regex;
 

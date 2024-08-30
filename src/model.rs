@@ -3,17 +3,10 @@
 //!
 //! This module contains centralized definitions for custom data types used
 //! throughout the project.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
-//! - Ishir Garg, 4/1/2024 (ishirgarg@berkeley.edu)
 
 /// # Game Data Models Module
 ///
 /// Provides definitions for types used in game interfaces.
-///
-/// #### Authorship
-/// - Max Fierro, 4/30/2024 (maxfierro@berkeley.edu)
 pub mod game {
 
     use bitvec::{array::BitArray, order::Msb0};
@@ -51,9 +44,6 @@ pub mod game {
 /// # Solver Data Models Module
 ///
 /// Provides definitions for types used in solver implementations.
-///
-/// #### Authorship
-/// - Max Fierro, 5/5/2024 (maxfierro@berkeley.edu)
 pub mod solver {
     /// Indicates the "depth of draw" which a drawing position corresponds to.
     /// For more information, see [this whitepaper](TODO). This value should be
@@ -96,9 +86,6 @@ pub mod solver {
 /// # Database Data Models Module
 ///
 /// Provides definitions for types used in database interfaces.
-///
-/// #### Authorship
-/// - Max Fierro, 4/30/2024 (maxfierro@berkeley.edu)
 pub mod database {
 
     use bitvec::order::Msb0;

@@ -1,10 +1,6 @@
 //! # Remoteness (SUR) Record Module
 //!
 //! TODO
-//!
-//! #### Authorship
-//!
-//! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
 
 use anyhow::{bail, Context, Result};
 use bitvec::field::BitField;

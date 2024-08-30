@@ -5,10 +5,6 @@
 //! probabilistic behavior, with the objective of computing their strong or weak
 //! solutions, or finding "solutions" under different game-theoretic definitions
 //! of that word.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
-//! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
 
 use crate::model::{
     game::{

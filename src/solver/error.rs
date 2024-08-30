@@ -4,9 +4,6 @@
 //! of a solving algorithm. Note that while this module is the main client of
 //! database implementations, this is exclusive of database-related errors,
 //! which can be found in `crate::database::error`.
-//!
-//! #### Authorship
-//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};
 

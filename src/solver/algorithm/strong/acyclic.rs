@@ -1,9 +1,6 @@
 //! # Strong Acyclic Solving Module
 //!
 //! This module implements strong acyclic solving routines.
-//!
-//! #### Authorship
-//! - Max Fierro, 12/3/2023 (maxfierro@berkeley.edu)
 
 use anyhow::{Context, Result};
 

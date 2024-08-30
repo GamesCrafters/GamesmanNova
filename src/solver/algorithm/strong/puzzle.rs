@@ -1,9 +1,6 @@
 //! # Strong Puzzle Solving Module
 //!
 //! This module implements routines for strongly solving puzzles.
-//!
-//! ### Authorship
-//! - Ishir Garg (ishirgarg@berkeley.edu)
 
 use anyhow::{Context, Result};
 
@@ -22,12 +19,10 @@ where
     let mut db = volatile_database(game)
         .context("Failed to initialize volatile database.")?;
 
-    bfs(&mut db, game)
-        .context("Failed solving algorithm execution.")?;
+    bfs(&mut db, game).context("Failed solving algorithm execution.")?;
 
     Ok(())
 }
-
 
 fn bfs<G, D>(game: &G, db: &mut D)
 where
@@ -43,7 +38,7 @@ where
             .context("Failed to set remoteness for end state.")?;
         db.put(state, &buf);
 
-        bfs_state(db, game, state); 
+        bfs_state(db, game, state);
     }
 }
 
@@ -52,10 +47,9 @@ where
     G: DTransition<State> + Bounded<State> + SimpleSum<N>,
     D: KVStore<RecordBuffer>,
 {
-
 }
 
-fn discover_end_states<G, D>(db: &mut D, game: &G) -> Vec<State> 
+fn discover_end_states<G, D>(db: &mut D, game: &G) -> Vec<State>
 where
     G: DTransition<State> + Bounded<State> + SimpleSum<N>,
     D: KVStore<RecordBuffer>,
@@ -68,8 +62,13 @@ where
     end_states
 }
 
-fn discover_end_states_helper<G, D>(db: &mut D, game: &G, state: State, visited: HashSet<State>, end_states: Vec<State>)
-where
+fn discover_end_states_helper<G, D>(
+    db: &mut D,
+    game: &G,
+    state: State,
+    visited: HashSet<State>,
+    end_states: Vec<State>,
+) where
     G: DTransition<State> + Bounded<State> + SimpleSum<N>,
     D: KVStore<RecordBuffer>,
 {
@@ -107,7 +106,6 @@ where
 
     Ok(db)
 }
-
 
 #[cfg(test)]
 mod test {
