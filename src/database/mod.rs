@@ -24,6 +24,7 @@ mod util;
 pub mod volatile;
 pub mod vector;
 pub mod lsmt;
+pub mod bplus;
 
 /* DATABASE PARAMETERS */
 
