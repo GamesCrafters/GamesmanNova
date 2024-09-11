@@ -11,13 +11,11 @@ use bitvec::prelude::{BitSlice, Msb0};
 use std::path::Path;
 
 use crate::{
+    database::{KVStore, Persistence, Persistent, Record, Schema, Tabular},
     model::State,
-    database::{Persistence, KVStore, Persistent, Tabular, Record, Schema},
 };
 
 /* CONSTANTS */
-
-
 
 /* DATABASE DEFINITION */
 
@@ -76,7 +74,6 @@ impl Tabular for Database<'_> {
 }
 
 /* UNIT TESTING */
-
 
 #[cfg(test)]
 mod tests {
