@@ -11,7 +11,7 @@ use bitvec::prelude::{BitSlice, Msb0};
 use std::path::Path;
 
 use crate::{
-    database::{Persistence, KVStore, Persistent, Tabular, Record, Schema},
+    database::{KVStore, Persistence, Persistent, Record, Schema, Tabular},
     model::State,
 };
 
