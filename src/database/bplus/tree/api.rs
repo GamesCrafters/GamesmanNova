@@ -1,4 +1,4 @@
- //! # Bplus Tree API [WIP]
+//! # Bplus Tree API [WIP]
 //!
 //! This module provides a bplus tree API to build trees
 //! and perform insert, delete, and lookup operations.
@@ -33,7 +33,7 @@ impl BTree<'_> {
         todo!()
     }
 
-    fn search(&mut self, state: &State) -> Result<Record, Error> {
+    fn lookup(&mut self, state: &State) -> Result<Record, Error> {
         todo!()
     }
 
