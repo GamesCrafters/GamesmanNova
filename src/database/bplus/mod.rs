@@ -11,25 +11,23 @@ use bitvec::prelude::{BitSlice, Msb0};
 use std::path::Path;
 
 use crate::{
-    model::State,
     database::{Persistence, KVStore, Persistent, Tabular, Record, Schema},
+    model::State,
 };
 
 /* CONSTANTS */
 
-
-
-/* DATABASE DEFINITION */
+/* DEFINITIONS */
 
 pub struct Database<'a> {
-    data: &'a str,
+    todo: &'a str,
 }
 
 pub struct Parameters<'a> {
     persistence: Persistence<'a>,
 }
 
-/* IMPLEMENTATION */
+/* IMPLEMENTATIONS */
 
 impl Database<'_> {
     pub fn initialize(params: Parameters) -> Result<Self> {
@@ -76,7 +74,6 @@ impl Tabular for Database<'_> {
 }
 
 /* UNIT TESTING */
-
 
 #[cfg(test)]
 mod tests {
