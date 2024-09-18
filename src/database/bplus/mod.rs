@@ -21,8 +21,7 @@ use crate::{
 
 /* DEFINITIONS */
 
-pub struct Database<> {
-}
+pub struct Database {}
 
 pub struct Parameters<'a> {
     persistence: Persistence<'a>,
@@ -30,13 +29,13 @@ pub struct Parameters<'a> {
 
 /* IMPLEMENTATIONS */
 
-impl Database<> {
+impl Database {
     pub fn initialize(params: Parameters) -> Result<Self> {
         todo!()
     }
 }
 
-impl<R: Record> KVStore<R> for Database<> {
+impl<R: Record> KVStore<R> for Database {
     fn put(&mut self, key: State, value: &R) {
         todo!()
     }
@@ -50,7 +49,7 @@ impl<R: Record> KVStore<R> for Database<> {
     }
 }
 
-impl Persistent for Database<> {
+impl Persistent for Database {
     fn bind_path(&self, path: &Path) -> Result<()> {
         todo!()
     }
@@ -60,7 +59,7 @@ impl Persistent for Database<> {
     }
 }
 
-impl Tabular for Database<> {
+impl Tabular for Database {
     fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
         todo!()
     }

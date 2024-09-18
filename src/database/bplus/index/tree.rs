@@ -5,22 +5,19 @@
 
 /* IMPORTS */
 
-use anyhow::Result;
 use crate::{
     database::{bplus::index::error::Error, Record},
     model::State,
 };
+use anyhow::Result;
 
 /* DEFINITIONS */
 
-struct BTreeRecord {
-}
+struct BTreeRecord {}
 
-pub struct BTree<> {
-}
+pub struct BTree {}
 
-pub struct BTreeBuilder {
-}
+pub struct BTreeBuilder {}
 
 /* IMPLEMENTATIONS */
 
@@ -30,7 +27,7 @@ impl Record for BTreeRecord {
     }
 }
 
-impl BTree<> {
+impl BTree {
     fn insert(&mut self, record: BTreeRecord) -> Result<(), Error> {
         todo!()
     }
@@ -49,8 +46,7 @@ impl BTree<> {
     }
 }
 
-
-impl BTreeBuilder<> {
+impl BTreeBuilder {
     pub fn initialize() -> Result<Self> {
         todo!()
     }
