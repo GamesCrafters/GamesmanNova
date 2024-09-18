@@ -3,6 +3,10 @@
 //! This module provides a database implementation backed by a
 //! persistent bplus tree.
 
+/* UTILITY MODULES */
+
+mod index;
+
 /* IMPORTS */
 
 use anyhow::Result;
@@ -15,12 +19,9 @@ use crate::{
     model::State,
 };
 
-/* CONSTANTS */
-
 /* DEFINITIONS */
 
-pub struct Database<'a> {
-    todo: &'a str,
+pub struct Database<> {
 }
 
 pub struct Parameters<'a> {
@@ -29,13 +30,13 @@ pub struct Parameters<'a> {
 
 /* IMPLEMENTATIONS */
 
-impl Database<'_> {
+impl Database<> {
     pub fn initialize(params: Parameters) -> Result<Self> {
         todo!()
     }
 }
 
-impl<R: Record> KVStore<R> for Database<'_> {
+impl<R: Record> KVStore<R> for Database<> {
     fn put(&mut self, key: State, value: &R) {
         todo!()
     }
@@ -49,7 +50,7 @@ impl<R: Record> KVStore<R> for Database<'_> {
     }
 }
 
-impl Persistent for Database<'_> {
+impl Persistent for Database<> {
     fn bind_path(&self, path: &Path) -> Result<()> {
         todo!()
     }
@@ -59,7 +60,7 @@ impl Persistent for Database<'_> {
     }
 }
 
-impl Tabular for Database<'_> {
+impl Tabular for Database<> {
     fn create_table(&self, id: &str, schema: Schema) -> Result<()> {
         todo!()
     }
