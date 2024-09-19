@@ -267,7 +267,82 @@ pub mod simple_utility {
             pub fn new(
                 store: &'a mut Vec<Node>,
             ) -> Result<CyclicExampleGame<'a>> {
-                todo!()
+                let mut nodes = vec![
+                    node!(0),
+                    node!(1),
+                    node!(0),
+                    node!(1),
+                    node!(0),
+                    node!(1),
+                    node!(0),
+                    node!(1),
+                    node!(0),
+                    node!(1),
+                    node!(0),
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::TIE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                    node![
+                        SimpleUtility::LOSE.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::WIN.into(),
+                        SimpleUtility::LOSE.into(),
+                    ],
+                    node![
+                        SimpleUtility::TIE.into(),
+                        SimpleUtility::WIN.into(),
+                    ],
+                ];
+
+                let length = store.len();
+                store.append(&mut nodes);
+                let store = &store[length..];
+
+                let game = builder::SessionBuilder::new(&CYCLIC_GAME_NAME)
+                    .edge(&store[0], &store[1])?
+                    .edge(&store[0], &store[3])?
+                    .edge(&store[0], &store[5])?
+                    .edge(&store[1], &store[8])?
+                    .edge(&store[1], &store[10])?
+                    .edge(&store[2], &store[1])?
+                    .edge(&store[2], &store[3])?
+                    .edge(&store[2], &store[5])?
+                    .edge(&store[3], &store[2])?
+                    .edge(&store[3], &store[4])?
+                    .edge(&store[4], &store[5])?
+                    .edge(&store[4], &store[7])?
+                    .edge(&store[5], &store[6])?
+                    .edge(&store[5], &store[8])?
+                    .edge(&store[6], &store[7])?
+                    .edge(&store[6], &store[9])?
+                    .edge(&store[6], &store[16])?
+                    .edge(&store[7], &store[11])?
+                    .edge(&store[7], &store[12])?
+                    .edge(&store[7], &store[4])?
+                    .edge(&store[8], &store[9])?
+                    .edge(&store[8], &store[14])?
+                    .edge(&store[9], &store[13])?
+                    .edge(&store[10], &store[15])?
+                    .edge(&store[10], &store[13])?
+                    .start(&store[0])?
+                    .build()?;
+
+                Ok(CyclicExampleGame { game })
             }
 
             /// Creates a PNG image of the game being represented.
