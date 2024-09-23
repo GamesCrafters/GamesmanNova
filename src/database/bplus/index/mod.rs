@@ -9,6 +9,8 @@ mod error;
 
 /* IMPLEMENTATION MODULES */
 
+mod page;
+mod page_manager;
 mod tree;
 
 /* IMPORTS */
