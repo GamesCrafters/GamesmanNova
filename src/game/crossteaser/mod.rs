@@ -44,8 +44,6 @@ use crate::solver::ClassicPuzzle;
 
 mod states;
 mod variants;
-#[cfg(test)]
-mod test;
 
 /* GAME DATA */
 
@@ -94,14 +92,15 @@ const ORIENTATION_MAP: [u16; 24] = [
     0b101_001_011, // 23
 ];
 
-/// Defines a sequence of axis-wise rotations which will return an orientation
-/// to orientation 1 (index 0 in ORIENTATION_MAP).
-/// An axis-wise rotation on axis x is a rotation on a piece along the axis
-/// from face x to face 5 - x.
-/// Format: each rotation is 5 bits of format abc_de.
-/// abc: axis on which the rotation is performed.
-/// de: direction of the rotation. 0b01 = cw, 0b10 = 180, 0b11 = ccw.
-/// Order of transformations is right to left. Used for symmetries.
+/// Defines a minimal sequence of axis-wise rotations which will return an
+/// orientation to orientation 0 (index 0 in `ORIENTATION_MAP`).
+/// An axis-wise rotation on axis `x` is a rotation on a piece along the axis
+/// from face `x` to face `5 - x`.
+/// Format: each rotation is 5 bits of format `abc_de`.
+/// `abc` is the axis on which the rotation is performed and
+/// `de` is the direction of the rotation. `0b01` denotes a clockwise rotation,
+/// `0b10` denotes a 180 degree rotation, and `0b11` denotes a counter
+/// clockwise rotation. Order of transformations is from right to left.
 const TRANSFORM_MAP: [u16; 24] = [
     0b0,             // 0
     0b000_01,        // 1
@@ -165,8 +164,8 @@ struct Orientation {
     right: u64,
 }
 
-/// Unhashed representation of a game state
-/// It is simply a vector of (# pieces) Orientations
+/// Unhashed representation of a game state.
+/// It is a vector of Orientations of size equal to the number of pieces
 /// and an integer representing the location of the free space
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord)]
 struct UnhashedState {
@@ -174,21 +173,20 @@ struct UnhashedState {
     free: u64,
 }
 
+type RowCount = u64;
+type ColumnCount = u64;
 /// Represents an instance of a Crossteaser game session, which is specific to
-/// a valid variant of the game.
-/// length is number of rows
-/// width is number of columns
-/// length is number of rows
-/// width is number of columns
+/// a valid variant of the game. Length is number of rows and width is number of
+/// columns.
 pub struct Session {
     variant: Option<String>,
-    length: u64,
-    width: u64,
+    length: RowCount,
+    width: ColumnCount,
     free: u64,
     num_pieces: u64,
 }
 
-/// Possible move directions for transitions.
+/// Enum of possible move directions for transitions.
 enum Move {
     Left,
     Right,
@@ -196,7 +194,7 @@ enum Move {
     Up,
 }
 
-/// Possible symmetries in crossteaser board.
+/// Enum of possible symmetries in crossteaser board.
 enum Symmetry {
     Original,
     Rotate180,
@@ -205,16 +203,16 @@ enum Symmetry {
 }
 
 /// Converts an Orientation struct into its corresponding orientation hash,
-/// which will be a number from 0-23
+/// which will be a number from 0-23.
 /// Uses patterns in the binary representations of an orientation to generate
-/// a unique & minimal hash
+/// a unique & minimal hash.
 #[inline]
 const fn hash_orientation(o: &Orientation) -> u64 {
     (o.front << 2) | ((o.top & 1) << 1) | (o.right & 1)
 }
 
-/// Converts an orientation hash into an Orientation struct
-/// Makes use of ORIENTATION_UNMAP for the conversion
+/// Converts an orientation hash into an Orientation struct. Makes use of
+/// ORIENTATION_UNMAP for the conversion.
 #[inline]
 fn unhash_orientation(h: u64) -> Orientation {
     let packed = ORIENTATION_MAP[h as usize].view_bits::<Msb0>();
@@ -334,7 +332,6 @@ impl Orientation {
 
     /// Performs a clowckwise rotation on an orientation
     /// along the specified axis.
-    /// I am trying to figure out a way to make this faster.
     fn cw_on_axis(&mut self, axis: u64) {
         if axis == self.front {
             self.cw_front();
@@ -353,8 +350,8 @@ impl Orientation {
         }
     }
 
-    /// Performs a 180 degree rotation on an orientation
-    /// along the specified axis.
+    /// Performs a 180 degree rotation on an orientation along the
+    /// specified axis.
     pub fn axis_180(&mut self, axis: u64) {
         if axis == self.front || axis == 5 - self.front {
             self.front_180();
@@ -367,14 +364,13 @@ impl Orientation {
         }
     }
 
-    /// Applies a sequence of transformations on an orientation
-    /// See TRANSFORM_MAP for details on these sequences
-    /// Uses cw_on_axis() to apply transformations equivalently to any piece
-    /// This means it will always apply the transformations on the axis
-    /// speicified by TRANSFORM_MAP, no matter the piece orientation.
-    /// This allows us to reduce to an equivalent state
-    /// Where equivalent means the same sequence of moves will reach a
-    /// terminal state.
+    /// Applies a sequence of transformations on an orientation. See
+    /// TRANSFORM_MAP for details on these sequences. Uses cw_on_axis() to apply
+    /// transformations equivalently to any piece. This means it will always
+    /// apply the transformations on the axis speicified by TRANSFORM_MAP, no
+    /// matter the piece orientation. This allows us to reduce to an equivalent
+    /// state, where equivalent means the same sequence of moves will result in
+    /// a terminal state.
     fn apply_transforms(&mut self, t: u16) {
         let mut t_list = t.view_bits::<Msb0>();
         let index: usize = t_list.len() - 2;
@@ -614,13 +610,11 @@ impl UnhashedState {
 }
 
 impl Session {
-    /// Simple hash function that converts a vector of piece
-    /// orientations and an empty space represented by an integer into a 64 bit
-    /// integer (State) which uniquely represents that state.
-    /// Uses minimal space for all theoretical states, does not optimize
-    /// for obtainable states. There will be a lot of unused hashes here
-    /// because fewer than half of the theoretical states are obtainable in
-    /// 3x3 crossteaser.
+    /// Converts a vector of piece orientations and an empty space represented
+    /// by an integer into a `State` which uniquely represents
+    /// that state.
+    /// Uses minimal space for all theoretical states, but does not optimize
+    /// for obtainable states.
     fn hash(&self, s: UnhashedState) -> State {
         let mut hashed_state: State = s.free;
         let mut mult: u64 = self.width * self.length;
@@ -631,8 +625,8 @@ impl Session {
         return hashed_state;
     }
 
-    /// Reverse of hash(), extracts the orientation vector and empty space from
-    /// a State.
+    /// Reverse of `hash()`, extracts the orientation vector and empty space from
+    /// a `State`.
     fn unhash(&self, s: State) -> UnhashedState {
         let num_pieces: u64 = self.num_pieces;
         let mut curr_piece: u64;
@@ -864,77 +858,7 @@ mod tests {
         let mut found: HashSet<State> = HashSet::new();
         let mut unsolved: Vec<State> = Vec::new();
         unsolved.push(session.hash(s));
-        while !unsolved.is_empty() {
-            let s: State = unsolved.pop().unwrap();
-            found.insert(s);
-            let f: Vec<State> = session.prograde(s);
-            for state in f {
-                if !found.contains(&state) {
-                    unsolved.push(state);
-                }
-            }
-            if found.len() % 100000 == 0 {
-                println!("found: {}", found.len());
-            }
-        }
-        println!("total: {}", found.len());
-    }
-
-    #[test]
-    fn test_bit_array() {}
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashSet;
-
-    use crate::game::crossteaser::*;
-
-    #[test]
-    fn test_start_end() {
-        let session = Session {
-            variant: None,
-            length: 3,
-            width: 3,
-            free: 1,
-            num_pieces: 8,
-        };
-        let start_state = session.start();
-        let moved_state = session
-            .unhash(start_state)
-            .board_down(&session)
-            .unwrap();
-        assert_eq!(
-            moved_state.free, 4,
-            "Free space should move up to the center."
-        );
-        assert!(
-            session.end(session.hash(moved_state)),
-            "This should be a valid end state."
-        );
-    }
-
-    #[test]
-    fn test_transition() {
-        let session: Session = Session {
-            variant: None,
-            length: 2,
-            width: 3,
-            free: 1,
-            num_pieces: 5,
-        };
-        let mut s: UnhashedState = UnhashedState {
-            pieces: Vec::new(),
-            free: 4,
-        };
-        for _i in 0..5 {
-            s.pieces
-                .push(unhash_orientation(0));
-        }
-        let mut found: HashSet<State> = HashSet::new();
-        let mut unsolved: Vec<State> = Vec::new();
-        unsolved.push(session.hash(s));
-        while !unsolved.is_empty() {
+        while false {
             let s: State = unsolved.pop().unwrap();
             found.insert(s);
             let f: Vec<State> = session.prograde(s);

@@ -20,6 +20,11 @@ pub const STATE_PROTOCOL: &'static str = "Rows are separated by |, columns \
 are separated by -, empty space is X. Integers 0-23 are a piece orientation \
 as defined by ORIENTATION_MAP";
 
+/// Takes in a String which defines a state as described in STATE_PROTOCOL and
+/// a Session, which contains the information about the variant of the game.
+/// Performs several checks to validate the state and ensure that it can
+/// successfully be encoded into a `State`. If the checks pass, the `State` is
+/// returned, otherwise a `GameError` is returned.
 pub fn parse_state(
     state: String,
     session: &Session,
@@ -123,7 +128,7 @@ fn parse_pieces(state: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::game::crossteaser::*;
 
     #[test]
@@ -133,10 +138,7 @@ mod test {
             length: 3,
             width: 3,
             free: 1,
-<<<<<<< HEAD
             num_pieces: 8,
-=======
->>>>>>> c465f037f9f6eb7326f363118f2d3431801068a7
         };
         let state: String = "|0-0-0|0-X-0|0-0-0|".to_owned();
         match parse_state(state, &session) {
