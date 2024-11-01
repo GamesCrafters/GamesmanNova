@@ -9,7 +9,10 @@
 use anyhow::Result;
 use bitvec::prelude::{BitSlice, Msb0};
 
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::{RwLockReadGuard, RwLockWriteGuard},
+};
 
 use crate::{model::State, solver::RecordType};
 
@@ -105,10 +108,15 @@ pub trait Persistent {
 /// a database should be optimized for inter-table operations. In fact, this
 /// interface's semantics are such that its implementations optimize performance
 /// for cases of sequential operations on a single table.
-pub trait Tabular {
+pub trait Tabular<T> {
     fn create_table(&self, id: &str, schema: Schema) -> Result<()>;
-    fn select_table(&self, id: &str) -> Result<()>;
-    fn delete_table(&self, id: &str) -> Result<()>;
+    fn delete_table(&mut self, id: &str) -> Result<()>;
+
+    fn get_table(&mut self, id: &str) -> Result<Option<RwLockReadGuard<T>>>;
+    fn get_table_mut(
+        &mut self,
+        id: &str,
+    ) -> Result<Option<RwLockWriteGuard<T>>>;
 }
 
 /// Allows a database implementation to read raw data from a record buffer.

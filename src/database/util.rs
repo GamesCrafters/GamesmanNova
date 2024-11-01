@@ -8,7 +8,10 @@
 //! #### Authorship
 //! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
+use anyhow::anyhow;
 use anyhow::Result;
+
+use std::sync::Mutex;
 
 use crate::database::error::DatabaseError;
 use crate::database::Attribute;
@@ -33,7 +36,13 @@ pub struct SchemaIterator<'a> {
     index: usize,
 }
 
-/* BUILDER IMPLEMENTATION */
+/// Thread-safe generator for sequential database keys.
+#[derive(Default)]
+pub struct KeySequencer {
+    sequence_key: Mutex<u64>,
+}
+
+/* SCHEMA BUILDER IMPLEMENTATION */
 
 impl SchemaBuilder {
     /// Returns a new instance of a `SchemaBuilder`, which can be used to
@@ -119,6 +128,33 @@ impl SchemaBuilder {
             })
         } else {
             Ok(())
+        }
+    }
+}
+
+/* KEY SEQUENCER IMPLEMENTATION */
+
+impl KeySequencer {
+    /// Returns a new instance of `KeySequencer`, which can be used to generate
+    /// sequential database keys in a thread-safe manner. The first generated
+    /// key will be `initial`.
+    pub fn new(initial: u64) -> Self {
+        Self {
+            sequence_key: Mutex::new(initial),
+        }
+    }
+
+    /// Returns the next sequential database key in a thread-safe manner.
+    pub fn next(&self) -> Result<u64> {
+        let mut key = self
+            .sequence_key
+            .lock()
+            .map_err(|_| anyhow!("Key sequencer lock poisoned."))?;
+
+        {
+            let cur = *key;
+            *key += 1;
+            Ok(cur)
         }
     }
 }

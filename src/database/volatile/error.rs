@@ -1,0 +1,3 @@
+//! # Volatile Database Error
+//!
+//! TODO
