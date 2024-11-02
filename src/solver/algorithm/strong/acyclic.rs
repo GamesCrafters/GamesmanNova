@@ -5,11 +5,11 @@
 use anyhow::{Context, Result};
 
 use crate::database::volatile;
-use crate::database::{KVStore, Tabular};
+use crate::database::KVStore;
+use crate::game::model::PlayerCount;
 use crate::game::{Bounded, Transition};
 use crate::interface::IOMode;
-use crate::model::game::PlayerCount;
-use crate::model::solver::{IUtility, Remoteness};
+use crate::solver::model::{IUtility, Remoteness};
 use crate::solver::record::mur::RecordBuffer;
 use crate::solver::{IntegerUtility, RecordType, Sequential};
 use crate::util::Identify;
@@ -88,7 +88,7 @@ where
             .context("Failed to create placeholder record.")?;
 
         if db.get(&curr).is_none() {
-            db.put(&curr, &buf)?;
+            db.insert(&curr, &buf)?;
 
             if game.end(curr) {
                 buf = RecordBuffer::new(game.players())
@@ -100,7 +100,7 @@ where
                 buf.set_remoteness(0)
                     .context("Failed to set remoteness for end state.")?;
 
-                db.put(&curr, &buf)?;
+                db.insert(&curr, &buf)?;
             } else {
                 stack.push(curr);
                 stack.extend(
@@ -132,7 +132,7 @@ where
                 .set_remoteness(min_rem + 1)
                 .context("Failed to set remoteness for solved record.")?;
 
-            db.put(&curr, &optimal)?;
+            db.insert(&curr, &optimal)?;
         }
     }
     Ok(())

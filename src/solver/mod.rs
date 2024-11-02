@@ -6,13 +6,20 @@
 //! solutions, or finding "solutions" under different game-theoretic definitions
 //! of that word.
 
-use crate::model::{
-    game::{
-        Partition, Player, PlayerCount, State, StateCount,
-        DEFAULT_STATE_BYTES as DBYTES,
-    },
-    solver::{IUtility, RUtility, SUtility},
+use crate::game::model::{
+    Partition, Player, PlayerCount, State, StateCount,
+    DEFAULT_STATE_BYTES as DBYTES,
 };
+use crate::solver::model::{IUtility, RUtility, SUtility};
+
+/* UTILITY MODULES */
+
+#[cfg(test)]
+mod test;
+mod util;
+
+pub mod error;
+pub mod model;
 
 /* MODULES */
 
@@ -55,11 +62,6 @@ pub mod algorithm {
         pub mod cyclic;
     }
 }
-
-#[cfg(test)]
-mod test;
-mod error;
-mod util;
 
 /* SOLVER DATABASE RECORDS */
 

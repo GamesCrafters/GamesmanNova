@@ -78,20 +78,21 @@
 
 use anyhow::{Context, Result};
 
-use crate::model::game::{State, Variant, DEFAULT_STATE_BYTES};
+use crate::game::model::{State, Variant, DEFAULT_STATE_BYTES};
 
 /* UTILITY MODULES */
 
 #[cfg(test)]
-pub mod mock;
-
-#[cfg(test)]
 mod test;
-
-mod error;
 mod util;
 
-/* IMPLEMENTED GAMES */
+pub mod model;
+pub mod error;
+
+/* MODULES */
+
+#[cfg(test)]
+pub mod mock;
 
 pub mod crossteaser;
 pub mod zero_by;

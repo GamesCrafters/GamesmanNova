@@ -14,16 +14,15 @@ use std::process;
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use crate::game::model::GameModule;
 use crate::game::{Forward, Information};
 use crate::interface::standard::cli::*;
-use crate::model::game::GameModule;
 
 /* MODULES */
 
 mod interface;
 mod database;
 mod solver;
-mod model;
 mod game;
 mod util;
 

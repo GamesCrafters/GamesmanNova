@@ -17,8 +17,8 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::{
+    database::model::{Key, SequenceKey, Value},
     database::{self, KVStore, Persistent, Record, Schema, Tabular},
-    model::database::{Identifier, Key, Value},
 };
 
 /* DEFINITIONS */
@@ -53,19 +53,19 @@ impl Drop for Database {
 }
 
 impl Tabular<Table> for Database {
-    fn create_table(
-        &self,
-        id: Identifier,
-        schema: Schema,
-    ) -> Result<&mut Table> {
+    fn insert_table(&self, schema: Schema) -> Result<SequenceKey> {
         todo!()
     }
 
-    fn select_table(&self, id: Identifier) -> Result<&mut Table> {
+    fn get_table_mut(&self, key: SequenceKey) -> Result<&mut Table> {
         todo!()
     }
 
-    fn delete_table(&self, id: &mut Table) -> Result<()> {
+    fn get_table(&self, key: SequenceKey) -> Result<&Table> {
+        todo!()
+    }
+
+    fn remove_table(&self, table: &mut Table) -> Result<()> {
         todo!()
     }
 }
@@ -79,17 +79,17 @@ impl database::Table for Table {
         todo!()
     }
 
-    fn size(&self) -> u64 {
+    fn bytes(&self) -> u64 {
         todo!()
     }
 
-    fn id(&self) -> Identifier {
+    fn id(&self) -> SequenceKey {
         todo!()
     }
 }
 
 impl KVStore for Table {
-    fn put<R>(&mut self, key: &Key, value: &R) -> Result<()>
+    fn insert<R>(&mut self, key: &Key, value: &R) -> Result<()>
     where
         R: Record,
     {
@@ -100,7 +100,7 @@ impl KVStore for Table {
         todo!()
     }
 
-    fn delete(&mut self, key: &Key) {
+    fn remove(&mut self, key: &Key) {
         todo!()
     }
 }

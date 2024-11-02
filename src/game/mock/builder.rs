@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::game::mock::Node;
 use crate::game::mock::Session;
-use crate::model::game::PlayerCount;
+use crate::game::model::PlayerCount;
 
 /* DEFINITIONS */
 

@@ -12,12 +12,12 @@ use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::HashMap;
 
+use crate::game::model::Player;
+use crate::game::model::PlayerCount;
+use crate::game::model::State;
 use crate::game::Bounded;
 use crate::game::Transition;
-use crate::model::game::Player;
-use crate::model::game::PlayerCount;
-use crate::model::game::State;
-use crate::model::solver::IUtility;
+use crate::solver::model::IUtility;
 
 /* RE-EXPORTS */
 

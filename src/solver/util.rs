@@ -7,8 +7,8 @@ use std::fmt::Display;
 use std::ops::Not;
 
 use crate::database::Schema;
-use crate::model::solver::{IUtility, RUtility, SUtility};
 use crate::solver::error::SolverError;
+use crate::solver::model::{IUtility, RUtility, SUtility};
 use crate::solver::{record, RecordType};
 
 /* RECORD TYPE IMPLEMENTATIONS */

@@ -9,8 +9,8 @@ use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
-use crate::model::solver::Remoteness;
 use crate::solver::error::SolverError::RecordViolation;
+use crate::solver::model::Remoteness;
 use crate::solver::RecordType;
 use crate::util;
 

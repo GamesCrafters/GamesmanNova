@@ -7,9 +7,10 @@ use anyhow::Result;
 
 use std::sync::Arc;
 
+use crate::database::model::SequenceKey;
 use crate::database::util::KeySequencer;
-use resource::ResourceManager;
-use transaction::TransactionManager;
+use crate::database::volatile::resource::ResourceManager;
+use crate::database::volatile::transaction::TransactionManager;
 
 /* RE-EXPORTS */
 
@@ -24,7 +25,6 @@ mod resource;
 
 /* DEFINITIONS */
 
-type SequenceKey = u64;
 type TransactionID = SequenceKey;
 type ResourceID = SequenceKey;
 
@@ -53,7 +53,7 @@ impl Sequencer {
 }
 
 impl Database {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let sequencer = Arc::new(Sequencer::default());
         let resource_manager = ResourceManager::new(sequencer.clone());
         let transaction_manager = TransactionManager::new(
@@ -68,7 +68,10 @@ impl Database {
         }
     }
 
-    fn create_transaction(&self, request: Request) -> Result<Arc<Transaction>> {
+    pub fn create_transaction(
+        &self,
+        request: Request,
+    ) -> Result<Arc<Transaction>> {
         let transaction = self
             .resource_manager
             .initialize_transaction(

@@ -8,7 +8,7 @@ use anyhow::Result;
 
 use std::path::{Path, PathBuf};
 
-use crate::model::database::{Identifier, Key, Value};
+use crate::database::model::{Key, SequenceKey, Value};
 use crate::solver::RecordType;
 
 /* RE-EXPORTS */
@@ -19,8 +19,10 @@ pub use util::SchemaBuilder;
 
 #[cfg(test)]
 mod test;
-mod error;
 mod util;
+
+pub mod model;
+pub mod error;
 
 /* IMPLEMENTATION MODULES */
 
@@ -84,7 +86,7 @@ pub trait KVStore {
     /// Replaces the value associated with `key` with the bits of `record`,
     /// creating one if it does not already exist. Fails if under any violation
     /// of implementation-specific assumptions of record size or contents.
-    fn put<R: Record>(&mut self, key: &Key, record: &R) -> Result<()>;
+    fn insert<R: Record>(&mut self, key: &Key, record: &R) -> Result<()>;
 
     /// Returns the bits associated with the value of `key`, or `None` if there
     /// is no such association. Infallible due to all possible values of `key`
@@ -93,7 +95,7 @@ pub trait KVStore {
 
     /// Removes the association of `key` to whatever value it is currently bound
     /// to, or does nothing if there is no such value.
-    fn delete(&mut self, key: &Key);
+    fn remove(&mut self, key: &Key);
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait
@@ -132,17 +134,21 @@ pub trait Tabular<T>
 where
     T: Table,
 {
-    /// Creates a new table with `id` and `schema`. Fails if another table with
-    /// the same `id` already exists, or under any I/O failure.
-    fn create_table(&self, id: Identifier, schema: Schema) -> Result<&mut T>;
+    /// Creates a new table with `schema`. Returns a unique key that can be used
+    /// to later acquire the table.
+    fn insert_table(&self, schema: Schema) -> Result<SequenceKey>;
 
     /// Obtains a mutable reference to the [`Table`] with `id`. Fails if no such
     /// table exists in the underlying database, or under any I/O failure.
-    fn select_table(&self, id: Identifier) -> Result<&mut T>;
+    fn get_table_mut(&self, key: SequenceKey) -> Result<&mut T>;
+
+    /// Obtains an immutable reference to the [`Table`] with `id`. Fails if no
+    /// such table exists in the underlying database, or under any I/O failure.
+    fn get_table(&self, key: SequenceKey) -> Result<&T>;
 
     /// Forgets about the association of `id` to any existing table, doing
     /// nothing if there is no such table. Fails under any I/O failure.
-    fn delete_table(&self, table: &mut T) -> Result<()>;
+    fn remove_table(&self, table: &mut T) -> Result<()>;
 }
 
 /* TABLE INTERFACE */
@@ -162,10 +168,10 @@ where
 
     /// Returns the total number of bytes being used to store the contents of
     /// `self`, excluding metadata (both in memory and persistent media).
-    fn size(&self) -> u64;
+    fn bytes(&self) -> u64;
 
     /// Returns the identifier associated with `self`.
-    fn id(&self) -> Identifier;
+    fn id(&self) -> SequenceKey;
 }
 
 /* RECORD INTERFACE */

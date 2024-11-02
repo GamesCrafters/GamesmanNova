@@ -7,11 +7,11 @@
 use regex::Regex;
 
 use crate::game::error::GameError;
+use crate::game::model::Player;
+use crate::game::model::State;
 use crate::game::zero_by::Elements;
 use crate::game::zero_by::Session;
 use crate::game::zero_by::NAME;
-use crate::model::game::Player;
-use crate::model::game::State;
 
 /* ZERO-BY STATE ENCODING */
 
