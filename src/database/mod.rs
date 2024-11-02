@@ -1,20 +1,15 @@
-//! # Database Module [WIP]
+#![allow(drop_bounds)]
+//! # Database Module
 //!
 //! This module contains memory and I/O mechanisms used to store and fetch
-//! solution set data, hopefully in an efficient and scalable way.
-//!
-//! #### Authorship
-//! - Max Fierro, 4/14/2023 (maxfierro@berkeley.edu)
+//! analysis data, hopefully in an efficient and scalable way.
 
 use anyhow::Result;
-use bitvec::prelude::{BitSlice, Msb0};
 
-use std::{
-    path::Path,
-    sync::{RwLockReadGuard, RwLockWriteGuard},
-};
+use std::path::{Path, PathBuf};
 
-use crate::{model::State, solver::RecordType};
+use crate::model::database::{Identifier, Key, Value};
+use crate::solver::RecordType;
 
 /* RE-EXPORTS */
 
@@ -37,8 +32,8 @@ pub mod lsmt;
 
 /// Indicates whether the database implementation should store the data it is
 /// managing to disk, or keep it entirely in memory.
-pub enum Persistence<'a> {
-    On(&'a Path),
+pub enum Persistence {
+    On(PathBuf),
     Off,
 }
 
@@ -82,46 +77,103 @@ pub enum Datatype {
     CSTR,
 }
 
-/* INTERFACE DEFINITIONS */
+/* DATABASE INTERFACES */
 
-/// Represents the behavior of a Key-Value Store. No assumptions are made about
-/// the size of the records being used, but keys are taken to be fixed-length.
+/// Represents the behavior of a Key-Value Store generic over a [`Record`] type.
 pub trait KVStore {
-    fn put<R: Record>(&mut self, key: State, record: &R);
-    fn get(&self, key: State) -> Option<&BitSlice<u8, Msb0>>;
-    fn del(&mut self, key: State);
+    /// Replaces the value associated with `key` with the bits of `record`,
+    /// creating one if it does not already exist. Fails if under any violation
+    /// of implementation-specific assumptions of record size or contents.
+    fn put<R: Record>(&mut self, key: &Key, record: &R) -> Result<()>;
+
+    /// Returns the bits associated with the value of `key`, or `None` if there
+    /// is no such association. Infallible due to all possible values of `key`
+    /// being considered valid (but not necessarily existent).
+    fn get(&self, key: &Key) -> Option<&Value>;
+
+    /// Removes the association of `key` to whatever value it is currently bound
+    /// to, or does nothing if there is no such value.
+    fn delete(&mut self, key: &Key);
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait
 /// requires custom handling of what happens when the database is closed; if it
-/// has data on memory, then it should persist any dirty pages to ensure
-/// consistency. In terms of file structure, each implementation decides how to
-/// organize its persistent content. The only overarching requisite is that it
-/// be provided an existing directory's path.
-pub trait Persistent {
-    fn bind_path(&self, path: &Path) -> Result<()>;
-    fn materialize(&self) -> Result<()>;
+/// has data on memory, then it should persist dirty data to ensure consistency
+/// via [`Drop`]. Database file structure is implementation-specific.
+pub trait Persistent<T>
+where
+    Self: Tabular<T> + Drop,
+    T: Table,
+{
+    /// Interprets the contents of a directory at `path` to be the contents of
+    /// a persistent database. Fails if the contents of `path` are unexpected.
+    fn from(path: &Path) -> Result<Self>
+    where
+        Self: Sized;
+
+    /// Binds the contents of the database to a particular `path` for the sake
+    /// of persistence. It is undefined behavior to forego calling this function
+    /// before pushing data to the underlying database. Fails if the database is
+    /// already bound to another path, or if `path` is non-empty, or under any
+    /// I/O failure.
+    fn bind(&self, path: &Path) -> Result<()>;
+
+    /// Evict the contents of `table` to disk in a batch operation, potentially
+    /// leaving cache space for other table's usage. Calling this on all tables
+    /// in a database should be equivalent to dropping the database reference.
+    fn flush(&self, table: &mut T) -> Result<()>;
 }
 
-/// Allows for grouping data into collections of fixed-length records called
-/// tables. Because of this application's requirements, this does not mean that
-/// a database should be optimized for inter-table operations. In fact, this
-/// interface's semantics are such that its implementations optimize performance
-/// for cases of sequential operations on a single table.
-pub trait Tabular<T> {
-    fn create_table(&self, id: &str, schema: Schema) -> Result<()>;
-    fn delete_table(&mut self, id: &str) -> Result<()>;
+/// Allows for grouping data into [`Table`] implementations, which contain many
+/// fixed-length records that share attributes under a single [`Schema`]. This
+/// allows consumers of this implementation to have simultaneous references to
+/// different mutable tables.
+pub trait Tabular<T>
+where
+    T: Table,
+{
+    /// Creates a new table with `id` and `schema`. Fails if another table with
+    /// the same `id` already exists, or under any I/O failure.
+    fn create_table(&self, id: Identifier, schema: Schema) -> Result<&mut T>;
 
-    fn get_table(&mut self, id: &str) -> Result<Option<RwLockReadGuard<T>>>;
-    fn get_table_mut(
-        &mut self,
-        id: &str,
-    ) -> Result<Option<RwLockWriteGuard<T>>>;
+    /// Obtains a mutable reference to the [`Table`] with `id`. Fails if no such
+    /// table exists in the underlying database, or under any I/O failure.
+    fn select_table(&self, id: Identifier) -> Result<&mut T>;
+
+    /// Forgets about the association of `id` to any existing table, doing
+    /// nothing if there is no such table. Fails under any I/O failure.
+    fn delete_table(&self, table: &mut T) -> Result<()>;
 }
 
-/// Allows a database implementation to read raw data from a record buffer.
+/* TABLE INTERFACE */
+
+/// A grouping of fixed-length records which share a table [`Schema`] that can
+/// be used as a handle to mutate them via [`KVStore`] semantics, in addition
+/// to keeping track of useful metadata.
+pub trait Table
+where
+    Self: KVStore,
+{
+    /// Returns a reference to the schema associated with `self`.
+    fn schema(&self) -> &Schema;
+
+    /// Returns the number of records currently contained in `self`.
+    fn count(&self) -> u64;
+
+    /// Returns the total number of bytes being used to store the contents of
+    /// `self`, excluding metadata (both in memory and persistent media).
+    fn size(&self) -> u64;
+
+    /// Returns the identifier associated with `self`.
+    fn id(&self) -> Identifier;
+}
+
+/* RECORD INTERFACE */
+
+/// Represents an in-memory sequence of bits that can be directly accessed.
 pub trait Record {
-    fn raw(&self) -> &BitSlice<u8, Msb0>;
+    /// Returns a reference to the sequence of bits in `self`.
+    fn raw(&self) -> &Value;
 }
 
 /* IMPLEMENTATIONS */

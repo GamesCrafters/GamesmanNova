@@ -4,9 +4,6 @@
 //! being executed. These errors should regard only the top-level module, not
 //! any specific database implementation (in a sense, providing an abstraction
 //! under which all database implementations' errors can be grouped into).
-//!
-//! #### Authorship
-//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};
 
@@ -53,16 +50,14 @@ impl fmt::Display for DatabaseError {
                 if let Some(t) = table {
                     write!(
                         f,
-                        "The attribute name '{}' was observed more than once \
-                        while deserializing the schema of table '{}'.",
-                        name, t,
+                        "The attribute name '{name}' was observed more than \
+                        once while deserializing the schema of table '{t}'.",
                     )
                 } else {
                     write!(
                         f,
                         "Attempted to build a schema with more than one \
-                        attribute named '{}'.",
-                        name,
+                        attribute named '{name}'.",
                     )
                 }
             },
@@ -71,8 +66,7 @@ impl fmt::Display for DatabaseError {
                     write!(
                         f,
                         "Encountered empty attribute name while deserializing \
-                        the schema of table '{}'.",
-                        t,
+                        the schema of table '{t}'.",
                     )
                 } else {
                     write!(
@@ -87,8 +81,7 @@ impl fmt::Display for DatabaseError {
                     write!(
                         f,
                         "Encountered zero-sized attribute while deserializing \
-                        the schema of table '{}'.",
-                        t,
+                        the schema of table '{t}'.",
                     )
                 } else {
                     write!(
@@ -110,28 +103,24 @@ impl fmt::Display for DatabaseError {
                     Datatype::SPFP => "of exactly 32 bits",
                     Datatype::SINT => "greater than 1 bit",
                     Datatype::CSTR => "divisible by 8 bits",
-                    Datatype::UINT | Datatype::ENUM => {
-                        unreachable!(
-                            "UINTs and ENUMs can be of any nonzero size."
-                        )
-                    },
+                    Datatype::UINT | Datatype::ENUM => "greater than 0 bits",
                 };
                 let data = data.to_string();
                 if let Some(t) = table {
                     write!(
                         f,
                         "Encountered an attribute with inconsistent datatype \
-                        and size while deserializing the schema of table '{}'. \
-                        The attribute '{}' was found to have size {}, but \
-                        attributes of type '{}' should have a size {}.",
-                        t, name, size, data, rule,
+                        and size while deserializing the schema of table \
+                        '{t}'. The attribute '{name}' was found to have size \
+                        {size}, but attributes of type '{data}' should have a \
+                        size {rule}.",
                     )
                 } else {
                     write!(
                         f,
-                        "The attribute '{}' was found to have size {}, but \
-                        attributes of type '{}' should have a size {}.",
-                        name, size, data, rule,
+                        "The attribute '{name}' was found to have size {size}, \
+                        but attributes of type '{data}' should have a size \
+                        {rule}.",
                     )
                 }
             },

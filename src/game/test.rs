@@ -2,10 +2,6 @@
 //!
 //! This module provides integration and unit testing utilities for the `game`
 //! module.
-//!
-//! #### Authorship
-//! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
-//! - Benjamin Riley Zimmerman, 3/8/2024 (bz931@berkely.edu)
 
 use anyhow::Context;
 use anyhow::Result;
@@ -34,7 +30,7 @@ impl mock::Session<'_> {
 
         let subdir = PathBuf::from(module);
         let mut dir = get_directory(DevelopmentData::Visuals, subdir)?;
-        let name = format!("{}.svg", self.name()).replace(" ", "-");
+        let name = format!("{}.svg", self.name()).replace(' ', "-");
 
         dir.push(name);
         let file = File::create(dir)?;
@@ -69,9 +65,9 @@ impl Display for mock::Session<'_> {
                     let mut attrs = String::new();
                     match node {
                         mock::Node::Medial(turn) => {
-                            attrs += &format!("label=P{} ", turn);
+                            attrs += &format!("label=P{turn} ");
                             attrs += "style=filled  ";
-                            if self.start() == self.state(&node).unwrap() {
+                            if self.start() == self.state(node).unwrap() {
                                 attrs += "shape=doublecircle ";
                                 attrs += "fillcolor=navajowhite3 ";
                             } else {

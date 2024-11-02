@@ -2,9 +2,6 @@
 //!
 //! This module defines possible errors that could happen as a result of user
 //! input or an incomplete game implementation.
-//!
-//! #### Authorship
-//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};
 
@@ -57,33 +54,31 @@ impl fmt::Display for GameError {
             Self::SolverNotFound { input_game_name } => {
                 write!(
                     f,
-                    "The variant you specified for the game {} has no solvers \
-                    associated with it.",
-                    input_game_name
+                    "The variant you specified for the game {input_game_name} \
+                    has no solvers associated with it.",
                 )
             },
             Self::VariantMalformed { game_name, hint } => {
                 write!(
                     f,
-                    "{}\n\n\tMore information on how the game expects you to \
-                    format it can be found with 'nova info {} --output extra'.",
-                    hint, game_name
+                    "{hint}\n\nMore information on how the game expects you to \
+                    format variant encodings can be found with 'nova info \
+                    {game_name}'.",
                 )
             },
             Self::StateMalformed { game_name, hint } => {
                 write!(
                     f,
-                    "{}\n\n\tMore information on how the game expects you to \
-                    format it can be found with 'nova info {} --output extra'.",
-                    hint, game_name
+                    "{hint}\n\nMore information on how the game expects you to \
+                    format state encodings can be found with 'nova info \
+                    {game_name}'.",
                 )
             },
             Self::InvalidHistory { game_name, hint } => {
                 write!(
                     f,
-                    "{}\n\n\tMore information on the game's rules can be found \
-                    with 'nova info {} --output extra'.",
-                    hint, game_name
+                    "{hint}\n\nMore information on the game's rules can be \
+                    found with 'nova info {game_name}'.",
                 )
             },
         }

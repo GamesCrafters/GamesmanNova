@@ -2,22 +2,20 @@
 //!
 //! This module helps parse the variant string provided to the Zero-By game
 //! into parameters that can help build a game session.
-//!
-//! #### Authorship
-//! - Max Fierro, 11/2/2023 (maxfierro@berkeley.edu)
 
+use bitvec::field::BitField;
 use regex::Regex;
 
 use crate::game::error::GameError;
-use crate::game::util::pack_turn;
 use crate::game::zero_by::{Session, NAME};
-use crate::model::Turn;
+use crate::model::game::{Player, State};
+use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
 
-pub const VARIANT_DEFAULT: &'static str = "2-10-1-2";
-pub const VARIANT_PATTERN: &'static str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
-pub const VARIANT_PROTOCOL: &'static str =
+pub const VARIANT_DEFAULT: &str = "2-10-1-2";
+pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
+pub const VARIANT_PROTOCOL: &str =
 "The variant string should be a dash-separated group of three or more positive \
 integers. For example, '4-232-23-6-3-6' is valid but '598', '-23-1-5', and \
 'fifteen-2-5' are not. The first integer represents the number of players in \
@@ -39,10 +37,19 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
     check_param_count(&params)?;
     check_params_are_positive(&params)?;
     let players = parse_player_count(&params)?;
+
+    let start_elems = params[1];
+    let mut start_state = State::ZERO;
+    let player_bits = min_ubits(players as u64);
+    start_state[..player_bits].store_be(Player::default());
+    start_state[player_bits..].store_be(start_elems);
+
     Ok(Session {
-        variant,
+        start_state,
+        start_elems,
+        player_bits,
         players,
-        start: pack_turn(params[1], 0, players),
+        variant,
         by: Vec::from(&params[2..]),
     })
 }
@@ -57,21 +64,20 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
                 .parse::<u64>()
                 .map_err(|e| GameError::VariantMalformed {
                     game_name: NAME,
-                    hint: format!("{}", e.to_string()),
+                    hint: e.to_string(),
                 })
         })
         .collect();
     params
 }
 
-fn check_variant_pattern(variant: &String) -> Result<(), GameError> {
+fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
-    if !re.is_match(&variant) {
+    if !re.is_match(variant) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
-                "String does not match the pattern '{}'.",
-                VARIANT_PATTERN
+                "String does not match the pattern '{VARIANT_PATTERN}'.",
             ),
         })
     } else {
@@ -79,41 +85,40 @@ fn check_variant_pattern(variant: &String) -> Result<(), GameError> {
     }
 }
 
-fn check_param_count(params: &Vec<u64>) -> Result<(), GameError> {
+fn check_param_count(params: &[u64]) -> Result<(), GameError> {
     if params.len() < 3 {
         Err(GameError::VariantMalformed {
             game_name: NAME,
-            hint: format!(
-                "String needs to have at least 3 dash-separated integers."
-            ),
+            hint: "String needs to have at least 3 dash-separated integers."
+                .to_string(),
         })
     } else {
         Ok(())
     }
 }
 
-fn check_params_are_positive(params: &Vec<u64>) -> Result<(), GameError> {
-    if params.iter().any(|&x| x <= 0) {
+fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
+    if params.iter().any(|&x| x == 0) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
-            hint: format!("All integers in the string must be positive."),
+            hint: "All integers in the string must be positive.".to_string(),
         })
     } else {
         Ok(())
     }
 }
 
-fn parse_player_count(params: &Vec<u64>) -> Result<Turn, GameError> {
-    if params[0] > (Turn::MAX as u64) {
+fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
+    if params[0] > (Player::MAX as u64) {
         Err(GameError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "The number of players in the game must be lower than {}.",
-                Turn::MAX
+                Player::MAX
             ),
         })
     } else {
-        Ok(Turn::try_from(params[0]).unwrap())
+        Ok(Player::try_from(params[0]).unwrap())
     }
 }
 
@@ -123,7 +128,7 @@ fn parse_player_count(params: &Vec<u64>) -> Result<Turn, GameError> {
 mod test {
 
     use super::*;
-    use crate::game::Game;
+    use crate::game::*;
 
     #[test]
     fn variant_pattern_is_valid_regex() {
@@ -138,20 +143,19 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() {
-        let with_none = Session::new(None);
-        let with_default = Session::new(Some(VARIANT_DEFAULT.to_owned()));
-        assert!(with_none.is_ok());
+        let _ = Session::default();
+        let with_default = Session::variant(VARIANT_DEFAULT.to_owned());
         assert!(with_default.is_ok());
     }
 
     #[test]
-    fn no_variant_equals_default_variant() {
-        let with_none = Session::new(None).unwrap();
-        let with_default =
-            Session::new(Some(VARIANT_DEFAULT.to_owned())).unwrap();
+    fn no_variant_equals_default_variant() -> Result<()> {
+        let with_none = Session::default();
+        let with_default = Session::variant(VARIANT_DEFAULT.to_owned())?;
         assert_eq!(with_none.variant, with_default.variant);
-        assert_eq!(with_none.start, with_default.start);
+        assert_eq!(with_none.start_state, with_default.start_state);
         assert_eq!(with_none.by, with_default.by);
+        Ok(())
     }
 
     #[test]

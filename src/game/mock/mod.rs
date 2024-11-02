@@ -4,23 +4,20 @@
 //! the game via a graph and assigning special conditions to nodes. This makes
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
-//!
-//! #### Authorship
-//! - Max Fierro 3/31/2024 (maxfierro@berkeley.edu)
 
+use bitvec::field::BitField;
+use petgraph::csr::DefaultIx;
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::HashMap;
 
 use crate::game::Bounded;
-use crate::game::DTransition;
-use crate::game::STransition;
-use crate::model::PlayerCount;
-use crate::model::State;
-use crate::model::Turn;
-use crate::model::Utility;
-use crate::solver::MAX_TRANSITIONS;
+use crate::game::Transition;
+use crate::model::game::Player;
+use crate::model::game::PlayerCount;
+use crate::model::game::State;
+use crate::model::solver::IUtility;
 
 /* RE-EXPORTS */
 
@@ -38,7 +35,7 @@ mod builder;
 pub struct Session<'a> {
     inserted: HashMap<*const Node, NodeIndex>,
     players: PlayerCount,
-    start: NodeIndex,
+    start: NodeIndex<DefaultIx>,
     game: Graph<&'a Node, ()>,
     name: &'static str,
 }
@@ -49,8 +46,8 @@ pub struct Session<'a> {
 /// turn encoding whose player's action is pending.
 #[derive(Debug)]
 pub enum Node {
-    Terminal(Vec<Utility>),
-    Medial(Turn),
+    Terminal(Vec<IUtility>),
+    Medial(Player),
 }
 
 /* API IMPLEMENTATION */
@@ -72,7 +69,9 @@ impl<'a> Session<'a> {
             .inserted
             .get(&(node as *const Node))
         {
-            Some(index.index() as State)
+            let mut state = State::ZERO;
+            state.store_be::<DefaultIx>(index.index() as DefaultIx);
+            Some(state)
         } else {
             None
         }
@@ -91,21 +90,28 @@ impl<'a> Session<'a> {
     /// they should be connected by incoming or outgoing edges.
     fn transition(&self, state: State, dir: Direction) -> Vec<State> {
         self.game
-            .neighbors_directed(NodeIndex::from(state as u32), dir)
-            .map(|n| n.index() as State)
+            .neighbors_directed(
+                NodeIndex::from(state.load_be::<DefaultIx>()),
+                dir,
+            )
+            .map(|n| {
+                let mut state = State::ZERO;
+                state.store_be(n.index());
+                state
+            })
             .collect()
     }
 
     /// Returns a reference to the game node with `state`, or panics if there is
     /// no such node.
     fn node(&self, state: State) -> &Node {
-        self.game[NodeIndex::from(state as u32)]
+        self.game[NodeIndex::from(state.load_be::<DefaultIx>())]
     }
 }
 
 /* UTILITY IMPLEMENTATIONS */
 
-impl DTransition for Session<'_> {
+impl Transition for Session<'_> {
     fn prograde(&self, state: State) -> Vec<State> {
         self.transition(state, Direction::Outgoing)
     }
@@ -115,43 +121,11 @@ impl DTransition for Session<'_> {
     }
 }
 
-impl STransition<MAX_TRANSITIONS> for Session<'_> {
-    fn prograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
-        let adjacent = self
-            .transition(state, Direction::Outgoing)
-            .iter()
-            .map(|&h| Some(h))
-            .collect::<Vec<Option<State>>>();
-
-        if adjacent.len() > MAX_TRANSITIONS {
-            panic!("Exceeded maximum transition count.")
-        }
-
-        let mut result = [None; MAX_TRANSITIONS];
-        result.copy_from_slice(&adjacent[..MAX_TRANSITIONS]);
-        result
-    }
-
-    fn retrograde(&self, state: State) -> [Option<State>; MAX_TRANSITIONS] {
-        let adjacent = self
-            .transition(state, Direction::Incoming)
-            .iter()
-            .map(|&h| Some(h))
-            .collect::<Vec<Option<State>>>();
-
-        if adjacent.len() > MAX_TRANSITIONS {
-            panic!("Exceeded maximum transition count.")
-        }
-
-        let mut result = [None; MAX_TRANSITIONS];
-        result.copy_from_slice(&adjacent[..MAX_TRANSITIONS]);
-        result
-    }
-}
-
 impl Bounded for Session<'_> {
     fn start(&self) -> State {
-        self.start.index() as State
+        let mut state = State::ZERO;
+        state.store_be::<DefaultIx>(self.start.index() as DefaultIx);
+        state
     }
 
     fn end(&self, state: State) -> bool {
@@ -195,7 +169,7 @@ mod tests {
             .build()?;
 
         g.visualize(MODULE_NAME)?;
-        let states = vec![
+        let states = [
             g.state(&s1),
             g.state(&s2),
             g.state(&s3),
@@ -214,7 +188,7 @@ mod tests {
             .collect();
 
         let repeats = states.iter().any(|&i| {
-            states[(1 + i as usize)..]
+            states[(1 + i.load_be::<usize>())..]
                 .iter()
                 .any(|&j| i == j)
         });

@@ -3,9 +3,6 @@
 //! This module defines possible errors that could happen as a result of program
 //! interfaces, both from external (e.g., being provided bad file descriptors)
 //! and internal (e.g., failing to spawn a child process) sources.
-//!
-//! #### Authorship
-//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
 use std::{error::Error, fmt};
 

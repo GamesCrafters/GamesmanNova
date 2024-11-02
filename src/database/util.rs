@@ -4,9 +4,8 @@
 //! `crate::database` module. This does not include any implementation-specific
 //! behavior; in particular, each database is to own a `util` module as needed,
 //! leaving this for cases where their functionality intersects.
-//!
-//! #### Authorship
-//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
+
+use std::fmt::Display;
 
 use anyhow::anyhow;
 use anyhow::Result;
@@ -116,9 +115,7 @@ impl SchemaBuilder {
             Datatype::SPFP => s != 32,
             Datatype::DPFP => s != 64,
             Datatype::CSTR => s % 8 != 0,
-            Datatype::UINT | Datatype::ENUM => {
-                unreachable!("UINTs and ENUMs can be of any nonzero size.")
-            },
+            Datatype::UINT | Datatype::ENUM => s == 0,
         } {
             Err(DatabaseError::InvalidSize {
                 size: new.size(),
@@ -161,17 +158,18 @@ impl KeySequencer {
 
 /* UTILITY IMPLEMENTATIONS */
 
-impl ToString for Datatype {
-    fn to_string(&self) -> String {
-        match self {
-            Datatype::DPFP => "Double-Precision Floating Point".to_string(),
-            Datatype::SPFP => "Single-Precision Floating Point".to_string(),
-            Datatype::CSTR => "C-Style ASCII String".to_string(),
-            Datatype::UINT => "Unsigned Integer".to_string(),
-            Datatype::SINT => "Signed Integer".to_string(),
-            Datatype::ENUM => "Enumeration".to_string(),
-            Datatype::BOOL => "Boolean".to_string(),
-        }
+impl Display for Datatype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let content = match self {
+            Datatype::DPFP => "Double-Precision Floating Point",
+            Datatype::SPFP => "Single-Precision Floating Point",
+            Datatype::CSTR => "C-Style ASCII String",
+            Datatype::UINT => "Unsigned Integer",
+            Datatype::SINT => "Signed Integer",
+            Datatype::ENUM => "Enumeration",
+            Datatype::BOOL => "Boolean",
+        };
+        write!(f, "{content}")
     }
 }
 

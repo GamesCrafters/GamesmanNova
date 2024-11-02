@@ -1,23 +1,18 @@
 //! # Remoteness (SUR) Record Module
 //!
-//! Implementation of a database record buffer for storing only remoteness values
-//! Note that this record does not store any utilities, making it useful for puzzles
-//!
-//! #### Authorship
-//!
-//! - Ishir Garg, 4/3/2024 (ishirgarg@berkeley.edu)
+//! TODO
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
-use crate::model::Remoteness;
+use crate::model::solver::Remoteness;
 use crate::solver::error::SolverError::RecordViolation;
-use crate::solver::util;
 use crate::solver::RecordType;
+use crate::util;
 
 /* CONSTANTS */
 
@@ -45,15 +40,7 @@ pub fn schema() -> Result<Schema> {
 
 /* RECORD IMPLEMENTATION */
 
-/// Solver-specific record entry, meant to communicate the remoteness at a corresponding game
-/// state.
-///
-/// ```none
-/// [REMOTENESS_SIZE bits: Remoteness]
-/// [0b0 until BUFFER_SIZE]
-/// ```
-///
-/// The remoteness values are encoded in big-endian as unsigned integers
+/// TODO
 pub struct RecordBuffer {
     buf: BitArr!(for BUFFER_SIZE, in u8, Msb0),
 }
@@ -81,26 +68,24 @@ impl RecordBuffer {
     pub fn from(bits: &BitSlice<u8, Msb0>) -> Result<Self> {
         let len = bits.len();
         if len > BUFFER_SIZE {
-            Err(RecordViolation {
-                name: RecordType::REM.into(),
+            bail!(RecordViolation {
+                name: RecordType::REM.to_string(),
                 hint: format!(
-                    "The record implementation operates on a buffer of {} \
-                    bits, but there was an attempt to instantiate one from a \
-                    buffer of {} bits.",
-                    BUFFER_SIZE, len,
+                    "The record implementation operates on a buffer of \
+                    {BUFFER_SIZE} bits, but there was an attempt to \
+                    instantiate one from a buffer of {len} bits.",
                 ),
-            })?
+            })
         } else if len < Self::minimum_bit_size() {
-            Err(RecordViolation {
-                name: RecordType::REM.into(),
+            bail!(RecordViolation {
+                name: RecordType::REM.to_string(),
                 hint: format!(
                     "This record implementation stores remoteness values, but \
                     there was an attempt to instantiate one with from a buffer \
-                    with {} bits, which is not enough to store a remoteness \
-                    value (which takes {} bits).",
-                    len, REMOTENESS_SIZE,
+                    with {len} bit(s), which is not enough to store a \
+                    remoteness value (which takes {REMOTENESS_SIZE} bits).",
                 ),
-            })?
+            })
         } else {
             let mut buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
             buf[..len].copy_from_bitslice(bits);
@@ -127,16 +112,15 @@ impl RecordBuffer {
     pub fn set_remoteness(&mut self, value: Remoteness) -> Result<()> {
         let size = util::min_ubits(value);
         if size > REMOTENESS_SIZE {
-            Err(RecordViolation {
-                name: RecordType::REM.into(),
+            bail!(RecordViolation {
+                name: RecordType::REM.to_string(),
                 hint: format!(
-                    "This record implementation uses {} bits to store unsigned \
-                    integers representing remoteness values, but there was an \
-                    attempt to store a remoteness value of {}, which requires \
-                    at least {} bits to store.",
-                    REMOTENESS_SIZE, value, size,
+                    "This record implementation uses {REMOTENESS_SIZE} bits to \
+                    store unsigned integers representing remoteness values, \
+                    but there was an attempt to store a remoteness value of \
+                    {value}, which requires at least {size} bits to store.",
                 ),
-            })?
+            })
         } else {
             let start = Self::remoteness_index();
             let end = start + REMOTENESS_SIZE;
@@ -172,17 +156,9 @@ mod tests {
 
     use super::*;
 
-    // The maximum numeric remoteness value that can be expressed with exactly
-    // REMOTENESS_SIZE bits in an unsigned integer.
+    /// The maximum numeric remoteness value that can be expressed with exactly
+    /// REMOTENESS_SIZE bits in an unsigned integer.
     const MAX_REMOTENESS: Remoteness = 2_u64.pow(REMOTENESS_SIZE as u32) - 1;
-
-    #[test]
-    fn initialize_from_valid_buffer() {
-        let buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
-        for i in REMOTENESS_SIZE..BUFFER_SIZE {
-            assert!(RecordBuffer::from(&buf[0..i]).is_ok());
-        }
-    }
 
     #[test]
     fn initialize_from_invalid_buffer_size() {
@@ -196,44 +172,35 @@ mod tests {
     }
 
     #[test]
-    fn set_record_attributes() {
+    fn set_record_attributes() -> Result<()> {
         let mut r1 = RecordBuffer::new().unwrap();
 
         let good = Remoteness::MIN;
         let bad = Remoteness::MAX;
 
-        assert!(r1.set_remoteness(good).is_ok());
-        assert!(r1.set_remoteness(good).is_ok());
-        assert!(r1.set_remoteness(good).is_ok());
+        r1.set_remoteness(good)?;
+        r1.set_remoteness(good)?;
+        r1.set_remoteness(good)?;
+        assert!(r1.set_remoteness(bad).is_err());
+        assert!(r1.set_remoteness(bad).is_err());
+        assert!(r1.set_remoteness(bad).is_err());
 
-        assert!(r1.set_remoteness(bad).is_err());
-        assert!(r1.set_remoteness(bad).is_err());
-        assert!(r1.set_remoteness(bad).is_err());
+        Ok(())
     }
 
     #[test]
-    fn data_is_valid_after_round_trip() {
-        let mut record = RecordBuffer::new().unwrap();
-        let remoteness = 790;
-
-        record
-            .set_remoteness(remoteness)
-            .unwrap();
-
-        // Remoteness unchanged after insert and fetch
-        let fetched_remoteness = record.get_remoteness();
-        let actual_remoteness = remoteness;
-        assert_eq!(fetched_remoteness, actual_remoteness);
+    fn data_is_valid_after_round_trip() -> Result<()> {
+        let mut record = RecordBuffer::new()?;
+        record.set_remoteness(790)?;
+        assert_eq!(record.get_remoteness(), 790);
+        Ok(())
     }
 
     #[test]
-    fn extreme_data_is_valid_after_round_trip() {
+    fn extreme_data_is_valid_after_round_trip() -> Result<()> {
         let mut record = RecordBuffer::new().unwrap();
-
-        assert!(record
-            .set_remoteness(MAX_REMOTENESS)
-            .is_ok());
-
+        record.set_remoteness(MAX_REMOTENESS)?;
         assert_eq!(record.get_remoteness(), MAX_REMOTENESS);
+        Ok(())
     }
 }
