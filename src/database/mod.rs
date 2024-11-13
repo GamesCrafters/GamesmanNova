@@ -102,10 +102,9 @@ pub trait KVStore {
 /// requires custom handling of what happens when the database is closed; if it
 /// has data on memory, then it should persist dirty data to ensure consistency
 /// via [`Drop`]. Database file structure is implementation-specific.
-pub trait Persistent<T>
+pub trait Persistent
 where
-    Self: Tabular<T> + Drop,
-    T: Table,
+    Self: Drop,
 {
     /// Interprets the contents of a directory at `path` to be the contents of
     /// a persistent database. Fails if the contents of `path` are unexpected.
@@ -119,36 +118,6 @@ where
     /// already bound to another path, or if `path` is non-empty, or under any
     /// I/O failure.
     fn bind(&self, path: &Path) -> Result<()>;
-
-    /// Evict the contents of `table` to disk in a batch operation, potentially
-    /// leaving cache space for other table's usage. Calling this on all tables
-    /// in a database should be equivalent to dropping the database reference.
-    fn flush(&self, table: &mut T) -> Result<()>;
-}
-
-/// Allows for grouping data into [`Table`] implementations, which contain many
-/// fixed-length records that share attributes under a single [`Schema`]. This
-/// allows consumers of this implementation to have simultaneous references to
-/// different mutable tables.
-pub trait Tabular<T>
-where
-    T: Table,
-{
-    /// Creates a new table with `schema`. Returns a unique key that can be used
-    /// to later acquire the table.
-    fn insert_table(&self, schema: Schema) -> Result<SequenceKey>;
-
-    /// Obtains a mutable reference to the [`Table`] with `id`. Fails if no such
-    /// table exists in the underlying database, or under any I/O failure.
-    fn get_table_mut(&self, key: SequenceKey) -> Result<&mut T>;
-
-    /// Obtains an immutable reference to the [`Table`] with `id`. Fails if no
-    /// such table exists in the underlying database, or under any I/O failure.
-    fn get_table(&self, key: SequenceKey) -> Result<&T>;
-
-    /// Forgets about the association of `id` to any existing table, doing
-    /// nothing if there is no such table. Fails under any I/O failure.
-    fn remove_table(&self, table: &mut T) -> Result<()>;
 }
 
 /* TABLE INTERFACE */

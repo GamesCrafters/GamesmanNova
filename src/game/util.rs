@@ -3,11 +3,11 @@
 //! This module provides some common utilities used in the implementation of
 //! more than a single game.
 
-use std::fmt::Display;
-use std::hash::{DefaultHasher, Hasher};
-
 use anyhow::bail;
-use anyhow::Result;
+use anyhow::{Context, Result};
+
+use std::fmt::Display;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::database::model::SequenceKey;
 use crate::game::model::State;

@@ -36,7 +36,7 @@ pub struct Request {
 }
 
 #[derive(Default)]
-struct AccessControl {
+pub struct AccessControl {
     pool: HashMap<ResourceID, Arc<RwLock<Resource>>>,
     owners: HashMap<ResourceID, TransactionID>,
     reading: HashMap<ResourceID, u32>,
@@ -45,6 +45,12 @@ struct AccessControl {
 }
 
 /* IMPLEMENTATION */
+
+impl Request {
+    pub fn empty() -> Self {
+        Self::default()
+    }
+}
 
 impl AccessControl {
     fn conflict(&self, request: &Request) -> bool {
@@ -111,8 +117,8 @@ impl ResourceManager {
         request: Request,
         manager: Arc<TransactionManager>,
     ) -> Result<Arc<Transaction>> {
+        let mut resources = self.lock()?;
         loop {
-            let mut resources = self.lock()?;
             if request
                 .write
                 .iter()
@@ -132,7 +138,8 @@ impl ResourceManager {
                 return Ok(transaction);
             }
 
-            self.signal
+            resources = self
+                .signal
                 .wait(resources)
                 .map_err(|_| anyhow!("Resource access lock poisoned."))?;
         }

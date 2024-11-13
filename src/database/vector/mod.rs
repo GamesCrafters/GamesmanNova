@@ -18,7 +18,7 @@ use std::path::Path;
 
 use crate::{
     database::model::{Key, SequenceKey, Value},
-    database::{self, KVStore, Persistent, Record, Schema, Tabular},
+    database::{self, KVStore, Persistent, Record, Schema},
 };
 
 /* DEFINITIONS */
@@ -29,7 +29,7 @@ pub struct Table {}
 
 /* IMPLEMENTATIONS */
 
-impl Persistent<Table> for Database {
+impl Persistent for Database {
     fn from(path: &Path) -> Result<Self>
     where
         Self: Sized,
@@ -40,32 +40,10 @@ impl Persistent<Table> for Database {
     fn bind(&self, path: &Path) -> Result<()> {
         todo!()
     }
-
-    fn flush(&self, table: &mut Table) -> Result<()> {
-        todo!()
-    }
 }
 
 impl Drop for Database {
     fn drop(&mut self) {
-        todo!()
-    }
-}
-
-impl Tabular<Table> for Database {
-    fn insert_table(&self, schema: Schema) -> Result<SequenceKey> {
-        todo!()
-    }
-
-    fn get_table_mut(&self, key: SequenceKey) -> Result<&mut Table> {
-        todo!()
-    }
-
-    fn get_table(&self, key: SequenceKey) -> Result<&Table> {
-        todo!()
-    }
-
-    fn remove_table(&self, table: &mut Table) -> Result<()> {
         todo!()
     }
 }

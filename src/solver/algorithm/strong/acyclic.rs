@@ -27,42 +27,24 @@ where
         + Sequential<N, B>
         + Identify,
 {
-    let db = volatile_database(game, mode)
-        .context("Failed to initialize volatile database.")?;
-
-    let table = db
-        .select_table(game.id())
-        .context("Failed to select solution set database table.")?;
-
-    backward_induction(table, game)
-        .context("Failed solving algorithm execution.")?;
-
-    Ok(())
-}
-
-/* DATABASE INITIALIZATION */
-
-/// Initializes a volatile database, creating a table schema according to the
-/// solver record layout, initializing a table with that schema, and switching
-/// to that table before returning the database handle.
-fn volatile_database<const N: usize, const B: usize, G>(
-    game: &G,
-    mode: IOMode,
-) -> Result<volatile::Database>
-where
-    G: Sequential<N, B> + Identify,
-{
-    let id = game.id();
-    let db = volatile::Database::initialize();
-
     let schema = RecordType::MUR(N)
         .try_into()
         .context("Failed to create table schema for solver records.")?;
 
-    db.create_table(id, schema)
+    let db = volatile::Database::new()?;
+    let solution = db
+        .create_resource(schema)
         .context("Failed to create database table for solution set.")?;
 
-    Ok(db)
+    db.build_transaction()
+        .writing(solution)
+        .action(|mut working_set| {
+            let mut t = working_set.get_writing(solution);
+            backward_induction(&mut (*t), game)
+                .context("Solving algorithm encountered an error.")
+        })
+        .execute()
+        .context("Solving algorithm transaction failed.")
 }
 
 /* SOLVING ALGORITHMS */
@@ -81,7 +63,6 @@ where
 {
     let mut stack = Vec::new();
     stack.push(game.start());
-
     while let Some(curr) = stack.pop() {
         let children = game.prograde(curr);
         let mut buf = RecordBuffer::new(game.players())
@@ -89,7 +70,6 @@ where
 
         if db.get(&curr).is_none() {
             db.insert(&curr, &buf)?;
-
             if game.end(curr) {
                 buf = RecordBuffer::new(game.players())
                     .context("Failed to create record for end state.")?;
@@ -113,13 +93,14 @@ where
             let mut optimal = buf;
             let mut max_val = IUtility::MIN;
             let mut min_rem = Remoteness::MAX;
-
             for state in children {
                 let buf = RecordBuffer::from(db.get(&state).unwrap())
                     .context("Failed to create record for middle state.")?;
+
                 let val = buf
                     .get_utility(game.turn(state))
                     .context("Failed to get utility from record.")?;
+
                 let rem = buf.get_remoteness();
                 if val > max_val || (val == max_val && rem < min_rem) {
                     max_val = val;

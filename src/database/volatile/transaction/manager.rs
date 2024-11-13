@@ -6,7 +6,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Weak};
+use std::sync::{Arc, RwLock};
 
 use crate::database::volatile::transaction::Transaction;
 use crate::database::volatile::ResourceManager;
