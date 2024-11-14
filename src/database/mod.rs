@@ -9,7 +9,7 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 use crate::database::model::{Key, SequenceKey, Value};
-use crate::solver::RecordType;
+use crate::game::model::PlayerCount;
 
 /* RE-EXPORTS */
 
@@ -30,6 +30,13 @@ pub mod volatile;
 pub mod vector;
 pub mod lsmt;
 
+pub mod record {
+    pub mod mur;
+    pub mod sur;
+    pub mod rem;
+    pub mod dtr;
+}
+
 /* DEFINITIONS */
 
 /// Indicates whether the database implementation should store the data it is
@@ -43,6 +50,8 @@ pub enum Persistence {
 /// where each name is unique and the size is a number of bits. This is used to
 /// "interpret" the raw data within records into meaningful features.
 pub struct Schema {
+    attribute_count: usize,
+    table_name: String,
     attributes: Vec<Attribute>,
     record: Option<RecordType>,
     size: usize,
@@ -77,6 +86,21 @@ pub enum Datatype {
     SPFP,
     DPFP,
     CSTR,
+}
+
+/// A record layout that can be used to encode and decode the attributes stored
+/// in serialized records. This is stored in database table schemas so that it
+/// can be retrieved later for deserialization.
+#[derive(Clone, Copy)]
+pub enum RecordType {
+    /// Multi-Utility Remoteness record for a specific number of players.
+    MUR(PlayerCount),
+    /// Simple Utility Remoteness record for a specific number of players.
+    SUR(PlayerCount),
+    /// Remoteness record (no utilities).
+    REM,
+    /// Directory table record.
+    DTR,
 }
 
 /* DATABASE INTERFACES */
@@ -159,9 +183,24 @@ impl Schema {
         self.size
     }
 
+    /// Returns the number of attributes in the schema.
+    pub fn attribute_count(&self) -> usize {
+        self.attribute_count
+    }
+
+    /// Returns the name of the table this schema belongs to.
+    pub fn table_name(&self) -> &str {
+        &self.table_name
+    }
+
     /// Returns the record type associated with this schema, if any.
-    pub fn record(&self) -> Option<RecordType> {
+    pub fn datatype(&self) -> Option<RecordType> {
         self.record
+    }
+
+    /// Returns the attributes contained in this schema.
+    pub fn attributes(&self) -> &[Attribute] {
+        &self.attributes
     }
 }
 

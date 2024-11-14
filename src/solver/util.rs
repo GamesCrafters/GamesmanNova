@@ -3,44 +3,10 @@
 //! This module makes room for common utility routines used throughout the
 //! `crate::solver` module.
 
-use std::fmt::Display;
 use std::ops::Not;
 
-use crate::database::Schema;
 use crate::solver::error::SolverError;
 use crate::solver::model::{IUtility, RUtility, SUtility};
-use crate::solver::{record, RecordType};
-
-/* RECORD TYPE IMPLEMENTATIONS */
-
-impl Display for RecordType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RecordType::MUR(players) => {
-                write!(f, "Real Utility Remoteness ({players} players)")
-            },
-            RecordType::SUR(players) => {
-                write!(
-                    f,
-                    "Simple Utility Remoteness ({players}  players)",
-                )
-            },
-            RecordType::REM => write!(f, "Remoteness (no utility)"),
-        }
-    }
-}
-
-impl TryInto<Schema> for RecordType {
-    type Error = anyhow::Error;
-
-    fn try_into(self) -> Result<Schema, Self::Error> {
-        match self {
-            RecordType::MUR(players) => record::mur::schema(players),
-            RecordType::SUR(players) => record::sur::schema(players),
-            RecordType::REM => record::rem::schema(),
-        }
-    }
-}
 
 /* CONVERSIONS INTO SIMPLE UTILITY */
 

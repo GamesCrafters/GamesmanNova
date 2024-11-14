@@ -58,11 +58,11 @@ impl WorkingSet<'_> {
 }
 
 impl ResourceHandles {
-    pub fn add_reading(&mut self, id: ResourceID, lock: Arc<RwLock<Resource>>) {
+    pub fn add_read(&mut self, id: ResourceID, lock: Arc<RwLock<Resource>>) {
         self.read.insert(id, lock);
     }
 
-    pub fn add_writing(&mut self, id: ResourceID, lock: Arc<RwLock<Resource>>) {
+    pub fn add_write(&mut self, id: ResourceID, lock: Arc<RwLock<Resource>>) {
         self.write.insert(id, lock);
     }
 

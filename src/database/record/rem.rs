@@ -8,10 +8,10 @@ use bitvec::order::Msb0;
 use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
+use crate::database::RecordType;
 use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
 use crate::solver::error::SolverError::RecordViolation;
 use crate::solver::model::Remoteness;
-use crate::solver::RecordType;
 use crate::util;
 
 /* CONSTANTS */
@@ -25,8 +25,8 @@ pub const BUFFER_SIZE: usize = 16;
 /* SCHEMA GENERATOR */
 
 /// Return the database table schema associated with a record instance
-pub fn schema() -> Result<Schema> {
-    let mut schema = SchemaBuilder::new().of(RecordType::REM);
+pub fn schema(name: &str) -> Result<Schema> {
+    let mut schema = SchemaBuilder::new(name).of(RecordType::REM);
 
     let name = "State remoteness";
     let data = Datatype::UINT;

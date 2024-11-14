@@ -222,7 +222,7 @@ impl ResourceManager {
                 .get(&id)
                 .expect("Attempted to fetch non-existent resource lock.");
 
-            handles.add_writing(id, lock.clone());
+            handles.add_write(id, lock.clone());
         }
 
         for &id in request.read.iter() {
@@ -231,7 +231,7 @@ impl ResourceManager {
                 .get(&id)
                 .expect("Attempted to fetch non-existent resource lock.");
 
-            handles.add_reading(id, lock.clone());
+            handles.add_read(id, lock.clone());
         }
 
         handles

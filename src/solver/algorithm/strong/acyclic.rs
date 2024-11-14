@@ -4,14 +4,16 @@
 
 use anyhow::{Context, Result};
 
+use crate::database::record::mur::RecordBuffer;
 use crate::database::volatile;
 use crate::database::KVStore;
+use crate::database::RecordType;
 use crate::game::model::PlayerCount;
+use crate::game::Information;
 use crate::game::{Bounded, Transition};
 use crate::interface::IOMode;
 use crate::solver::model::{IUtility, Remoteness};
-use crate::solver::record::mur::RecordBuffer;
-use crate::solver::{IntegerUtility, RecordType, Sequential};
+use crate::solver::{IntegerUtility, Sequential};
 use crate::util::Identify;
 
 /* SOLVERS */
@@ -25,21 +27,30 @@ where
         + Bounded<B>
         + IntegerUtility<N, B>
         + Sequential<N, B>
-        + Identify,
+        + Identify
+        + Information,
 {
-    let schema = RecordType::MUR(N)
-        .try_into()
+    let table_name = format!("{}_solution", G::info().name);
+    let db = volatile::Database::new()?;
+    let table_schema = RecordType::MUR(N)
+        .try_into_schema(&table_name)
         .context("Failed to create table schema for solver records.")?;
 
-    let db = volatile::Database::new()?;
-    let solution = db
-        .create_resource(schema)
+    match mode {
+        IOMode::Constructive => (),
+        IOMode::Overwrite => db
+            .drop_resource(&table_name)
+            .context("Failed to drop database table being overwritten.")?,
+    }
+
+    let solution_table = db
+        .create_resource(table_schema)
         .context("Failed to create database table for solution set.")?;
 
     db.build_transaction()
-        .writing(solution)
+        .writing(solution_table)
         .action(|mut working_set| {
-            let mut t = working_set.get_writing(solution);
+            let mut t = working_set.get_writing(solution_table);
             backward_induction(&mut (*t), game)
                 .context("Solving algorithm encountered an error.")
         })

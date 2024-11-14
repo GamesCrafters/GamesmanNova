@@ -15,14 +15,12 @@ use crate::database::volatile::resource::Request;
 use crate::database::volatile::resource::ResourceManager;
 use crate::database::volatile::transaction::Transaction;
 use crate::database::volatile::transaction::TransactionManager;
-use crate::database::KVStore;
+use crate::database::Schema;
 
 /* RE-EXPORTS */
 
 pub use resource::Resource;
 pub use transaction::WorkingSet;
-
-use super::Schema;
 
 /* MODULES */
 
@@ -144,7 +142,7 @@ impl Database {
         // Ok(id)
     }
 
-    pub fn drop_resource(&self, id: ResourceID) -> Result<()> {
+    pub fn drop_resource(&self, name: &str) -> Result<()> {
         let directory = self
             .directory
             .expect("Database directory table found uninitialized.");
@@ -154,8 +152,8 @@ impl Database {
             read: vec![],
         })?;
 
-        txn.drop_resource(id)?;
         let mut directory = txn.write(directory)?;
+        txn.drop_resource(id)?;
         todo!()
         // directory.remove(id.into());
         // Ok(id)

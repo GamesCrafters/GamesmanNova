@@ -5,18 +5,18 @@
 //! behavior; in particular, each database is to own a `util` module as needed,
 //! leaving this for cases where their functionality intersects.
 
-use std::fmt::Display;
-
 use anyhow::anyhow;
 use anyhow::Result;
 
+use std::fmt::Display;
 use std::sync::Mutex;
 
 use crate::database::error::DatabaseError;
+use crate::database::record;
 use crate::database::Attribute;
 use crate::database::Datatype;
+use crate::database::RecordType;
 use crate::database::Schema;
-use crate::solver::RecordType;
 
 /* DEFINITIONS */
 
@@ -24,6 +24,8 @@ use crate::solver::RecordType;
 /// provided attributes. This is here to help ensure schemas are not changed
 /// accidentally after being instantiated.
 pub struct SchemaBuilder {
+    attribute_count: usize,
+    table_name: String,
     attributes: Vec<Attribute>,
     record: Option<RecordType>,
     size: usize,
@@ -46,8 +48,10 @@ pub struct KeySequencer {
 impl SchemaBuilder {
     /// Returns a new instance of a `SchemaBuilder`, which can be used to
     /// declaratively construct a new record `Schema`.
-    pub fn new() -> Self {
+    pub fn new(name: &str) -> Self {
         SchemaBuilder {
+            attribute_count: 0,
+            table_name: name.to_string(),
             attributes: Vec::new(),
             record: None,
             size: 0,
@@ -58,6 +62,7 @@ impl SchemaBuilder {
     /// if adding `attr` to the schema would result in an invalid state.
     pub fn add(mut self, attr: Attribute) -> Result<Self> {
         self.check_attribute_validity(&attr)?;
+        self.attribute_count += 1;
         self.size += attr.size();
         Ok(self)
     }
@@ -71,6 +76,8 @@ impl SchemaBuilder {
     /// Constructs the schema using the current state of the `SchemaBuilder`.
     pub fn build(self) -> Schema {
         Schema {
+            attribute_count: self.attribute_count,
+            table_name: self.table_name,
             attributes: self.attributes,
             record: self.record,
             size: self.size,
@@ -125,6 +132,19 @@ impl SchemaBuilder {
             })
         } else {
             Ok(())
+        }
+    }
+}
+
+/* RECORD TYPE IMPLEMENTATION */
+
+impl RecordType {
+    pub fn try_into_schema(self, name: &str) -> Result<Schema> {
+        match self {
+            RecordType::MUR(players) => record::mur::schema(players, name),
+            RecordType::SUR(players) => record::sur::schema(players, name),
+            RecordType::REM => record::rem::schema(name),
+            RecordType::DTR => record::dtr::schema(name),
         }
     }
 }
@@ -194,5 +214,23 @@ impl<'a> Iterator for SchemaIterator<'a> {
         self.schema
             .attributes
             .get(self.index - 1)
+    }
+}
+
+impl Display for RecordType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RecordType::MUR(players) => {
+                write!(f, "Real Utility Remoteness ({players} players)")
+            },
+            RecordType::SUR(players) => {
+                write!(
+                    f,
+                    "Simple Utility Remoteness ({players}  players)",
+                )
+            },
+            RecordType::REM => write!(f, "Remoteness (no utility)"),
+            RecordType::DTR => write!(f, "Directory Table Record"),
+        }
     }
 }

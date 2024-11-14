@@ -23,15 +23,6 @@ pub mod model;
 
 /* MODULES */
 
-/// Implementations of records that can be used by solving algorithms to store
-/// or persist the information they compute about a game, and communicate it to
-/// a database system.
-pub mod record {
-    pub mod mur;
-    pub mod sur;
-    pub mod rem;
-}
-
 /// Implementations of algorithms that can consume game implementations and
 /// compute different features of interest associated with groups of states or
 /// particular states.
@@ -61,21 +52,6 @@ pub mod algorithm {
         pub mod acyclic;
         pub mod cyclic;
     }
-}
-
-/* SOLVER DATABASE RECORDS */
-
-/// A record layout that can be used to encode and decode the attributes stored
-/// in serialized records. This is stored in database table schemas so that it
-/// can be retrieved later for deserialization.
-#[derive(Clone, Copy)]
-pub enum RecordType {
-    /// Multi-Utility Remoteness record for a specific number of players.
-    MUR(PlayerCount),
-    /// Simple Utility Remoteness record for a specific number of players.
-    SUR(PlayerCount),
-    /// Remoteness record (no utilities).
-    REM,
 }
 
 /* STRUCTURAL INTERFACES */
