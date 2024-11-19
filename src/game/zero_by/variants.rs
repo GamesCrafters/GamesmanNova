@@ -3,11 +3,13 @@
 //! This module helps parse the variant string provided to the Zero-By game
 //! into parameters that can help build a game session.
 
+use bitvec::array::BitArray;
 use bitvec::field::BitField;
+use bitvec::order::Msb0;
 use regex::Regex;
 
 use crate::game::error::GameError;
-use crate::game::model::{Player, State};
+use crate::game::model::Player;
 use crate::game::zero_by::{Session, NAME};
 use crate::util::min_ubits;
 
@@ -39,13 +41,13 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
     let players = parse_player_count(&params)?;
 
     let start_elems = params[1];
-    let mut start_state = State::ZERO;
+    let mut start_state: BitArray<_, Msb0> = BitArray::ZERO;
     let player_bits = min_ubits(players as u64);
     start_state[..player_bits].store_be(Player::default());
     start_state[player_bits..].store_be(start_elems);
 
     Ok(Session {
-        start_state,
+        start_state: start_state.data,
         start_elems,
         player_bits,
         players,

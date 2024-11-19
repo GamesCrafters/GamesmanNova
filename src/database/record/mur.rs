@@ -11,7 +11,7 @@ use bitvec::slice::BitSlice;
 use bitvec::{bitarr, BitArr};
 
 use crate::database::error::DatabaseError::RecordViolation;
-use crate::database::{Attribute, Datatype, Record, Schema, SchemaBuilder};
+use crate::database::{Attribute, Datatype, Schema, SchemaBuilder};
 use crate::game::model::{Player, PlayerCount};
 use crate::solver::model::{IUtility, RUtility, Remoteness, SUtility};
 use crate::solver::UtilityType;
@@ -23,7 +23,7 @@ use crate::util;
 pub const RECORD_NAME: &str = "Multi-Utility Remoteness Draw Record";
 
 /// The maximum number of bits that can be used to encode a single record.
-pub const BUFFER_SIZE: usize = 128;
+pub const BUFFER_BIT_SIZE: usize = 128;
 
 /// The exact number of bits that are used to encode a draw value.
 pub const DRAW_SIZE: usize = 1;
@@ -60,7 +60,7 @@ pub const SIMPLE_UTILITY_SIZE: usize = 2;
 /// next value is pushed to the leftmost position. This ensures that a
 /// minimally-sized representation of the record can be provided.
 pub struct RecordBuffer {
-    buf: BitArr!(for BUFFER_SIZE, in u8, Msb0),
+    buf: BitArr!(for BUFFER_BIT_SIZE, in u8, Msb0),
     players: PlayerCount,
     utility: UtilityType,
     remoteness: bool,
@@ -80,9 +80,9 @@ pub fn schema(
 ) -> Result<Schema> {
     let bit_size = RecordBuffer::bit_size(players, utility, remoteness, draw);
     let max_players =
-        RecordBuffer::player_count(BUFFER_SIZE, utility, remoteness, draw);
+        RecordBuffer::player_count(BUFFER_BIT_SIZE, remoteness, utility, draw);
 
-    if bit_size > BUFFER_SIZE {
+    if bit_size > BUFFER_BIT_SIZE {
         bail!(RecordViolation {
             name: RECORD_NAME,
             hint: format!(
@@ -125,10 +125,9 @@ pub fn schema(
 
 /* RECORD IMPLEMENTATION */
 
-impl Record for RecordBuffer {
-    #[inline(always)]
-    fn raw(&self) -> &BitSlice<u8, Msb0> {
-        &self.buf[..Self::bit_size(
+impl AsRef<[u8]> for RecordBuffer {
+    fn as_ref(&self) -> &[u8] {
+        &self.buf.as_raw_slice()[..Self::byte_size(
             self.players,
             self.utility,
             self.remoteness,
@@ -149,9 +148,9 @@ impl RecordBuffer {
     ) -> Result<Self> {
         let size = Self::bit_size(players, utility, remoteness, draw);
         let max_players =
-            Self::player_count(BUFFER_SIZE, utility, remoteness, draw);
+            Self::player_count(BUFFER_BIT_SIZE, remoteness, utility, draw);
 
-        if size > BUFFER_SIZE {
+        if size > BUFFER_BIT_SIZE {
             bail!(RecordViolation {
                 name: RECORD_NAME,
                 hint: format!(
@@ -162,7 +161,7 @@ impl RecordBuffer {
             })
         }
         Ok(Self {
-            buf: bitarr!(u8, Msb0; 0; BUFFER_SIZE),
+            buf: bitarr!(u8, Msb0; 0; BUFFER_BIT_SIZE),
             remoteness,
             players,
             utility,
@@ -170,29 +169,30 @@ impl RecordBuffer {
         })
     }
 
-    /// Create a record buffer from a pre-existing sequence of bits, according
+    /// Create a record buffer from a pre-existing sequence of bytes, according
     /// to desired utilitty, remoteness, and draw capabilities. Fails if the
     /// provided sequence of bits is inconsistent with the desired capabilities
     /// due to sizing constraints.
     pub fn from(
-        bits: &BitSlice<u8, Msb0>,
+        bytes: &[u8],
+        players: usize,
         utility: UtilityType,
         remoteness: bool,
         draw: bool,
     ) -> Result<Self> {
-        let len = bits.len();
-        if len > BUFFER_SIZE {
+        let bit_len = bytes.len() * 8;
+        if bytes.len() > BUFFER_BIT_SIZE * 8 {
             bail!(RecordViolation {
                 name: RECORD_NAME,
                 hint: format!(
                     "The record implementation operates on a buffer of \
-                    {BUFFER_SIZE} bits, but there was an attempt to \
-                    instantiate one from a buffer of {len} bits.",
+                    {BUFFER_BIT_SIZE} bits, but there was an attempt to \
+                    instantiate one from a buffer of {bit_len} bits.",
                 ),
             })
         }
 
-        if len < Self::minimum_bit_size(remoteness, draw) {
+        if bytes.len() < Self::byte_size(players, utility, remoteness, draw) {
             bail!(RecordViolation {
                 name: RECORD_NAME,
                 hint: format!(
@@ -204,9 +204,10 @@ impl RecordBuffer {
             })
         }
 
-        let players = Self::player_count(len, utility, remoteness, draw);
-        let mut buf = bitarr!(u8, Msb0; 0; BUFFER_SIZE);
-        buf[0..len].copy_from_bitslice(bits);
+        let mut buf = bitarr!(u8, Msb0; 0; BUFFER_BIT_SIZE);
+        buf[0..Self::bit_size(players, utility, remoteness, draw)]
+            .copy_from_bitslice(BitSlice::from_slice(bytes));
+
         Ok(Self {
             remoteness,
             players,
@@ -230,7 +231,7 @@ impl RecordBuffer {
             })
         }
 
-        let start = self.remoteness_index();
+        let start = self.remoteness_bit_index();
         let end = start + REMOTENESS_SIZE;
         Ok(self.buf[start..end].load_be::<Remoteness>())
     }
@@ -247,7 +248,7 @@ impl RecordBuffer {
             })
         }
 
-        let index = self.draw_index();
+        let index = self.draw_bit_index();
         Ok(*self.buf.get(index).unwrap())
     }
 
@@ -321,7 +322,7 @@ impl RecordBuffer {
                 })
             }
 
-            let start = self.utility_index(player);
+            let start = self.utility_bit_index(player);
             let end = start + SIMPLE_UTILITY_SIZE;
             self.buf[start..end].store_be(utility);
         }
@@ -375,7 +376,7 @@ impl RecordBuffer {
                 })
             }
 
-            let start = self.utility_index(player);
+            let start = self.utility_bit_index(player);
             let end = start + INTEGER_UTILITY_SIZE;
             self.buf[start..end].store_be(utility);
         }
@@ -418,7 +419,7 @@ impl RecordBuffer {
             })
         }
 
-        let start = self.remoteness_index();
+        let start = self.remoteness_bit_index();
         let end = start + REMOTENESS_SIZE;
         self.buf[start..end].store_be(value);
         Ok(())
@@ -436,7 +437,7 @@ impl RecordBuffer {
             })
         }
 
-        let index = self.draw_index();
+        let index = self.draw_bit_index();
         self.buf.set(index, value);
         Ok(())
     }
@@ -456,7 +457,7 @@ impl RecordBuffer {
             })
         }
 
-        let start = self.utility_index(player);
+        let start = self.utility_bit_index(player);
         let end = start + self.utility.space();
         Ok(&self.buf[start..end])
     }
@@ -465,14 +466,12 @@ impl RecordBuffer {
 
     #[inline(always)]
     const fn player_count(
-        length: usize,
-        utility: UtilityType,
+        buffer_bit_size: usize,
         remoteness: bool,
+        utility: UtilityType,
         draw: bool,
     ) -> usize {
-        (length
-            - if remoteness { REMOTENESS_SIZE } else { 0 }
-            - if draw { DRAW_SIZE } else { 0 })
+        (buffer_bit_size - Self::bit_size(0, utility, remoteness, draw))
             / utility.space()
     }
 
@@ -489,26 +488,30 @@ impl RecordBuffer {
     }
 
     #[inline(always)]
-    const fn minimum_bit_size(remoteness: bool, draw: bool) -> usize {
-        0 + if remoteness { REMOTENESS_SIZE } else { 0 }
-            + if draw { DRAW_SIZE } else { 0 }
+    const fn byte_size(
+        players: usize,
+        utility: UtilityType,
+        remoteness: bool,
+        draw: bool,
+    ) -> usize {
+        Self::bit_size(players, utility, remoteness, draw).div_ceil(8)
     }
 
     /* LAYOUT METHODS */
 
     #[inline(always)]
-    const fn utility_index(&self, player: Player) -> usize {
+    const fn utility_bit_index(&self, player: Player) -> usize {
         player * self.utility.space()
     }
 
     #[inline(always)]
-    const fn remoteness_index(&self) -> usize {
+    const fn remoteness_bit_index(&self) -> usize {
         self.players * self.utility.space()
     }
 
     #[inline(always)]
-    const fn draw_index(&self) -> usize {
-        self.remoteness_index()
+    const fn draw_bit_index(&self) -> usize {
+        self.remoteness_bit_index()
             + if self.remoteness { REMOTENESS_SIZE } else { 0 }
     }
 }

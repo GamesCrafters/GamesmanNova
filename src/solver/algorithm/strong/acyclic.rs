@@ -2,10 +2,13 @@
 //!
 //! This module implements strong acyclic solving routines.
 
+use std::path::Path;
+
 use anyhow::{Context, Result};
 
+use crate::database::engine::sled;
 use crate::database::record::mur;
-use crate::database::Map;
+use crate::database::{ByteMap, Persistent, ProtoRelational};
 use crate::game::model::PlayerCount;
 use crate::game::Information;
 use crate::game::{Bounded, Transition};
@@ -14,12 +17,6 @@ use crate::solver::model::{IUtility, Remoteness};
 use crate::solver::UtilityType;
 use crate::solver::{IntegerUtility, Sequential};
 use crate::util::Identify;
-
-/* CONSTANTS */
-
-/// This string is added as a postfix to a game variant encoding to create a
-/// table name for its solution set within a given database.
-pub const SOLUTION_TABLE_POSTFIX: &str = "solution";
 
 /* SOLVERS */
 
@@ -35,7 +32,13 @@ where
         + Identify
         + Information,
 {
-    todo!()
+    let db = sled::SledDatabase::new(Path::new("~/tmp/"))?;
+    let mut solution = db.namespace(
+        mur::schema(N, UtilityType::Integer, true, false)?,
+        &G::info().name,
+    )?;
+
+    backward_induction(&mut solution, game)
 }
 
 /* SOLVING ALGORITHMS */
@@ -49,7 +52,7 @@ fn backward_induction<const N: PlayerCount, const B: usize, M, G>(
     game: &G,
 ) -> Result<()>
 where
-    M: Map,
+    M: ByteMap,
     G: Transition<B> + Bounded<B> + IntegerUtility<N, B> + Sequential<N, B>,
 {
     let mut stack = Vec::new();
@@ -59,7 +62,7 @@ where
         let mut buf = new_record::<N>()
             .context("Failed to create placeholder record.")?;
 
-        if solution.get(&curr).is_none() {
+        if solution.get(&curr)?.is_none() {
             solution.insert(&curr, &buf)?;
             if game.end(curr) {
                 buf = new_record::<N>()
@@ -74,11 +77,12 @@ where
                 solution.insert(&curr, &buf)?;
             } else {
                 stack.push(curr);
-                stack.extend(
-                    children
-                        .iter()
-                        .filter(|&x| solution.get(x).is_none()),
-                );
+                stack.extend(children.iter().filter(|x| {
+                    solution
+                        .get(x)
+                        .expect("Database GET error.")
+                        .is_none()
+                }));
             }
         } else {
             let mut optimal = buf;

@@ -11,7 +11,9 @@
 
 use anyhow::bail;
 use anyhow::{Context, Result};
+use bitvec::array::BitArray;
 use bitvec::field::BitField;
+use bitvec::order::Msb0;
 
 use crate::game::error::GameError;
 use crate::game::model::Variant;
@@ -87,13 +89,14 @@ impl Session {
     }
 
     fn encode_state(&self, turn: Player, elements: Elements) -> State {
-        let mut state = State::ZERO;
+        let mut state: BitArray<_, Msb0> = BitArray::ZERO;
         state[..self.player_bits].store_be(turn);
         state[self.player_bits..].store_be(elements);
-        state
+        state.data
     }
 
     fn decode_state(&self, state: State) -> (Player, Elements) {
+        let state: BitArray<_, Msb0> = BitArray::from(state);
         let player = state[..self.player_bits].load_be::<Player>();
         let elements = state[self.player_bits..].load_be::<Elements>();
         (player, elements)

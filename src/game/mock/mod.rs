@@ -5,7 +5,9 @@
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
+use bitvec::array::BitArray;
 use bitvec::field::BitField;
+use bitvec::order::Msb0;
 use petgraph::csr::DefaultIx;
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
@@ -69,9 +71,9 @@ impl<'a> Session<'a> {
             .inserted
             .get(&(node as *const Node))
         {
-            let mut state = State::ZERO;
+            let mut state = BitArray::<_, Msb0>::ZERO;
             state.store_be::<DefaultIx>(index.index() as DefaultIx);
-            Some(state)
+            Some(state.data)
         } else {
             None
         }
@@ -91,13 +93,15 @@ impl<'a> Session<'a> {
     fn transition(&self, state: State, dir: Direction) -> Vec<State> {
         self.game
             .neighbors_directed(
-                NodeIndex::from(state.load_be::<DefaultIx>()),
+                NodeIndex::from(
+                    BitArray::<_, Msb0>::from(state).load_be::<DefaultIx>(),
+                ),
                 dir,
             )
             .map(|n| {
-                let mut state = State::ZERO;
+                let mut state: BitArray<_, Msb0> = BitArray::ZERO;
                 state.store_be(n.index());
-                state
+                state.data
             })
             .collect()
     }
@@ -105,7 +109,9 @@ impl<'a> Session<'a> {
     /// Returns a reference to the game node with `state`, or panics if there is
     /// no such node.
     fn node(&self, state: State) -> &Node {
-        self.game[NodeIndex::from(state.load_be::<DefaultIx>())]
+        self.game[NodeIndex::from(
+            BitArray::<_, Msb0>::from(state).load_be::<DefaultIx>(),
+        )]
     }
 }
 
@@ -123,9 +129,9 @@ impl Transition for Session<'_> {
 
 impl Bounded for Session<'_> {
     fn start(&self) -> State {
-        let mut state = State::ZERO;
+        let mut state = BitArray::<_, Msb0>::ZERO;
         state.store_be::<DefaultIx>(self.start.index() as DefaultIx);
-        state
+        state.data
     }
 
     fn end(&self, state: State) -> bool {
@@ -188,7 +194,7 @@ mod tests {
             .collect();
 
         let repeats = states.iter().any(|&i| {
-            states[(1 + i.load_be::<usize>())..]
+            states[(1 + BitArray::<_, Msb0>::from(i).load_be::<usize>())..]
                 .iter()
                 .any(|&j| i == j)
         });

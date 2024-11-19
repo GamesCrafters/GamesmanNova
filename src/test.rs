@@ -7,11 +7,10 @@
 use anyhow::{bail, Context, Result};
 use strum_macros::Display;
 
-use std::{
-    env, fs,
-    path::{self, PathBuf},
-    sync::RwLock,
-};
+use std::env;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::RwLock;
 
 /* CONSTANTS */
 
@@ -64,7 +63,7 @@ pub fn test_setting() -> Result<TestSetting> {
 pub fn get_directory(
     data: DevelopmentData,
     module: PathBuf,
-) -> Result<path::PathBuf> {
+) -> Result<PathBuf> {
     let root = find_cargo_lock_directory()
         .context("Failed to find project root directory.")?;
 
@@ -94,7 +93,7 @@ pub fn get_directory(
 /* HELPER FUNCTIONS */
 
 /// Searches for a parent directory containing a `Cargo.lock` file.
-fn find_cargo_lock_directory() -> Result<path::PathBuf> {
+fn find_cargo_lock_directory() -> Result<PathBuf> {
     let _lock = DIRECTORY_LOCK.read().unwrap();
     let mut cwd = env::current_dir()?;
     loop {

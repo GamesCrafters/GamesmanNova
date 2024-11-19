@@ -2,14 +2,13 @@
 //!
 //! Provides definitions for types used in game interfaces.
 
-use bitvec::{array::BitArray, order::Msb0};
 use clap::ValueEnum;
 
 /// The default number of bytes used to encode states.
 pub const DEFAULT_STATE_BYTES: usize = 8;
 
 /// Unique identifier of a particular state in a game.
-pub type State<const B: usize = DEFAULT_STATE_BYTES> = BitArray<[u8; B], Msb0>;
+pub type State<const B: usize = DEFAULT_STATE_BYTES> = [u8; B];
 
 /// String encoding some specific game's variant.
 pub type Variant = String;

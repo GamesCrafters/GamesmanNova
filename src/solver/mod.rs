@@ -6,10 +6,12 @@
 //! solutions, or finding "solutions" under different game-theoretic definitions
 //! of that word.
 
-use crate::game::model::{
-    Partition, Player, PlayerCount, State, StateCount,
-    DEFAULT_STATE_BYTES as DBYTES,
-};
+use crate::game::model::Partition;
+use crate::game::model::Player;
+use crate::game::model::PlayerCount;
+use crate::game::model::State;
+use crate::game::model::StateCount;
+use crate::game::model::DEFAULT_STATE_BYTES as DBYTES;
 use crate::solver::model::{IUtility, RUtility, SUtility};
 
 /* UTILITY MODULES */
@@ -53,6 +55,12 @@ pub mod algorithm {
         pub mod cyclic;
     }
 }
+
+/* CONSTANTS */
+
+/// This string is added as a postfix to a game variant encoding to create a
+/// table name for its solution set within a given database.
+pub const SOLUTION_TABLE_POSTFIX: &str = "solution";
 
 /* DEFINITIONS */
 
@@ -272,6 +280,7 @@ pub trait ClassicPuzzle<const B: usize = DBYTES> {
 
 /* BLANKET IMPLEMENTATIONS */
 
+// All N-player integer-utility games are also N-player real-utility games.
 impl<const N: PlayerCount, const B: usize, G> RealUtility<N, B> for G
 where
     G: IntegerUtility<N, B>,
@@ -287,6 +296,7 @@ where
     }
 }
 
+// All N-player simple-utility games are also N-player integer-utility games.
 impl<const N: PlayerCount, const B: usize, G> IntegerUtility<N, B> for G
 where
     G: SimpleUtility<N, B>,
@@ -302,6 +312,7 @@ where
     }
 }
 
+// All 2-player zero-sum games are also 2-player simple-utility games.
 impl<const B: usize, G> SimpleUtility<2, B> for G
 where
     G: Sequential<2, B> + ClassicGame<B>,
@@ -317,6 +328,7 @@ where
     }
 }
 
+// All puzzles are also 1-player simple-utility games.
 impl<const B: usize, G> SimpleUtility<1, B> for G
 where
     G: ClassicPuzzle<B>,

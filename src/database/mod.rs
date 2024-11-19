@@ -1,4 +1,3 @@
-#![allow(drop_bounds)]
 //! # Database Module
 //!
 //! This module contains memory and I/O mechanisms used to store and fetch
@@ -8,7 +7,7 @@ use anyhow::Result;
 
 use std::path::{Path, PathBuf};
 
-use crate::database::model::{Key, SequenceKey, Value};
+use crate::database::model::SequenceKey;
 
 /* RE-EXPORTS */
 
@@ -25,6 +24,12 @@ pub mod error;
 
 /* IMPLEMENTATION MODULES */
 
+/// TODO
+pub mod engine {
+    pub mod sled;
+}
+
+/// TODO
 pub mod record {
     pub mod mur;
     pub mod dir;
@@ -83,44 +88,56 @@ pub enum Datatype {
 
 /* DATABASE RESOURCE INTERFACES */
 
-/// Represents the behavior of a map from `Key` to `Value` types, which are both
-/// concrete aliases for a sequence of bits.
-pub trait Map {
-    /// Replaces the value associated with `key` with the bits of `record`,
+/// Allows a resource to act as a map from bytes to other bytes. Commonly
+/// understood as a Key-Value store.
+pub trait ByteMap {
+    /// Replaces the value associated with `key` with the bytes of `record`,
     /// creating one if it does not already exist. Fails if under any violation
     /// of implementation-specific assumptions of record size or contents.
-    fn insert<R: Record>(&mut self, key: &Key, record: &R) -> Result<()>;
+    fn insert<K, V>(&mut self, key: K, record: V) -> Result<()>
+    where
+        K: AsRef<[u8]>,
+        V: AsRef<[u8]>;
 
-    /// Returns the bits associated with the value of `key`, or `None` if there
-    /// is no such association. Infallible due to all possible values of `key`
-    /// being considered valid (but not necessarily existent).
-    fn get(&self, key: &Key) -> Option<&Value>;
+    /// Returns the bytes associated with the value of `key`, or `None` if there
+    /// is no such association.
+    fn get<K>(&self, key: K) -> Result<Option<Vec<u8>>>
+    where
+        K: AsRef<[u8]>;
 
     /// Removes the association of `key` to whatever value it is currently bound
     /// to, or does nothing if there is no such value.
-    fn remove(&mut self, key: &Key);
+    fn remove<K>(&mut self, key: K) -> Result<Option<Vec<u8>>>
+    where
+        K: AsRef<[u8]>;
+}
+
+/// Allows a database to be sectionable into different namespaces, such as
+/// tables in the case of a relational database. Such sections are assumed to
+/// operate over their elements independently of each other.
+pub trait ProtoRelational {
+    type Namespace: ByteMap + Relation;
+
+    /// Create and return a new namespace under this database enforcing the
+    /// provided `schema` as a relation.
+    fn namespace(&self, schema: Schema, name: &str) -> Result<Self::Namespace>;
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait
 /// requires custom handling of what happens when the database is closed; if it
-/// has data on memory, then it should persist dirty data to ensure consistency
-/// via [`Drop`]. Database file structure is implementation-specific.
-pub trait Persistent
-where
-    Self: Drop,
-{
+/// has data on memory, then it should persist dirty data to ensure consistency.
+/// This is possible via [`Persistent::flush`].
+pub trait Persistent {
     /// Interprets the contents of a directory at `path` to be the contents of
-    /// a persistent database. Fails if the contents of `path` are unexpected.
-    fn from(path: &Path) -> Result<Self>
+    /// a persistent database. If no contents have been written, they will be
+    /// initialized. Fails if the path does not exist.
+    fn new(path: &Path) -> Result<Self>
     where
         Self: Sized;
 
-    /// Binds the contents of the database to a particular `path` for the sake
-    /// of persistence. It is undefined behavior to forego calling this function
-    /// before pushing data to the underlying database. Fails if the database is
-    /// already bound to another path, or if `path` is non-empty, or under any
-    /// I/O failure.
-    fn bind(&self, path: &Path) -> Result<()>;
+    /// Persist the in-memory contents of the database to disk. Potentially very
+    /// slow. Use sparingly to ensure recoverability.
+    fn flush(&self) -> Result<usize>;
 }
 
 /// A grouping of fixed-length records which share a table [`Schema`] that can
@@ -128,28 +145,13 @@ where
 /// keeping track of useful metadata.
 pub trait Relation
 where
-    Self: Map,
+    Self: ByteMap,
 {
     /// Returns a reference to the schema associated with `self`.
     fn schema(&self) -> &Schema;
 
     /// Returns the number of records currently contained in `self`.
-    fn count(&self) -> u64;
-
-    /// Returns the total number of bytes being used to store the contents of
-    /// `self`, excluding metadata (both in memory and persistent media).
-    fn bytes(&self) -> u64;
-
-    /// Returns the identifier associated with `self`.
-    fn id(&self) -> SequenceKey;
-}
-
-/* RECORD INTERFACE */
-
-/// Represents an in-memory sequence of bits that can be directly accessed.
-pub trait Record {
-    /// Returns a reference to the sequence of bits in `self`.
-    fn raw(&self) -> &Value;
+    fn count(&self) -> usize;
 }
 
 /* IMPLEMENTATIONS */

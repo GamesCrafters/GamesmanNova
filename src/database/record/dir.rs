@@ -14,7 +14,7 @@ use std::ffi::CString;
 
 use crate::database::error::DatabaseError::RecordViolation;
 use crate::database::util::SchemaBuilder;
-use crate::database::{Attribute, Datatype, Record, Schema};
+use crate::database::{Attribute, Datatype, Schema};
 use crate::util::min_ubits;
 
 /* CONSTANTS */
@@ -99,10 +99,9 @@ pub struct RecordBuffer {
     buf: BitArr!(for BUFFER_SIZE, in u8, Msb0),
 }
 
-impl Record for RecordBuffer {
-    #[inline(always)]
-    fn raw(&self) -> &BitSlice<u8, Msb0> {
-        &self.buf
+impl AsRef<[u8]> for RecordBuffer {
+    fn as_ref(&self) -> &[u8] {
+        self.buf.as_raw_slice()
     }
 }
 
