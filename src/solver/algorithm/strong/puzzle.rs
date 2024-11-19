@@ -5,7 +5,7 @@
 use anyhow::{Context, Result};
 
 use crate::database::volatile;
-use crate::database::{KVStore, Tabular};
+use crate::database::{Map, Tabular};
 use crate::game::{Bounded, DTransition, GeneralSum, Playable, STransition};
 use crate::interface::IOMode;
 use crate::model::{PlayerCount, Remoteness, State, Utility};
@@ -27,7 +27,7 @@ where
 fn bfs<G, D>(game: &G, db: &mut D)
 where
     G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
+    D: Map,
 {
     let end_states = discover_end_states_helper(db, game);
 
@@ -45,14 +45,14 @@ where
 fn bfs_state<G, D>(db: &mut D, game: &G)
 where
     G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
+    D: Map,
 {
 }
 
 fn discover_end_states<G, D>(db: &mut D, game: &G) -> Vec<State>
 where
     G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
+    D: Map,
 {
     let visited = HashSet::new();
     let end_states = Vec::new();
@@ -70,7 +70,7 @@ fn discover_end_states_helper<G, D>(
     end_states: Vec<State>,
 ) where
     G: DTransition<State> + Bounded<State> + SimpleSum<N>,
-    D: KVStore<RecordBuffer>,
+    D: Map,
 {
     visited.insert(state);
 

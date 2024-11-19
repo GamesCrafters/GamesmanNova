@@ -3,18 +3,20 @@
 //! This module provides some common utilities used in the implementation of
 //! more than a single game.
 
-use std::fmt::Display;
-
 use anyhow::bail;
 use anyhow::{Context, Result};
 
+use std::fmt::Display;
+use std::hash::{DefaultHasher, Hash, Hasher};
+
+use crate::database::model::SequenceKey;
+use crate::game::model::State;
 use crate::game::GameData;
 use crate::game::Information;
+use crate::game::Variable;
+use crate::game::{error::GameError, Bounded, Codec, Transition};
 use crate::interface::GameAttribute;
-use crate::{
-    game::{error::GameError, Bounded, Codec, Transition},
-    model::game::State,
-};
+use crate::util::Identify;
 
 /* STATE HISTORY VERIFICATION */
 
@@ -161,5 +163,19 @@ impl GameData {
             GameAttribute::About => self.about,
             GameAttribute::Name => self.name,
         }
+    }
+}
+
+/* IDENTIFICATION */
+
+impl<G> Identify for G
+where
+    G: Variable,
+{
+    fn id(&self) -> SequenceKey {
+        let mut hasher = DefaultHasher::new();
+        self.variant_string()
+            .hash(&mut hasher);
+        hasher.finish()
     }
 }

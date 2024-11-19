@@ -14,6 +14,8 @@ use anyhow::{Context, Result};
 use bitvec::field::BitField;
 
 use crate::game::error::GameError;
+use crate::game::model::Variant;
+use crate::game::model::{Player, PlayerCount, State};
 use crate::game::zero_by::states::*;
 use crate::game::zero_by::variants::*;
 use crate::game::Information;
@@ -21,10 +23,8 @@ use crate::game::Variable;
 use crate::game::{Bounded, Codec, Forward};
 use crate::game::{GameData, Transition};
 use crate::interface::{IOMode, Solution};
-use crate::model::game::Variant;
-use crate::model::game::{Player, PlayerCount, State};
-use crate::model::solver::SUtility;
 use crate::solver::algorithm::strong;
+use crate::solver::model::SUtility;
 use crate::solver::{Sequential, SimpleUtility};
 
 /* SUBMODULES */

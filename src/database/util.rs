@@ -5,15 +5,17 @@
 //! behavior; in particular, each database is to own a `util` module as needed,
 //! leaving this for cases where their functionality intersects.
 
-use std::fmt::Display;
-
+use anyhow::anyhow;
+use anyhow::bail;
 use anyhow::Result;
+
+use std::fmt::Display;
+use std::sync::Mutex;
 
 use crate::database::error::DatabaseError;
 use crate::database::Attribute;
 use crate::database::Datatype;
 use crate::database::Schema;
-use crate::solver::RecordType;
 
 /* DEFINITIONS */
 
@@ -21,8 +23,8 @@ use crate::solver::RecordType;
 /// provided attributes. This is here to help ensure schemas are not changed
 /// accidentally after being instantiated.
 pub struct SchemaBuilder {
+    attribute_count: usize,
     attributes: Vec<Attribute>,
-    record: Option<RecordType>,
     size: usize,
 }
 
@@ -32,15 +34,21 @@ pub struct SchemaIterator<'a> {
     index: usize,
 }
 
-/* BUILDER IMPLEMENTATION */
+/// Thread-safe generator for sequential database keys.
+#[derive(Default)]
+pub struct KeySequencer {
+    sequence_key: Mutex<u64>,
+}
+
+/* SCHEMA BUILDER IMPLEMENTATION */
 
 impl SchemaBuilder {
     /// Returns a new instance of a `SchemaBuilder`, which can be used to
     /// declaratively construct a new record `Schema`.
     pub fn new() -> Self {
         SchemaBuilder {
+            attribute_count: 0,
             attributes: Vec::new(),
-            record: None,
             size: 0,
         }
     }
@@ -49,21 +57,16 @@ impl SchemaBuilder {
     /// if adding `attr` to the schema would result in an invalid state.
     pub fn add(mut self, attr: Attribute) -> Result<Self> {
         self.check_attribute_validity(&attr)?;
+        self.attribute_count += 1;
         self.size += attr.size();
         Ok(self)
-    }
-
-    /// Associates a known `record` type to the schema under construction.
-    pub fn of(mut self, record: RecordType) -> Self {
-        self.record = Some(record);
-        self
     }
 
     /// Constructs the schema using the current state of the `SchemaBuilder`.
     pub fn build(self) -> Schema {
         Schema {
+            attribute_count: self.attribute_count,
             attributes: self.attributes,
-            record: self.record,
             size: self.size,
         }
     }
@@ -120,6 +123,33 @@ impl SchemaBuilder {
     }
 }
 
+/* KEY SEQUENCER IMPLEMENTATION */
+
+impl KeySequencer {
+    /// Returns a new instance of `KeySequencer`, which can be used to generate
+    /// sequential database keys in a thread-safe manner. The first generated
+    /// key will be `initial`.
+    pub fn new(initial: u64) -> Self {
+        Self {
+            sequence_key: Mutex::new(initial),
+        }
+    }
+
+    /// Returns the next sequential database key in a thread-safe manner.
+    pub fn next(&self) -> Result<u64> {
+        let mut key = self
+            .sequence_key
+            .lock()
+            .map_err(|_| anyhow!("Key sequencer lock poisoned."))?;
+
+        {
+            let cur = *key;
+            *key += 1;
+            Ok(cur)
+        }
+    }
+}
+
 /* UTILITY IMPLEMENTATIONS */
 
 impl Display for Datatype {
@@ -139,9 +169,7 @@ impl Display for Datatype {
 
 impl<'a> IntoIterator for &'a Schema {
     type IntoIter = SchemaIterator<'a>;
-
     type Item = &'a Attribute;
-
     fn into_iter(self) -> Self::IntoIter {
         SchemaIterator {
             schema: self,
@@ -152,11 +180,28 @@ impl<'a> IntoIterator for &'a Schema {
 
 impl<'a> Iterator for SchemaIterator<'a> {
     type Item = &'a Attribute;
-
     fn next(&mut self) -> Option<Self::Item> {
         self.index += 1;
         self.schema
             .attributes
             .get(self.index - 1)
+    }
+}
+
+impl TryFrom<u8> for Datatype {
+    type Error = anyhow::Error;
+    fn try_from(discriminant: u8) -> Result<Datatype> {
+        match discriminant {
+            _ if Datatype::BOOL as u8 == discriminant => Ok(Datatype::BOOL),
+            _ if Datatype::CSTR as u8 == discriminant => Ok(Datatype::CSTR),
+            _ if Datatype::DPFP as u8 == discriminant => Ok(Datatype::DPFP),
+            _ if Datatype::SPFP as u8 == discriminant => Ok(Datatype::SPFP),
+            _ if Datatype::ENUM as u8 == discriminant => Ok(Datatype::ENUM),
+            _ if Datatype::SINT as u8 == discriminant => Ok(Datatype::SINT),
+            _ if Datatype::UINT as u8 == discriminant => Ok(Datatype::UINT),
+            _ => bail!(
+                "Conversion attempt on non-existent datatype discriminant."
+            ),
+        }
     }
 }

@@ -3,9 +3,7 @@
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 
-use std::hash::{DefaultHasher, Hash, Hasher};
-
-use crate::{game::Variable, model::database::Identifier};
+use crate::database::model::SequenceKey;
 
 /* INTERFACES */
 
@@ -15,19 +13,7 @@ pub trait Identify {
     /// Returns an ID that is unique in some degree to the state of this object.
     /// The semantics of when variations are acceptable are implicit, and should
     /// be enforced by an API consuming the [`Identify`] trait.
-    fn id(&self) -> Identifier;
-}
-
-impl<G> Identify for G
-where
-    G: Variable,
-{
-    fn id(&self) -> Identifier {
-        let mut hasher = DefaultHasher::new();
-        self.variant_string()
-            .hash(&mut hasher);
-        hasher.finish()
-    }
+    fn id(&self) -> SequenceKey;
 }
 
 /* BIT FIELDS */
@@ -41,7 +27,7 @@ pub const fn min_ubits(val: u64) -> usize {
 /// Return the minimum number of bits necessary to encode `utility`, which
 /// should be a signed integer in two's complement.
 #[inline(always)]
-pub fn min_sbits(utility: i64) -> usize {
+pub const fn min_sbits(utility: i64) -> usize {
     if utility >= 0 {
         min_ubits(utility as u64) + 1
     } else {

@@ -7,11 +7,11 @@
 
 use clap::{Args, Parser, Subcommand};
 
+use crate::database::model::SequenceKey;
+use crate::game::model::GameModule;
 use crate::interface::{
     GameAttribute, IOMode, InfoFormat, QueryFormat, Solution,
 };
-use crate::model::database::Identifier;
-use crate::model::game::GameModule;
 
 /* COMMAND LINE INTERFACE */
 
@@ -98,7 +98,7 @@ pub struct QueryArgs {
     /* DEFAULTS PROVIDED */
     /// Numeric identifier for the table that the query should be run on.
     #[arg(short, long)]
-    pub table: Option<Identifier>,
+    pub table: Option<SequenceKey>,
 
     /// Query specification string, conforming to ExQL syntax.
     #[arg(short, long)]

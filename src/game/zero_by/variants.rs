@@ -7,8 +7,8 @@ use bitvec::field::BitField;
 use regex::Regex;
 
 use crate::game::error::GameError;
+use crate::game::model::{Player, State};
 use crate::game::zero_by::{Session, NAME};
-use crate::model::game::{Player, State};
 use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */

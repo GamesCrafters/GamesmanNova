@@ -2,14 +2,13 @@
 //! # Database Module
 //!
 //! This module contains memory and I/O mechanisms used to store and fetch
-//! analysis data, hopefully in an efficient and scalable way.
+//! analysis data generically, hopefully in an efficient and scalable way.
 
 use anyhow::Result;
 
 use std::path::{Path, PathBuf};
 
-use crate::model::database::{Identifier, Key, Value};
-use crate::solver::RecordType;
+use crate::database::model::{Key, SequenceKey, Value};
 
 /* RE-EXPORTS */
 
@@ -19,19 +18,22 @@ pub use util::SchemaBuilder;
 
 #[cfg(test)]
 mod test;
-mod error;
 mod util;
+
+pub mod model;
+pub mod error;
 
 /* IMPLEMENTATION MODULES */
 
-pub mod volatile;
-pub mod vector;
-pub mod lsmt;
+pub mod record {
+    pub mod mur;
+    pub mod dir;
+}
 
 /* DEFINITIONS */
 
 /// Indicates whether the database implementation should store the data it is
-/// managing to disk, or keep it entirely in memory.
+/// managing to disk, or ensure nothing remains on disk after it is finished.
 pub enum Persistence {
     On(PathBuf),
     Off,
@@ -40,9 +42,10 @@ pub enum Persistence {
 /// Represents a list of tuples including a name and a size (called attributes),
 /// where each name is unique and the size is a number of bits. This is used to
 /// "interpret" the raw data within records into meaningful features.
+#[derive(Clone)]
 pub struct Schema {
+    attribute_count: usize,
     attributes: Vec<Attribute>,
-    record: Option<RecordType>,
     size: usize,
 }
 
@@ -67,6 +70,7 @@ pub struct Attribute {
 /// - `DPFP`: Double-precision floating point per IEEE 754 of size exactly 64.
 /// - `CSTR`: C-style string (ASCII character array) of a size divisible by 8.
 #[derive(Debug, Copy, Clone)]
+#[repr(u8)]
 pub enum Datatype {
     BOOL,
     ENUM,
@@ -77,14 +81,15 @@ pub enum Datatype {
     CSTR,
 }
 
-/* DATABASE INTERFACES */
+/* DATABASE RESOURCE INTERFACES */
 
-/// Represents the behavior of a Key-Value Store generic over a [`Record`] type.
-pub trait KVStore {
+/// Represents the behavior of a map from `Key` to `Value` types, which are both
+/// concrete aliases for a sequence of bits.
+pub trait Map {
     /// Replaces the value associated with `key` with the bits of `record`,
     /// creating one if it does not already exist. Fails if under any violation
     /// of implementation-specific assumptions of record size or contents.
-    fn put<R: Record>(&mut self, key: &Key, record: &R) -> Result<()>;
+    fn insert<R: Record>(&mut self, key: &Key, record: &R) -> Result<()>;
 
     /// Returns the bits associated with the value of `key`, or `None` if there
     /// is no such association. Infallible due to all possible values of `key`
@@ -93,17 +98,16 @@ pub trait KVStore {
 
     /// Removes the association of `key` to whatever value it is currently bound
     /// to, or does nothing if there is no such value.
-    fn delete(&mut self, key: &Key);
+    fn remove(&mut self, key: &Key);
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait
 /// requires custom handling of what happens when the database is closed; if it
 /// has data on memory, then it should persist dirty data to ensure consistency
 /// via [`Drop`]. Database file structure is implementation-specific.
-pub trait Persistent<T>
+pub trait Persistent
 where
-    Self: Tabular<T> + Drop,
-    T: Table,
+    Self: Drop,
 {
     /// Interprets the contents of a directory at `path` to be the contents of
     /// a persistent database. Fails if the contents of `path` are unexpected.
@@ -117,42 +121,14 @@ where
     /// already bound to another path, or if `path` is non-empty, or under any
     /// I/O failure.
     fn bind(&self, path: &Path) -> Result<()>;
-
-    /// Evict the contents of `table` to disk in a batch operation, potentially
-    /// leaving cache space for other table's usage. Calling this on all tables
-    /// in a database should be equivalent to dropping the database reference.
-    fn flush(&self, table: &mut T) -> Result<()>;
 }
-
-/// Allows for grouping data into [`Table`] implementations, which contain many
-/// fixed-length records that share attributes under a single [`Schema`]. This
-/// allows consumers of this implementation to have simultaneous references to
-/// different mutable tables.
-pub trait Tabular<T>
-where
-    T: Table,
-{
-    /// Creates a new table with `id` and `schema`. Fails if another table with
-    /// the same `id` already exists, or under any I/O failure.
-    fn create_table(&self, id: Identifier, schema: Schema) -> Result<&mut T>;
-
-    /// Obtains a mutable reference to the [`Table`] with `id`. Fails if no such
-    /// table exists in the underlying database, or under any I/O failure.
-    fn select_table(&self, id: Identifier) -> Result<&mut T>;
-
-    /// Forgets about the association of `id` to any existing table, doing
-    /// nothing if there is no such table. Fails under any I/O failure.
-    fn delete_table(&self, table: &mut T) -> Result<()>;
-}
-
-/* TABLE INTERFACE */
 
 /// A grouping of fixed-length records which share a table [`Schema`] that can
-/// be used as a handle to mutate them via [`KVStore`] semantics, in addition
-/// to keeping track of useful metadata.
-pub trait Table
+/// be used as a handle to mutate them via [`Map`] semantics, in addition to
+/// keeping track of useful metadata.
+pub trait Relation
 where
-    Self: KVStore,
+    Self: Map,
 {
     /// Returns a reference to the schema associated with `self`.
     fn schema(&self) -> &Schema;
@@ -162,10 +138,10 @@ where
 
     /// Returns the total number of bytes being used to store the contents of
     /// `self`, excluding metadata (both in memory and persistent media).
-    fn size(&self) -> u64;
+    fn bytes(&self) -> u64;
 
     /// Returns the identifier associated with `self`.
-    fn id(&self) -> Identifier;
+    fn id(&self) -> SequenceKey;
 }
 
 /* RECORD INTERFACE */
@@ -184,9 +160,14 @@ impl Schema {
         self.size
     }
 
-    /// Returns the record type associated with this schema, if any.
-    pub fn record(&self) -> Option<RecordType> {
-        self.record
+    /// Returns the number of attributes in the schema.
+    pub fn attribute_count(&self) -> usize {
+        self.attribute_count
+    }
+
+    /// Returns the attributes contained in this schema.
+    pub fn attributes(&self) -> &[Attribute] {
+        &self.attributes
     }
 }
 

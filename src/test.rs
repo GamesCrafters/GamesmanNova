@@ -4,7 +4,7 @@
 //! on throughout the project, and defines the structure of the development
 //! resources that are generated through tests.
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use strum_macros::Display;
 
 use std::{

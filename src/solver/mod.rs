@@ -6,24 +6,22 @@
 //! solutions, or finding "solutions" under different game-theoretic definitions
 //! of that word.
 
-use crate::model::{
-    game::{
-        Partition, Player, PlayerCount, State, StateCount,
-        DEFAULT_STATE_BYTES as DBYTES,
-    },
-    solver::{IUtility, RUtility, SUtility},
+use crate::game::model::{
+    Partition, Player, PlayerCount, State, StateCount,
+    DEFAULT_STATE_BYTES as DBYTES,
 };
+use crate::solver::model::{IUtility, RUtility, SUtility};
+
+/* UTILITY MODULES */
+
+#[cfg(test)]
+mod test;
+mod util;
+
+pub mod error;
+pub mod model;
 
 /* MODULES */
-
-/// Implementations of records that can be used by solving algorithms to store
-/// or persist the information they compute about a game, and communicate it to
-/// a database system.
-pub mod record {
-    pub mod mur;
-    pub mod sur;
-    pub mod rem;
-}
 
 /// Implementations of algorithms that can consume game implementations and
 /// compute different features of interest associated with groups of states or
@@ -56,24 +54,14 @@ pub mod algorithm {
     }
 }
 
-#[cfg(test)]
-mod test;
-mod error;
-mod util;
+/* DEFINITIONS */
 
-/* SOLVER DATABASE RECORDS */
-
-/// A record layout that can be used to encode and decode the attributes stored
-/// in serialized records. This is stored in database table schemas so that it
-/// can be retrieved later for deserialization.
-#[derive(Clone, Copy)]
-pub enum RecordType {
-    /// Multi-Utility Remoteness record for a specific number of players.
-    MUR(PlayerCount),
-    /// Simple Utility Remoteness record for a specific number of players.
-    SUR(PlayerCount),
-    /// Remoteness record (no utilities).
-    REM,
+/// Denotes the quantization level of utility values under consideration.
+#[derive(Copy, Clone)]
+pub enum UtilityType {
+    Integer,
+    Simple,
+    Real,
 }
 
 /* STRUCTURAL INTERFACES */

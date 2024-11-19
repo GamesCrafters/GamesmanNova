@@ -17,6 +17,8 @@
 use anyhow::{Context, Result};
 
 use crate::game::crossteaser::variants::*;
+use crate::game::model::State;
+use crate::game::model::Variant;
 use crate::game::Bounded;
 use crate::game::Codec;
 use crate::game::Forward;
@@ -26,9 +28,7 @@ use crate::game::Transition;
 use crate::game::Variable;
 use crate::interface::IOMode;
 use crate::interface::Solution;
-use crate::model::game::State;
-use crate::model::game::Variant;
-use crate::model::solver::SUtility;
+use crate::solver::model::SUtility;
 use crate::solver::ClassicPuzzle;
 
 /* SUBMODULES */
