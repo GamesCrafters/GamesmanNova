@@ -15,6 +15,7 @@ use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 
+use crate::database::{engine, Persistent, ProtoRelational};
 use crate::game::error::GameError;
 use crate::game::model::Variant;
 use crate::game::model::{Player, PlayerCount, State};
@@ -71,14 +72,22 @@ impl Session {
         }
     }
 
-    pub fn solve(&self, mode: IOMode, method: Solution) -> Result<()> {
+    pub fn solve<D>(
+        &self,
+        mode: IOMode,
+        method: Solution,
+        db: &mut D,
+    ) -> Result<()>
+    where
+        D: ProtoRelational + Persistent,
+    {
         match (self.players, method) {
             (2, Solution::Strong) => {
-                strong::acyclic::solver::<2, 8, Self>(self, mode)
+                strong::acyclic::solver::<2, 8, Self, D>(self, mode, db)
                     .context("Failed solver run.")?
             },
             (10, Solution::Strong) => {
-                strong::acyclic::solver::<10, 8, Self>(self, mode)
+                strong::acyclic::solver::<10, 8, Self, D>(self, mode, db)
                     .context("Failed solver run.")?
             },
             _ => bail!(GameError::SolverNotFound {

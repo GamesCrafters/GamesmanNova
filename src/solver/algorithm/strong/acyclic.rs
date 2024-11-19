@@ -2,11 +2,8 @@
 //!
 //! This module implements strong acyclic solving routines.
 
-use std::path::Path;
-
 use anyhow::{Context, Result};
 
-use crate::database::engine::sled;
 use crate::database::record::mur;
 use crate::database::{ByteMap, Persistent, ProtoRelational};
 use crate::game::model::PlayerCount;
@@ -14,17 +11,19 @@ use crate::game::Information;
 use crate::game::{Bounded, Transition};
 use crate::interface::IOMode;
 use crate::solver::model::{IUtility, Remoteness};
-use crate::solver::UtilityType;
+use crate::solver::{util, UtilityType};
 use crate::solver::{IntegerUtility, Sequential};
 use crate::util::Identify;
 
 /* SOLVERS */
 
-pub fn solver<const N: PlayerCount, const B: usize, G>(
+pub fn solver<const N: PlayerCount, const B: usize, G, D>(
     game: &G,
     mode: IOMode,
+    db: &mut D,
 ) -> Result<()>
 where
+    D: ProtoRelational + Persistent,
     G: Transition<B>
         + Bounded<B>
         + IntegerUtility<N, B>
@@ -32,14 +31,20 @@ where
         + Identify
         + Information,
 {
-    let db = sled::SledDatabase::new(Path::new("sled_db"))?;
-    let mut solution = db.namespace(
-        mur::schema(N, UtilityType::Integer, true, false)?,
-        &G::info().name,
-    )?;
+    let space = util::solution_namespace(G::info().name);
+    match mode {
+        IOMode::Constructive => (),
+        IOMode::Overwrite => {
+            db.drop(&space)?;
+        },
+    }
+
+    let schema = mur::schema(N, UtilityType::Integer, true, false)?;
+    let mut solution = db.namespace(schema, &space)?;
 
     backward_induction(&mut solution, game)?;
     db.flush()?;
+
     Ok(())
 }
 

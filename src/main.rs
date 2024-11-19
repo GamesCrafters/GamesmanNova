@@ -9,11 +9,13 @@
 //! relationship, greater weight is placed on making things fit into this
 //! module as a centralized point.
 
-use std::process;
+use std::{env, process};
 
 use anyhow::{Context, Result};
 use clap::Parser;
 
+use crate::database::engine::sled::SledDatabase;
+use crate::database::Persistent;
 use crate::game::model::GameModule;
 use crate::game::{Forward, Information};
 use crate::interface::standard::cli::*;
@@ -52,6 +54,8 @@ fn query(args: QueryArgs) -> Result<()> {
 
 fn solve(args: SolveArgs) -> Result<()> {
     interface::standard::confirm_potential_overwrite(args.yes, args.mode);
+    let db_path = env::current_dir()?;
+    let mut db = SledDatabase::new(&db_path)?;
     match args.target {
         GameModule::ZeroBy => {
             let mut session = game::zero_by::Session::new(args.variant)
@@ -67,7 +71,7 @@ fn solve(args: SolveArgs) -> Result<()> {
             }
 
             session
-                .solve(args.mode, args.solution)
+                .solve(args.mode, args.solution, &mut db)
                 .context("Failed to execute solving algorithm.")?
         },
     }

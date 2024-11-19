@@ -1,4 +1,4 @@
-//! # Sled Database Engine API
+//! # Sled Database Engine Integration
 //!
 //! It's all downhill from here.
 
@@ -13,18 +13,25 @@ use crate::database::ProtoRelational;
 use crate::database::Relation;
 use crate::database::Schema;
 
+/* CONSTANTS */
+
+/// A common name for all instances a [`sled`] database directory.
+pub const DIRECTORY_NAME: &str = "sled_db";
+
 /* DEFINITIONS */
 
+/// Wrapper for [`sled::Db`].
 pub struct SledDatabase {
     db: sled::Db,
 }
 
+/// Wrapper for [`sled::Tree`].
 pub struct SledNamespace {
     tree: sled::Tree,
     schema: Schema,
 }
 
-/* IMPLEMENTATIONS */
+/* NAMESPACE IMPLEMENTATIONS */
 
 impl ByteMap for SledNamespace {
     fn insert<K, V>(&mut self, key: K, record: V) -> Result<()>
@@ -68,6 +75,8 @@ impl Relation for SledNamespace {
     }
 }
 
+/* DATABASE IMPLEMENTATIONS */
+
 impl ProtoRelational for SledDatabase {
     type Namespace = SledNamespace;
     fn namespace(&self, schema: Schema, name: &str) -> Result<Self::Namespace> {
@@ -75,6 +84,12 @@ impl ProtoRelational for SledDatabase {
             tree: self.db.open_tree(name)?,
             schema,
         })
+    }
+
+    fn drop(&self, name: &str) -> Result<bool> {
+        self.db
+            .drop_tree(name)
+            .map_err(|e| anyhow!("Failed to drop namespace '{}': {}", name, e))
     }
 }
 
@@ -91,13 +106,5 @@ impl Persistent for SledDatabase {
         self.db
             .flush()
             .map_err(|e| anyhow!("Failed to flush database: {}", e))
-    }
-}
-
-impl Drop for SledDatabase {
-    fn drop(&mut self) {
-        self.db
-            .flush()
-            .expect(&format!("Failed to flush Sled database"));
     }
 }

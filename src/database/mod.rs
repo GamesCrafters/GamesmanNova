@@ -5,9 +5,7 @@
 
 use anyhow::Result;
 
-use std::path::{Path, PathBuf};
-
-use crate::database::model::SequenceKey;
+use std::path::Path;
 
 /* RE-EXPORTS */
 
@@ -36,13 +34,6 @@ pub mod record {
 }
 
 /* DEFINITIONS */
-
-/// Indicates whether the database implementation should store the data it is
-/// managing to disk, or ensure nothing remains on disk after it is finished.
-pub enum Persistence {
-    On(PathBuf),
-    Off,
-}
 
 /// Represents a list of tuples including a name and a size (called attributes),
 /// where each name is unique and the size is a number of bits. This is used to
@@ -121,6 +112,10 @@ pub trait ProtoRelational {
     /// Create and return a new namespace under this database enforcing the
     /// provided `schema` as a relation.
     fn namespace(&self, schema: Schema, name: &str) -> Result<Self::Namespace>;
+
+    /// Drop the namespace with `name` under this database. Returns true if
+    /// this in fact dropped a namespace.
+    fn drop(&self, name: &str) -> Result<bool>;
 }
 
 /// Allows a database to be evicted to persistent media. Implementing this trait

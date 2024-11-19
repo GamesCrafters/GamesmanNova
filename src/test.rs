@@ -32,6 +32,7 @@ const DEV_DIRECTORY: &str = "dev";
 #[strum(serialize_all = "kebab-case")]
 pub enum DevelopmentData {
     Visuals,
+    Data,
 }
 
 /// Specifies the level of side effects to generate during testing. This

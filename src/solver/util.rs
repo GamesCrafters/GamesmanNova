@@ -7,6 +7,15 @@ use std::ops::Not;
 
 use crate::solver::error::SolverError;
 use crate::solver::model::{IUtility, RUtility, SUtility};
+use crate::solver::SOLUTION_TABLE_POSTFIX;
+
+/* FILENAMES */
+
+/// Return a standard name used for the namespace associated with a solution for
+/// the provided `game`.
+pub fn solution_namespace(game: &str) -> String {
+    format!("{}_{}", game, SOLUTION_TABLE_POSTFIX)
+}
 
 /* CONVERSIONS INTO SIMPLE UTILITY */
 
