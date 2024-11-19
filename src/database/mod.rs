@@ -25,7 +25,6 @@ pub mod error;
 
 /* IMPLEMENTATION MODULES */
 
-pub mod volatile;
 pub mod record {
     pub mod mur;
     pub mod dir;
