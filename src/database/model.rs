@@ -12,5 +12,5 @@ pub type SequenceKey = u64;
 /// with a key, backed by a [`BitSlice`] with [`u8`] big-endian storage.
 pub type Value = BitSlice<u8, Msb0>;
 
-/// The type of a database key per an implementation of [`KVStore`].
+/// The type of a database key per an implementation of [`Map`].
 pub type Key = BitSlice<u8, Msb0>;

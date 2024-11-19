@@ -6,16 +6,15 @@
 //! leaving this for cases where their functionality intersects.
 
 use anyhow::anyhow;
+use anyhow::bail;
 use anyhow::Result;
 
 use std::fmt::Display;
 use std::sync::Mutex;
 
 use crate::database::error::DatabaseError;
-use crate::database::record;
 use crate::database::Attribute;
 use crate::database::Datatype;
-use crate::database::RecordType;
 use crate::database::Schema;
 
 /* DEFINITIONS */
@@ -25,9 +24,7 @@ use crate::database::Schema;
 /// accidentally after being instantiated.
 pub struct SchemaBuilder {
     attribute_count: usize,
-    table_name: String,
     attributes: Vec<Attribute>,
-    record: Option<RecordType>,
     size: usize,
 }
 
@@ -48,12 +45,10 @@ pub struct KeySequencer {
 impl SchemaBuilder {
     /// Returns a new instance of a `SchemaBuilder`, which can be used to
     /// declaratively construct a new record `Schema`.
-    pub fn new(name: &str) -> Self {
+    pub fn new() -> Self {
         SchemaBuilder {
             attribute_count: 0,
-            table_name: name.to_string(),
             attributes: Vec::new(),
-            record: None,
             size: 0,
         }
     }
@@ -67,19 +62,11 @@ impl SchemaBuilder {
         Ok(self)
     }
 
-    /// Associates a known `record` type to the schema under construction.
-    pub fn of(mut self, record: RecordType) -> Self {
-        self.record = Some(record);
-        self
-    }
-
     /// Constructs the schema using the current state of the `SchemaBuilder`.
     pub fn build(self) -> Schema {
         Schema {
             attribute_count: self.attribute_count,
-            table_name: self.table_name,
             attributes: self.attributes,
-            record: self.record,
             size: self.size,
         }
     }
@@ -136,19 +123,6 @@ impl SchemaBuilder {
     }
 }
 
-/* RECORD TYPE IMPLEMENTATION */
-
-impl RecordType {
-    pub fn try_into_schema(self, name: &str) -> Result<Schema> {
-        match self {
-            RecordType::MUR(players) => record::mur::schema(players, name),
-            RecordType::SUR(players) => record::sur::schema(players, name),
-            RecordType::REM => record::rem::schema(name),
-            RecordType::DTR => record::dtr::schema(name),
-        }
-    }
-}
-
 /* KEY SEQUENCER IMPLEMENTATION */
 
 impl KeySequencer {
@@ -195,9 +169,7 @@ impl Display for Datatype {
 
 impl<'a> IntoIterator for &'a Schema {
     type IntoIter = SchemaIterator<'a>;
-
     type Item = &'a Attribute;
-
     fn into_iter(self) -> Self::IntoIter {
         SchemaIterator {
             schema: self,
@@ -208,7 +180,6 @@ impl<'a> IntoIterator for &'a Schema {
 
 impl<'a> Iterator for SchemaIterator<'a> {
     type Item = &'a Attribute;
-
     fn next(&mut self) -> Option<Self::Item> {
         self.index += 1;
         self.schema
@@ -217,20 +188,20 @@ impl<'a> Iterator for SchemaIterator<'a> {
     }
 }
 
-impl Display for RecordType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RecordType::MUR(players) => {
-                write!(f, "Real Utility Remoteness ({players} players)")
-            },
-            RecordType::SUR(players) => {
-                write!(
-                    f,
-                    "Simple Utility Remoteness ({players}  players)",
-                )
-            },
-            RecordType::REM => write!(f, "Remoteness (no utility)"),
-            RecordType::DTR => write!(f, "Directory Table Record"),
+impl TryFrom<u8> for Datatype {
+    type Error = anyhow::Error;
+    fn try_from(discriminant: u8) -> Result<Datatype> {
+        match discriminant {
+            _ if Datatype::BOOL as u8 == discriminant => Ok(Datatype::BOOL),
+            _ if Datatype::CSTR as u8 == discriminant => Ok(Datatype::CSTR),
+            _ if Datatype::DPFP as u8 == discriminant => Ok(Datatype::DPFP),
+            _ if Datatype::SPFP as u8 == discriminant => Ok(Datatype::SPFP),
+            _ if Datatype::ENUM as u8 == discriminant => Ok(Datatype::ENUM),
+            _ if Datatype::SINT as u8 == discriminant => Ok(Datatype::SINT),
+            _ if Datatype::UINT as u8 == discriminant => Ok(Datatype::UINT),
+            _ => bail!(
+                "Conversion attempt on non-existent datatype discriminant."
+            ),
         }
     }
 }

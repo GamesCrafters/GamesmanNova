@@ -5,16 +5,19 @@
 
 use anyhow::bail;
 use anyhow::Result;
+use bitvec::slice::BitSlice;
 
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use crate::database::model::SequenceKey;
+use crate::database::record::dir;
 use crate::database::util::KeySequencer;
 use crate::database::volatile::resource::Request;
 use crate::database::volatile::resource::ResourceManager;
 use crate::database::volatile::transaction::Transaction;
 use crate::database::volatile::transaction::TransactionManager;
+use crate::database::Map;
 use crate::database::Schema;
 
 /* RE-EXPORTS */
@@ -64,7 +67,7 @@ impl Sequencer {
         self.transaction.next()
     }
 
-    pub fn next_resource(&self) -> Result<TransactionID> {
+    pub fn next_resource(&self) -> Result<ResourceID> {
         self.transaction.next()
     }
 }
@@ -88,7 +91,7 @@ impl Database {
 
         let directory = db
             .start_transaction(Request::empty())?
-            .create_resource(Self::directory_schema())?;
+            .create_resource(dir::schema()?)?;
 
         db.directory = Some(directory);
         Ok(db)
@@ -125,7 +128,7 @@ impl Database {
         Ok(txn)
     }
 
-    pub fn create_resource(&self, schema: Schema) -> Result<ResourceID> {
+    pub fn create_resource(&self, schema: Schema, name: &str) -> Result<()> {
         let directory = self
             .directory
             .expect("Database directory table found uninitialized.");
@@ -135,11 +138,18 @@ impl Database {
             read: vec![],
         })?;
 
-        let id = txn.create_resource(schema)?;
         let mut directory = txn.write(directory)?;
-        todo!()
-        // directory.insert(id.into(), schema.into());
-        // Ok(id)
+        let dir_key = &BitSlice::from_slice(name.as_bytes());
+        if let Some(_) = directory.get(dir_key) {
+            bail!("Resource '{name}' already exists.")
+        }
+
+        let id = txn.create_resource(schema.clone())?;
+        let mut record = dir::RecordBuffer::try_from(schema)?;
+        record.set_offset(id);
+
+        directory.insert(dir_key, &record);
+        Ok(id)
     }
 
     pub fn drop_resource(&self, name: &str) -> Result<()> {
@@ -152,17 +162,16 @@ impl Database {
             read: vec![],
         })?;
 
+        let dir_key = &BitSlice::from_slice(name.as_bytes());
         let mut directory = txn.write(directory)?;
-        txn.drop_resource(id)?;
-        todo!()
-        // directory.remove(id.into());
-        // Ok(id)
-    }
+        if let Some(value) = directory.get(dir_key) {
+            let record = dir::RecordBuffer::new(value)?;
+            let id = record.get_offset();
+            txn.drop_resource(id)?;
+            directory.remove(dir_key);
+        }
 
-    /* PRIVATE */
-
-    fn directory_schema() -> Schema {
-        todo!()
+        Ok(())
     }
 }
 

@@ -33,64 +33,58 @@ pub struct Transaction {
 
 #[derive(Default)]
 pub struct ResourceHandles {
-    write: HashMap<ResourceID, Arc<RwLock<Resource>>>,
-    read: HashMap<ResourceID, Arc<RwLock<Resource>>>,
+    write: HashMap<String, Arc<RwLock<Resource>>>,
+    read: HashMap<String, Arc<RwLock<Resource>>>,
 }
 
 pub struct WorkingSet<'a> {
-    write: HashMap<ResourceID, RwLockWriteGuard<'a, Resource>>,
-    read: HashMap<ResourceID, RwLockReadGuard<'a, Resource>>,
+    write: HashMap<String, RwLockWriteGuard<'a, Resource>>,
+    read: HashMap<String, RwLockReadGuard<'a, Resource>>,
 }
 
 /* IMPLEMENTATION */
 
 impl WorkingSet<'_> {
-    pub fn get_reading(&mut self, id: ResourceID) -> RwLockReadGuard<Resource> {
-        self.read.remove(&id).unwrap()
+    pub fn get_reading(&mut self, name: &str) -> RwLockReadGuard<Resource> {
+        self.read.remove(name).unwrap()
     }
 
-    pub fn get_writing(
-        &mut self,
-        id: ResourceID,
-    ) -> RwLockWriteGuard<Resource> {
-        self.write.remove(&id).unwrap()
+    pub fn get_writing(&mut self, name: &str) -> RwLockWriteGuard<Resource> {
+        self.write.remove(name).unwrap()
     }
 }
 
 impl ResourceHandles {
-    pub fn add_read(&mut self, id: ResourceID, lock: Arc<RwLock<Resource>>) {
-        self.read.insert(id, lock);
+    pub fn add_read(&mut self, name: String, lock: Arc<RwLock<Resource>>) {
+        self.read.insert(name, lock);
     }
 
-    pub fn add_write(&mut self, id: ResourceID, lock: Arc<RwLock<Resource>>) {
-        self.write.insert(id, lock);
+    pub fn add_write(&mut self, name: String, lock: Arc<RwLock<Resource>>) {
+        self.write.insert(name, lock);
     }
 
-    fn read(&self, resource: ResourceID) -> Result<RwLockReadGuard<Resource>> {
-        if let Some(ref resource) = self.read.get(&resource) {
+    fn read(&self, name: &str) -> Result<RwLockReadGuard<Resource>> {
+        if let Some(ref resource) = self.read.get(name) {
             Ok(resource
                 .read()
                 .map_err(|_| anyhow!("Read on poisoned resource lock."))?)
         } else {
             Err(anyhow!(
                 "Attempted read on unacquired resource {}.",
-                resource
+                name
             ))
         }
     }
 
-    fn write(
-        &self,
-        resource: ResourceID,
-    ) -> Result<RwLockWriteGuard<Resource>> {
-        if let Some(ref resource) = self.write.get(&resource) {
+    fn write(&self, name: &str) -> Result<RwLockWriteGuard<Resource>> {
+        if let Some(ref resource) = self.write.get(name) {
             Ok(resource
                 .write()
                 .map_err(|_| anyhow!("Write on poisoned resource lock."))?)
         } else {
             Err(anyhow!(
                 "Attempted write on unacquired resource {}.",
-                resource
+                name
             ))
         }
     }
@@ -99,9 +93,9 @@ impl ResourceHandles {
         let read = self
             .read
             .iter()
-            .map(|(&id, l)| {
+            .map(|(name, l)| {
                 l.read()
-                    .map(|l| (id, l))
+                    .map(|l| (name.clone(), l))
                     .map_err(|_| anyhow!("Read on poisoned resource lock."))
             })
             .collect::<Result<HashMap<_, _>>>()?;
@@ -109,9 +103,9 @@ impl ResourceHandles {
         let write = self
             .write
             .iter()
-            .map(|(&id, l)| {
+            .map(|(name, l)| {
                 l.write()
-                    .map(|l| (id, l))
+                    .map(|l| (name.clone(), l))
                     .map_err(|_| anyhow!("Write on poisoned resource lock."))
             })
             .collect::<Result<HashMap<_, _>>>()?;
@@ -121,12 +115,12 @@ impl ResourceHandles {
 }
 
 impl Transaction {
-    pub fn read(&self, id: ResourceID) -> Result<RwLockReadGuard<Resource>> {
-        self.handles.read(id)
+    pub fn read(&self, name: &str) -> Result<RwLockReadGuard<Resource>> {
+        self.handles.read(name)
     }
 
-    pub fn write(&self, id: ResourceID) -> Result<RwLockWriteGuard<Resource>> {
-        self.handles.write(id)
+    pub fn write(&self, name: &str) -> Result<RwLockWriteGuard<Resource>> {
+        self.handles.write(name)
     }
 
     pub fn resources(&self) -> Result<WorkingSet> {

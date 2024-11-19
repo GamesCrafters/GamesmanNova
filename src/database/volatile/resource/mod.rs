@@ -8,17 +8,16 @@ use bitvec::slice::BitSlice;
 use bitvec::vec::BitVec;
 
 use std::collections::HashMap;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::{Arc, Weak};
 
 use crate::database::model::Key;
 use crate::database::model::SequenceKey;
 use crate::database::model::Value;
 use crate::database::volatile::ResourceID;
-use crate::database::KVStore;
+use crate::database::Map;
 use crate::database::Record;
+use crate::database::Relation;
 use crate::database::Schema;
-use crate::database::Table;
 
 /* RE-EXPORTS */
 
@@ -39,9 +38,9 @@ pub struct Resource {
 }
 
 struct Content {
-    indices: HashMap<u64, usize>,
-    current: usize,
+    indices: HashMap<BitVec<u8, Msb0>, usize>,
     storage: BitVec<u8, Msb0>,
+    current: usize,
     size: u64,
 }
 
@@ -72,12 +71,6 @@ impl Resource {
 
     /* UTILITIES */
 
-    fn hash_key(&self, key: &Key) -> u64 {
-        let mut h = DefaultHasher::new();
-        key.hash(&mut h);
-        h.finish()
-    }
-
     fn data_slice(
         &self,
         from: usize,
@@ -105,12 +98,12 @@ impl Resource {
     }
 }
 
-impl KVStore for Resource {
+impl Map for Resource {
     fn insert<R: Record>(&mut self, key: &Key, record: &R) -> Result<()> {
-        let key_hash = self.hash_key(key);
+        let key_bits = BitVec::from(key);
         self.data
             .indices
-            .insert(key_hash, self.data.current);
+            .insert(key_bits, self.data.current);
 
         self.data
             .storage
@@ -123,8 +116,8 @@ impl KVStore for Resource {
     }
 
     fn get(&self, key: &Key) -> Option<&Value> {
-        let key_hash = self.hash_key(key);
-        if let Some(&location) = self.data.indices.get(&key_hash) {
+        let key_bits = BitVec::from(key);
+        if let Some(&location) = self.data.indices.get(&key_bits) {
             if self.index_removed(location) {
                 return None;
             }
@@ -135,15 +128,15 @@ impl KVStore for Resource {
     }
 
     fn remove(&mut self, key: &Key) {
-        let key_hash = self.hash_key(key);
-        if let Some(&location) = self.data.indices.get(&key_hash) {
+        let key_bits = BitVec::from(key);
+        if let Some(&location) = self.data.indices.get(&key_bits) {
             self.mark_removed(location);
             self.data.size -= 1;
         }
     }
 }
 
-impl Table for Resource {
+impl Relation for Resource {
     fn schema(&self) -> &Schema {
         &self.schema
     }

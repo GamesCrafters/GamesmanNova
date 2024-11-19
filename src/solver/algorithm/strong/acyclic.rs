@@ -4,17 +4,22 @@
 
 use anyhow::{Context, Result};
 
-use crate::database::record::mur::RecordBuffer;
-use crate::database::volatile;
-use crate::database::KVStore;
-use crate::database::RecordType;
+use crate::database::record::mur;
+use crate::database::Map;
 use crate::game::model::PlayerCount;
 use crate::game::Information;
 use crate::game::{Bounded, Transition};
 use crate::interface::IOMode;
 use crate::solver::model::{IUtility, Remoteness};
+use crate::solver::UtilityType;
 use crate::solver::{IntegerUtility, Sequential};
 use crate::util::Identify;
+
+/* CONSTANTS */
+
+/// This string is added as a postfix to a game variant encoding to create a
+/// table name for its solution set within a given database.
+pub const SOLUTION_TABLE_POSTFIX: &str = "solution";
 
 /* SOLVERS */
 
@@ -30,74 +35,49 @@ where
         + Identify
         + Information,
 {
-    let table_name = format!("{}_solution", G::info().name);
-    let db = volatile::Database::new()?;
-    let table_schema = RecordType::MUR(N)
-        .try_into_schema(&table_name)
-        .context("Failed to create table schema for solver records.")?;
-
-    match mode {
-        IOMode::Constructive => (),
-        IOMode::Overwrite => db
-            .drop_resource(&table_name)
-            .context("Failed to drop database table being overwritten.")?,
-    }
-
-    let solution_table = db
-        .create_resource(table_schema)
-        .context("Failed to create database table for solution set.")?;
-
-    db.build_transaction()
-        .writing(solution_table)
-        .action(|mut working_set| {
-            let mut t = working_set.get_writing(solution_table);
-            backward_induction(&mut (*t), game)
-                .context("Solving algorithm encountered an error.")
-        })
-        .execute()
-        .context("Solving algorithm transaction failed.")
+    todo!()
 }
 
 /* SOLVING ALGORITHMS */
 
 /// Performs an iterative depth-first traversal of the game tree, assigning to
 /// each game `state` a remoteness and utility values for each player within
-/// `db`. This uses heap-allocated memory for keeping a stack of positions to
+/// `table`. This uses heap-allocated memory for keeping a stack of positions to
 /// facilitate DFS, as well as for communicating state transitions.
-fn backward_induction<const N: PlayerCount, const B: usize, D, G>(
-    db: &mut D,
+fn backward_induction<const N: PlayerCount, const B: usize, M, G>(
+    solution: &mut M,
     game: &G,
 ) -> Result<()>
 where
-    D: KVStore,
+    M: Map,
     G: Transition<B> + Bounded<B> + IntegerUtility<N, B> + Sequential<N, B>,
 {
     let mut stack = Vec::new();
     stack.push(game.start());
     while let Some(curr) = stack.pop() {
         let children = game.prograde(curr);
-        let mut buf = RecordBuffer::new(game.players())
+        let mut buf = new_record::<N>()
             .context("Failed to create placeholder record.")?;
 
-        if db.get(&curr).is_none() {
-            db.insert(&curr, &buf)?;
+        if solution.get(&curr).is_none() {
+            solution.insert(&curr, &buf)?;
             if game.end(curr) {
-                buf = RecordBuffer::new(game.players())
+                buf = new_record::<N>()
                     .context("Failed to create record for end state.")?;
 
-                buf.set_utility(game.utility(curr))
+                buf.set_integer_utility(game.utility(curr))
                     .context("Failed to copy utility values to record.")?;
 
                 buf.set_remoteness(0)
                     .context("Failed to set remoteness for end state.")?;
 
-                db.insert(&curr, &buf)?;
+                solution.insert(&curr, &buf)?;
             } else {
                 stack.push(curr);
                 stack.extend(
                     children
                         .iter()
-                        .filter(|&x| db.get(x).is_none()),
+                        .filter(|&x| solution.get(x).is_none()),
                 );
             }
         } else {
@@ -105,14 +85,14 @@ where
             let mut max_val = IUtility::MIN;
             let mut min_rem = Remoteness::MAX;
             for state in children {
-                let buf = RecordBuffer::from(db.get(&state).unwrap())
+                let buf = new_record::<N>()
                     .context("Failed to create record for middle state.")?;
 
                 let val = buf
-                    .get_utility(game.turn(state))
+                    .get_integer_utility(game.turn(state))
                     .context("Failed to get utility from record.")?;
 
-                let rem = buf.get_remoteness();
+                let rem = buf.get_remoteness()?;
                 if val > max_val || (val == max_val && rem < min_rem) {
                     max_val = val;
                     min_rem = rem;
@@ -124,8 +104,21 @@ where
                 .set_remoteness(min_rem + 1)
                 .context("Failed to set remoteness for solved record.")?;
 
-            db.insert(&curr, &optimal)?;
+            solution.insert(&curr, &optimal)?;
         }
     }
     Ok(())
+}
+
+/* HELPERS */
+
+/// Initialize a new record buffer with integer utility for `N` players, storing
+/// additional remoteness information.
+fn new_record<const N: usize>() -> Result<mur::RecordBuffer> {
+    mur::RecordBuffer::new(N, UtilityType::Integer, true, false)
+}
+
+#[cfg(test)]
+mod test {
+    // TODO
 }

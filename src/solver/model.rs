@@ -32,9 +32,9 @@ pub type IUtility = i64;
 /// game. The specific meaning of each variant can change based on the game
 /// in consideration, but this is ultimately an intuitive notion.
 #[derive(Clone, Copy)]
+#[repr(i8)]
 pub enum SUtility {
-    Lose = 0,
-    Draw = 1,
-    Tie = 2,
-    Win = 3,
+    Lose = -1,
+    Tie = 0,
+    Win = 1,
 }

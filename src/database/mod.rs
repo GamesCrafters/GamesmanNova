@@ -2,14 +2,13 @@
 //! # Database Module
 //!
 //! This module contains memory and I/O mechanisms used to store and fetch
-//! analysis data, hopefully in an efficient and scalable way.
+//! analysis data generically, hopefully in an efficient and scalable way.
 
 use anyhow::Result;
 
 use std::path::{Path, PathBuf};
 
 use crate::database::model::{Key, SequenceKey, Value};
-use crate::game::model::PlayerCount;
 
 /* RE-EXPORTS */
 
@@ -27,20 +26,15 @@ pub mod error;
 /* IMPLEMENTATION MODULES */
 
 pub mod volatile;
-pub mod vector;
-pub mod lsmt;
-
 pub mod record {
     pub mod mur;
-    pub mod sur;
-    pub mod rem;
-    pub mod dtr;
+    pub mod dir;
 }
 
 /* DEFINITIONS */
 
 /// Indicates whether the database implementation should store the data it is
-/// managing to disk, or keep it entirely in memory.
+/// managing to disk, or ensure nothing remains on disk after it is finished.
 pub enum Persistence {
     On(PathBuf),
     Off,
@@ -49,11 +43,10 @@ pub enum Persistence {
 /// Represents a list of tuples including a name and a size (called attributes),
 /// where each name is unique and the size is a number of bits. This is used to
 /// "interpret" the raw data within records into meaningful features.
+#[derive(Clone)]
 pub struct Schema {
     attribute_count: usize,
-    table_name: String,
     attributes: Vec<Attribute>,
-    record: Option<RecordType>,
     size: usize,
 }
 
@@ -78,6 +71,7 @@ pub struct Attribute {
 /// - `DPFP`: Double-precision floating point per IEEE 754 of size exactly 64.
 /// - `CSTR`: C-style string (ASCII character array) of a size divisible by 8.
 #[derive(Debug, Copy, Clone)]
+#[repr(u8)]
 pub enum Datatype {
     BOOL,
     ENUM,
@@ -88,25 +82,11 @@ pub enum Datatype {
     CSTR,
 }
 
-/// A record layout that can be used to encode and decode the attributes stored
-/// in serialized records. This is stored in database table schemas so that it
-/// can be retrieved later for deserialization.
-#[derive(Clone, Copy)]
-pub enum RecordType {
-    /// Multi-Utility Remoteness record for a specific number of players.
-    MUR(PlayerCount),
-    /// Simple Utility Remoteness record for a specific number of players.
-    SUR(PlayerCount),
-    /// Remoteness record (no utilities).
-    REM,
-    /// Directory table record.
-    DTR,
-}
+/* DATABASE RESOURCE INTERFACES */
 
-/* DATABASE INTERFACES */
-
-/// Represents the behavior of a Key-Value Store generic over a [`Record`] type.
-pub trait KVStore {
+/// Represents the behavior of a map from `Key` to `Value` types, which are both
+/// concrete aliases for a sequence of bits.
+pub trait Map {
     /// Replaces the value associated with `key` with the bits of `record`,
     /// creating one if it does not already exist. Fails if under any violation
     /// of implementation-specific assumptions of record size or contents.
@@ -144,14 +124,12 @@ where
     fn bind(&self, path: &Path) -> Result<()>;
 }
 
-/* TABLE INTERFACE */
-
 /// A grouping of fixed-length records which share a table [`Schema`] that can
-/// be used as a handle to mutate them via [`KVStore`] semantics, in addition
-/// to keeping track of useful metadata.
-pub trait Table
+/// be used as a handle to mutate them via [`Map`] semantics, in addition to
+/// keeping track of useful metadata.
+pub trait Relation
 where
-    Self: KVStore,
+    Self: Map,
 {
     /// Returns a reference to the schema associated with `self`.
     fn schema(&self) -> &Schema;
@@ -186,16 +164,6 @@ impl Schema {
     /// Returns the number of attributes in the schema.
     pub fn attribute_count(&self) -> usize {
         self.attribute_count
-    }
-
-    /// Returns the name of the table this schema belongs to.
-    pub fn table_name(&self) -> &str {
-        &self.table_name
-    }
-
-    /// Returns the record type associated with this schema, if any.
-    pub fn datatype(&self) -> Option<RecordType> {
-        self.record
     }
 
     /// Returns the attributes contained in this schema.

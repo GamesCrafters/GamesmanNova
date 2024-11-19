@@ -27,7 +27,7 @@ pub const fn min_ubits(val: u64) -> usize {
 /// Return the minimum number of bits necessary to encode `utility`, which
 /// should be a signed integer in two's complement.
 #[inline(always)]
-pub fn min_sbits(utility: i64) -> usize {
+pub const fn min_sbits(utility: i64) -> usize {
     if utility >= 0 {
         min_ubits(utility as u64) + 1
     } else {

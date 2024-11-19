@@ -18,6 +18,11 @@ use crate::database::Datatype;
 /// consumers to provide specific errors when deserializing persisted schemas.
 #[derive(Debug)]
 pub enum DatabaseError {
+    /// An error to indicate that the limitations of a record implementation
+    /// were exceeded during the execution of a solving algorithm by a consumer
+    /// game implementation.
+    RecordViolation { name: &'static str, hint: String },
+
     /// An error to indicate that there was an attempt to construct a schema
     /// containing two attributes with the same name.
     RepeatedAttribute { name: String, table: Option<String> },
@@ -46,6 +51,13 @@ impl Error for DatabaseError {}
 impl fmt::Display for DatabaseError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::RecordViolation { name, hint } => {
+                write!(
+                    f,
+                    "A limitation set by the record implementation '{name}' \
+                    was violated at runtime: {hint}",
+                )
+            },
             Self::RepeatedAttribute { name, table } => {
                 if let Some(t) = table {
                     write!(

@@ -54,6 +54,16 @@ pub mod algorithm {
     }
 }
 
+/* DEFINITIONS */
+
+/// Denotes the quantization level of utility values under consideration.
+#[derive(Copy, Clone)]
+pub enum UtilityType {
+    Integer,
+    Simple,
+    Real,
+}
+
 /* STRUCTURAL INTERFACES */
 
 /// Indicates that a discrete game is played sequentially, which allows for
