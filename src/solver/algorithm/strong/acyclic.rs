@@ -32,13 +32,15 @@ where
         + Identify
         + Information,
 {
-    let db = sled::SledDatabase::new(Path::new("~/tmp/"))?;
+    let db = sled::SledDatabase::new(Path::new("sled_db"))?;
     let mut solution = db.namespace(
         mur::schema(N, UtilityType::Integer, true, false)?,
         &G::info().name,
     )?;
 
-    backward_induction(&mut solution, game)
+    backward_induction(&mut solution, game)?;
+    db.flush()?;
+    Ok(())
 }
 
 /* SOLVING ALGORITHMS */
