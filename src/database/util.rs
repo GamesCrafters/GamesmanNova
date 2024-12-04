@@ -22,6 +22,7 @@ use crate::database::Schema;
 /// Builder pattern intermediary for constructing a schema declaratively out of
 /// provided attributes. This is here to help ensure schemas are not changed
 /// accidentally after being instantiated.
+#[derive(Default)]
 pub struct SchemaBuilder {
     attribute_count: usize,
     attributes: Vec<Attribute>,
@@ -45,11 +46,11 @@ pub struct KeySequencer {
 impl SchemaBuilder {
     /// Returns a new instance of a `SchemaBuilder`, which can be used to
     /// declaratively construct a new record `Schema`.
-    pub fn new() -> Self {
+    pub fn new(schema: Schema) -> Self {
         SchemaBuilder {
-            attribute_count: 0,
-            attributes: Vec::new(),
-            size: 0,
+            attribute_count: schema.attribute_count(),
+            attributes: Vec::from(schema.attributes()),
+            size: schema.size(),
         }
     }
 

@@ -57,7 +57,7 @@ pub const BUFFER_SIZE: usize = PAGE_OFFSET_BITS
 
 /// Return the database table schema associated with a record instance.
 pub fn schema() -> Result<Schema> {
-    let mut schema = SchemaBuilder::new()
+    let mut schema = SchemaBuilder::default()
         .add(Attribute::new(
             "attr_count",
             Datatype::UINT,
@@ -127,7 +127,7 @@ impl TryFrom<Schema> for RecordBuffer {
 impl TryFrom<RecordBuffer> for Schema {
     type Error = anyhow::Error;
     fn try_from(buf: RecordBuffer) -> Result<Schema> {
-        let mut schema = SchemaBuilder::new();
+        let mut schema = SchemaBuilder::default();
         for index in 0..buf.get_attribute_count() {
             let attribute = buf.get_attribute(index)?;
             schema = schema.add(attribute)?;

@@ -9,12 +9,14 @@
 //! relationship, greater weight is placed on making things fit into this
 //! module as a centralized point.
 
+use std::path::PathBuf;
 use std::{env, process};
 
 use anyhow::{Context, Result};
 use clap::Parser;
 
 use crate::database::engine::sled::SledDatabase;
+use crate::database::engine::sled::DIRECTORY_NAME;
 use crate::database::Persistent;
 use crate::game::model::GameModule;
 use crate::game::{Forward, Information};
@@ -37,7 +39,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let res = match cli.command {
         Commands::Info(args) => info(args),
-        Commands::Solve(args) => solve(args),
+        Commands::Solve(args) => extract(args),
         Commands::Query(args) => query(args),
     };
     if res.is_err() && cli.quiet {
@@ -52,9 +54,9 @@ fn query(args: QueryArgs) -> Result<()> {
     todo!()
 }
 
-fn solve(args: SolveArgs) -> Result<()> {
+fn extract(args: SolveArgs) -> Result<()> {
     interface::standard::confirm_potential_overwrite(args.yes, args.mode);
-    let db_path = env::current_dir()?;
+    let db_path = env::current_dir()?.join(&PathBuf::from(DIRECTORY_NAME));
     let mut db = SledDatabase::new(&db_path)?;
     match args.target {
         GameModule::ZeroBy => {

@@ -99,7 +99,7 @@ pub fn schema(
         UtilityType::Real => (Datatype::SPFP, FLOAT_UTILITTY_SIZE),
     };
 
-    let mut schema = SchemaBuilder::new();
+    let mut schema = SchemaBuilder::default();
     for i in 0..players {
         let name = &format!("p{i}_utility");
         schema = schema

@@ -16,7 +16,7 @@ use crate::database::Schema;
 /* CONSTANTS */
 
 /// A common name for all instances a [`sled`] database directory.
-pub const DIRECTORY_NAME: &str = "sled_db";
+pub const DIRECTORY_NAME: &str = "./sled_db/";
 
 /* DEFINITIONS */
 
