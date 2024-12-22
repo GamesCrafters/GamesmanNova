@@ -6,13 +6,13 @@
 //! solutions, or finding "solutions" under different game-theoretic definitions
 //! of that word.
 
-use crate::game::model::Partition;
-use crate::game::model::Player;
-use crate::game::model::PlayerCount;
-use crate::game::model::State;
-use crate::game::model::StateCount;
-use crate::game::model::DEFAULT_STATE_BYTES as DBYTES;
 use crate::solver::model::{IUtility, RUtility, SUtility};
+use crate::target::model::Partition;
+use crate::target::model::Player;
+use crate::target::model::PlayerCount;
+use crate::target::model::State;
+use crate::target::model::StateCount;
+use crate::target::model::DEFAULT_STATE_BYTES as DBYTES;
 
 /* UTILITY MODULES */
 

@@ -8,9 +8,9 @@ use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use regex::Regex;
 
-use crate::game::error::GameError;
-use crate::game::model::Player;
-use crate::game::zero_by::{Session, NAME};
+use crate::target::error::TargetError;
+use crate::target::game::zero_by::{Session, NAME};
+use crate::target::model::Player;
 use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
@@ -33,7 +33,7 @@ be a slight decrease in performance.";
 /// Returns a zero-by game session set up using the parameters specified by
 /// `variant`. Returns a `GameError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: String) -> Result<Session, GameError> {
+pub fn parse_variant(variant: String) -> Result<Session, TargetError> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -58,13 +58,13 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
 
 /* VARIANT STRING VERIFICATION */
 
-fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
+fn parse_parameters(variant: &str) -> Result<Vec<u64>, TargetError> {
     let params: Result<Vec<u64>, _> = variant
         .split('-')
         .map(|int_string| {
             int_string
                 .parse::<u64>()
-                .map_err(|e| GameError::VariantMalformed {
+                .map_err(|e| TargetError::VariantMalformed {
                     game_name: NAME,
                     hint: e.to_string(),
                 })
@@ -73,10 +73,10 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
     params
 }
 
-fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
+fn check_variant_pattern(variant: &str) -> Result<(), TargetError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(variant) {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{VARIANT_PATTERN}'.",
@@ -87,9 +87,9 @@ fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
     }
 }
 
-fn check_param_count(params: &[u64]) -> Result<(), GameError> {
+fn check_param_count(params: &[u64]) -> Result<(), TargetError> {
     if params.len() < 3 {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: "String needs to have at least 3 dash-separated integers."
                 .to_string(),
@@ -99,9 +99,9 @@ fn check_param_count(params: &[u64]) -> Result<(), GameError> {
     }
 }
 
-fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
+fn check_params_are_positive(params: &[u64]) -> Result<(), TargetError> {
     if params.iter().any(|&x| x == 0) {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: "All integers in the string must be positive.".to_string(),
         })
@@ -110,9 +110,9 @@ fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
     }
 }
 
-fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
+fn parse_player_count(params: &[u64]) -> Result<Player, TargetError> {
     if params[0] > (Player::MAX as u64) {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "The number of players in the game must be lower than {}.",
@@ -130,7 +130,7 @@ fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
 mod test {
 
     use super::*;
-    use crate::game::*;
+    use crate::target::*;
 
     #[test]
     fn variant_pattern_is_valid_regex() {
@@ -169,7 +169,7 @@ mod test {
         let v5 = "0-12-234-364";
         let v6 = "-234-256";
 
-        fn wrapper(v: &'static str) -> Result<Session, GameError> {
+        fn wrapper(v: &'static str) -> Result<Session, TargetError> {
             parse_variant(v.to_owned())
         }
 
@@ -189,7 +189,7 @@ mod test {
         let v4 = "5-2-8-23";
         let v5 = "1-619-496-1150";
 
-        fn wrapper(v: &'static str) -> Result<Session, GameError> {
+        fn wrapper(v: &'static str) -> Result<Session, TargetError> {
             parse_variant(v.to_owned())
         }
 

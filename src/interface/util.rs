@@ -6,23 +6,23 @@
 use anyhow::{Context, Result};
 use serde_json::{Map, Value};
 
-use crate::game::GameData;
+use crate::target::TargetData;
 
-use super::{GameAttribute, InfoFormat};
+use super::{InfoFormat, TargetAttribute};
 
 /* CONSTANTS */
 
 /// All available game attributes uniquely listed.
-const ALL_GAME_ATTRIBUTES: [GameAttribute; 9] = [
-    GameAttribute::VariantProtocol,
-    GameAttribute::VariantDefault,
-    GameAttribute::VariantPattern,
-    GameAttribute::StateProtocol,
-    GameAttribute::StateDefault,
-    GameAttribute::StatePattern,
-    GameAttribute::Authors,
-    GameAttribute::About,
-    GameAttribute::Name,
+const ALL_GAME_ATTRIBUTES: [TargetAttribute; 9] = [
+    TargetAttribute::VariantProtocol,
+    TargetAttribute::VariantDefault,
+    TargetAttribute::VariantPattern,
+    TargetAttribute::StateProtocol,
+    TargetAttribute::StateDefault,
+    TargetAttribute::StatePattern,
+    TargetAttribute::Authors,
+    TargetAttribute::About,
+    TargetAttribute::Name,
 ];
 
 /* OUTPUT UTILITIES */
@@ -30,8 +30,8 @@ const ALL_GAME_ATTRIBUTES: [GameAttribute; 9] = [
 /// Collects the attributes specified in `attr` from the provided game `data`
 /// to a single string in a specific `format`.
 pub fn aggregate_and_format_attributes(
-    data: GameData,
-    attrs: Vec<GameAttribute>,
+    data: TargetData,
+    attrs: Vec<TargetAttribute>,
     format: InfoFormat,
 ) -> Result<String> {
     match format {
@@ -56,7 +56,7 @@ pub fn aggregate_and_format_attributes(
 /// Collects all possible game attributes from the provided game `data` to a
 /// single string in a specific `format`.
 pub fn aggregate_and_format_all_attributes(
-    data: GameData,
+    data: TargetData,
     format: InfoFormat,
 ) -> Result<String> {
     aggregate_and_format_attributes(data, ALL_GAME_ATTRIBUTES.to_vec(), format)

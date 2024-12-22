@@ -15,20 +15,21 @@ use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 
-use crate::database::{engine, Persistent, ProtoRelational};
-use crate::game::error::GameError;
-use crate::game::model::Variant;
-use crate::game::model::{Player, PlayerCount, State};
-use crate::game::zero_by::states::*;
-use crate::game::zero_by::variants::*;
-use crate::game::Information;
-use crate::game::Variable;
-use crate::game::{Bounded, Codec, Forward};
-use crate::game::{GameData, Transition};
+use crate::database::{Persistent, ProtoRelational};
 use crate::interface::{IOMode, Solution};
 use crate::solver::algorithm::strong;
 use crate::solver::model::SUtility;
 use crate::solver::{Sequential, SimpleUtility};
+use crate::target::error::TargetError;
+use crate::target::game::zero_by::states::*;
+use crate::target::game::zero_by::variants::*;
+use crate::target::model::Variant;
+use crate::target::model::{Player, PlayerCount, State};
+use crate::target::util::ExtractorBuilder;
+use crate::target::{Bounded, Codec, Forward};
+use crate::target::{Extractor, Variable};
+use crate::target::{Information, Target};
+use crate::target::{TargetData, Transition};
 
 /* SUBMODULES */
 
@@ -72,31 +73,6 @@ impl Session {
         }
     }
 
-    pub fn solve<D>(
-        &self,
-        mode: IOMode,
-        method: Solution,
-        db: &mut D,
-    ) -> Result<()>
-    where
-        D: ProtoRelational + Persistent,
-    {
-        match (self.players, method) {
-            (2, Solution::Strong) => {
-                strong::acyclic::solver::<2, 8, Self, D>(self, mode, db)
-                    .context("Failed solver run.")?
-            },
-            (10, Solution::Strong) => {
-                strong::acyclic::solver::<10, 8, Self, D>(self, mode, db)
-                    .context("Failed solver run.")?
-            },
-            _ => bail!(GameError::SolverNotFound {
-                input_game_name: NAME,
-            }),
-        }
-        Ok(())
-    }
-
     fn encode_state(&self, turn: Player, elements: Elements) -> State {
         let mut state: BitArray<_, Msb0> = BitArray::ZERO;
         state[..self.player_bits].store_be(turn);
@@ -114,9 +90,21 @@ impl Session {
 
 /* INFORMATION IMPLEMENTATIONS */
 
+impl Target for Session {
+    fn extractors(&self) -> Result<Vec<Extractor<Self>>> {
+        let extractors = vec![ExtractorBuilder::new("solver")
+            .extracts("utility")
+            .extracts("remoteness")
+            .runs(|todo| Ok(()))
+            .build()
+            .context("Failed to create solver extractor.")?];
+        Ok(extractors)
+    }
+}
+
 impl Information for Session {
-    fn info() -> GameData {
-        GameData {
+    fn info() -> TargetData {
+        TargetData {
             name: NAME,
             authors: AUTHORS,
             about: ABOUT,

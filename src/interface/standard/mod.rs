@@ -8,8 +8,8 @@ use anyhow::{anyhow, Context, Result};
 use std::{io::BufRead, process};
 
 use crate::interface::util;
-use crate::interface::{GameAttribute, InfoFormat};
-use crate::{game::GameData, interface::IOMode};
+use crate::interface::{InfoFormat, TargetAttribute};
+use crate::{interface::IOMode, target::TargetData};
 
 /* SPECIFIC INTERFACES */
 
@@ -59,8 +59,8 @@ pub fn stdin_lines() -> Result<Vec<String>> {
 /// into a specific `format`, and prints them to STDOUT. If `attrs` is `None`,
 /// all possible game attributes are sent to STDOUT.
 pub fn format_and_output_game_attributes(
-    data: GameData,
-    attrs: Vec<GameAttribute>,
+    data: TargetData,
+    attrs: Vec<TargetAttribute>,
     format: InfoFormat,
 ) -> Result<()> {
     let out = if attrs.is_empty() {

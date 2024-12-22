@@ -9,25 +9,21 @@
 //! relationship, greater weight is placed on making things fit into this
 //! module as a centralized point.
 
-use std::path::PathBuf;
-use std::{env, process};
+use std::process;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
 
-use crate::database::engine::sled::SledDatabase;
-use crate::database::engine::sled::DIRECTORY_NAME;
-use crate::database::Persistent;
-use crate::game::model::GameModule;
-use crate::game::{Forward, Information};
 use crate::interface::standard::cli::*;
+use crate::target::model::TargetModule;
+use crate::target::Information;
 
 /* MODULES */
 
 mod interface;
 mod database;
 mod solver;
-mod game;
+mod target;
 mod util;
 
 #[cfg(test)]
@@ -39,8 +35,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     let res = match cli.command {
         Commands::Info(args) => info(args),
-        Commands::Solve(args) => extract(args),
-        Commands::Query(args) => query(args),
+        Commands::Extract(args) => extract(args),
+        Commands::Frame(args) => frame(args),
     };
     if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
@@ -50,39 +46,17 @@ fn main() -> Result<()> {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn query(args: QueryArgs) -> Result<()> {
+fn frame(args: FrameArgs) -> Result<()> {
     todo!()
 }
 
-fn extract(args: SolveArgs) -> Result<()> {
-    interface::standard::confirm_potential_overwrite(args.yes, args.mode);
-    let db_path = env::current_dir()?.join(&PathBuf::from(DIRECTORY_NAME));
-    let mut db = SledDatabase::new(&db_path)?;
-    match args.target {
-        GameModule::ZeroBy => {
-            let mut session = game::zero_by::Session::new(args.variant)
-                .context("Failed to initialize zero-by game session.")?;
-
-            if args.forward {
-                let history = interface::standard::stdin_lines()
-                    .context("Failed to read input lines from STDIN.")?;
-
-                session
-                    .forward(history)
-                    .context("Failed to forward game state.")?;
-            }
-
-            session
-                .solve(args.mode, args.solution, &mut db)
-                .context("Failed to execute solving algorithm.")?
-        },
-    }
-    Ok(())
+fn extract(args: ExtractArgs) -> Result<()> {
+    todo!()
 }
 
 fn info(args: InfoArgs) -> Result<()> {
     let data = match args.target {
-        GameModule::ZeroBy => game::zero_by::Session::info(),
+        TargetModule::ZeroBy => target::game::zero_by::Session::info(),
     };
     interface::standard::format_and_output_game_attributes(
         data,

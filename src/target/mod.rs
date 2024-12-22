@@ -1,53 +1,58 @@
 #![forbid(unsafe_code)]
-//! # Game Module
+//! # Feature Extraction Target Module
 //!
-//! This module provides interfaces and implementations for sequential games.
+//! This module provides interfaces and implementations for feature extraction
+//! targets.
 //!
 //! ## Working model
 //!
-//! The Nova project takes an unrestricted approach to the categories of games
-//! it considers, but given its focus on efficient search, it is convenient to
-//! specify some common assumptions and constructs created for ergonomics.
+//! The Nova project takes an unrestricted approach to the categories of targets
+//! it admits for feature extraction, but given its focus on efficient search,
+//! it is necessary to specify assumptions about them.
 //!
-//! In particular the following choices orient the project towards discrete
-//! deterministic perfect-information sequential games:
+//! In particular, the following choices pose key restrictions on the kinds of
+//! targets that can be ergonomically considered for feature extraction from a
+//! development standpoint:
 //!
 //! * [`State<const B: usize>`] is a bit-packed array of bytes used to identify
-//!   game states (or in other words, equivalent game histories). This is backed
-//!   by [`bitvec::array::BitArray`], which allows implementers to easily
-//!   manipulate [`State`] instances.
+//!   abstract states. This type encodes the byte size of the representation as
+//!   a compile-time constant. This is restrictive because it effectively
+//!   prohibits dynamically-sized state abstractions. However, knowing the state
+//!   size in advance makes it possible to leverage many optimizations.
 //!
-//! * The [`Transition`] interface encodes the rules of a discrete game by
-//!   allowing implementers to specify which transitions between which states
-//!   are legal according to the underlying ruleset.
+//! * The [`Transition`] interface allows traversing graphs over abstract
+//!   states induced by a pre-defined set of rules. Many mathematical objects
+//!   fit into this construct. An important example represented in this project
+//!   is a sequential game.
 //!
 //! ## Provided traits
 //!
 //! The [`Bounded`] interface provides a way to begin and end a traversal. Such
 //! a traversal can be carried out using the methods in [`Transition`]. Families
-//! of games with common logic (e.g., the same board game played on bigger or
+//! of targets with common logic (e.g., the same board game played on bigger or
 //! smaller boards) can be expressed as "variants" of each other through the
 //! [`Variable`] interface.
 //!
-//! The [`GameData`] struct provides a structured way to communicate information
-//! about a game, which is enabled by the [`Information`] trait. Furthermore, it
-//! is possible to express native concepts like variants and states through
-//! encodings specified by game implementations through the [`Codec`] interface
-//! where necessary.
+//! The [`TargetData`] struct provides a medium to communicate information about
+//! a target, which is enabled by the [`Information`] trait. Furthermore, it is
+//! possible to encode the semantics of implementaiton-native concepts like
+//! variants and states via the [`Codec`] interface wherever necessary.
 //!
 //! For more complex tasks such as end-game analysis in large board games, it
 //! can be desireable to artificially change the starting position of a game
 //! without incurring the algorithmic cost of computation. The [`Forward`]
-//! interface provides a verifiably correct way to do this.
+//! interface provides a verifiably correct way to do this (both for games and
+//! other extraction targets).
 //!
-//! ## Implementing a new game
+//! ## Development
 //!
-//! The overarching hope is to make implementing a new game a matter of
-//! selecting which structural interfaces it can satisfy, and of implementing
+//! An overarching hope is to make implementing a new extraction target a matter
+//! of selecting which structural interfaces it can satisfy, and of implementing
 //! enough of the other interfaces to give it access to other functionality
-//! (such as a solving algorithm in [`crate::solver::algorithm`]).
+//! (such as a solving algorithms in [`crate::solver::algorithm`]).
 //!
-//! Here are some concrete steps you can take to realize this:
+//! Here are some concrete steps you can take to realize this in the case of
+//! sequential games:
 //!
 //! 1. **Determine the characteristics of your game:** Ascertain whether you are
 //!    dealing with a chance game, a discrete game, a perfect-information game,
@@ -77,37 +82,34 @@
 //!    Taking a look at existing unit tests will help significantly.
 
 use anyhow::{Context, Result};
+use model::{ExtractorName, FeatureName};
+use serde_json::Value;
 
-use crate::game::model::{State, Variant, DEFAULT_STATE_BYTES};
+use crate::target::model::{State, DEFAULT_STATE_BYTES};
 
 /* UTILITY MODULES */
 
-#[cfg(test)]
-mod test;
-mod util;
-
+pub mod util;
 pub mod model;
 pub mod error;
 
 /* MODULES */
 
-#[cfg(test)]
-pub mod mock;
-
-pub mod crossteaser;
-pub mod zero_by;
+pub mod game;
 
 /* DEFINITIONS */
 
-/// Contains useful data about a game.
+/// Contains useful data about an extraction target.
 ///
 /// The information here is intended to provide users of the program information
-/// they can use to understand the output of solving algorithms, in addition to
-/// specifying formats/protocols for communicating with game implementations,
+/// they can use to understand the output of feature extractors, in addition to
+/// specifying formats/protocols for communicating with target implementations,
 /// and providing descriptive error outputs. See [`Information::info`] for how
 /// to expose this information.
 ///
 /// # Example
+///
+/// In the case of the sequential game [`zero_by`]:
 ///
 /// ```none
 /// * Name: "zero-by"
@@ -120,25 +122,25 @@ pub mod zero_by;
 /// * State pattern: r"^\d+-\d+$"
 /// * State default: "10-0"
 /// ```
-pub struct GameData {
+pub struct TargetData {
     /* GENERAL */
-    /// Known name for the game. This should return a string that can be used as
-    /// a command-line argument to the CLI endpoints which require a game name
-    /// as a target (e.g. `nova solve <TARGET>`).
+    /// Known name for the target. This should return a string that can be used
+    /// in the command-line as an argument to the CLI endpoints which require a
+    /// name as a target (e.g. `nova solve <TARGET>`).
     pub name: &'static str,
 
-    /// The names of the people who implemented the game listed out, optionally
+    /// The names of people who implemented the target listed out, optionally
     /// including their contact. For example: "John Doe <john@rust-lang.org>,
     /// Ricardo L. <ricardo@go-lang.com>, Quin Bligh".
     pub authors: &'static str,
 
-    /// General introduction to the game's rules and setup, including any facts
-    /// that are interesting about it.
+    /// General introduction to the target's rules, setup, etc., including any
+    /// facts that are noteworthy about it.
     pub about: &'static str,
 
     /* VARIANTS */
     /// Explanation of how to use strings to communicate which variant a user
-    /// wishes to play to the game's implementation.
+    /// wishes to provide to the target's implementation.
     pub variant_protocol: &'static str,
 
     /// Regular expression pattern that all variant strings must match.
@@ -148,7 +150,7 @@ pub struct GameData {
     pub variant_default: &'static str,
 
     /* STATES */
-    /// Explanation of how to use a string to encode a game state.
+    /// Explanation of how to use a string to encode an abstract state.
     pub state_protocol: &'static str,
 
     /// Regular expression pattern that all state encodings must match.
@@ -160,14 +162,26 @@ pub struct GameData {
 
 /* INTERFACES */
 
-/// Provides a method to obtain information about a game.
+/// TODO
+pub trait Target {
+    /// TODO
+    fn extractors(&self, config: Value) -> Vec<Box<dyn Extractor<Self>>>;
+}
+
+pub trait Extractor<T> {
+    fn run(&self, target: &T) -> Result<()>;
+    fn provides(&self) -> &[FeatureName];
+    fn name(&self) -> ExtractorName;
+}
+
+/// Provides a method to obtain information about a target.
 pub trait Information {
-    /// Provides a way to retrieve useful information about a game for both
+    /// Provides a way to retrieve useful information about a target for both
     /// internal and user-facing modules.
     ///
     /// The information included here should be broadly applicable to any
-    /// variant of the underlying game type (hence why it is a static method).
-    /// For specifics on the information to provide, see [`GameData`].
+    /// variant of the underlying target type (hence why it is a static method).
+    /// For specifics on the information to provide, see [`TargetData`].
     ///
     /// # Example
     ///
@@ -178,14 +192,14 @@ pub trait Information {
     /// let game = zero_by::Session::new();
     /// assert_eq!(game.info().name, "zero-by");
     /// ```
-    fn info() -> GameData;
+    fn info() -> TargetData;
 }
 
-/// Provides a method of bounding exploration of game states.
+/// Provides a method of bounding exploration of abstract states.
 pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Returns the starting state of the underlying game.
+    /// Returns the starting state of the underlying target.
     ///
-    /// Starting states are usually determined by game variants, but it is
+    /// Starting states are usually determined by target variants, but it is
     /// possible to alter them while remaining in the same game variant through
     /// the [`Forward`] interface. Such antics are necessary to ensure state
     /// validity at a variant-specific level. See [`Forward::forward`] for more.
@@ -201,7 +215,7 @@ pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
     /// ```
     fn start(&self) -> State<B>;
 
-    /// Returns true if `state` is a terminal state of the underlying game.
+    /// Returns true if `state` is a terminal state of the underlying target.
     ///
     /// Note that this function could return `true` for an invalid `state`, so
     /// it is recommended that consumers verify that `state` is reachable in the
@@ -223,7 +237,7 @@ pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
 /// Provides methods to encode and decode bit-packed [`State<B>`] instances to
 /// and from [`String`]s to facilitate manual interfaces.
 pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Decodes a game `string` encoding into a bit-packed [`State<B>`].
+    /// Decodes a state [`String`] encoding into a bit-packed [`State<B>`].
     ///
     /// This function (and [`Codec::encode`]) effectively specifies a protocol
     /// for turning a [`String`] into a [`State<B>`]. See [`Information::info`]
@@ -245,10 +259,10 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     /// # Errors
     ///
     /// Fails if `state` is detectably invalid or unreachable in the underlying
-    /// game variant.
+    /// target variant.
     fn decode(&self, string: String) -> Result<State<B>>;
 
-    /// Encodes a game `state` into a compact string representation.
+    /// Encodes a target `state` into a compact string representation.
     ///
     /// The output representation is not designed to be space efficient. It is
     /// used for manual input/output. This function (and [`Codec::decode`])
@@ -271,19 +285,19 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     /// # Errors
     ///
     /// Fails if `state` is detectably invalid or unreachable in the underlying
-    /// game variant.
+    /// target variant.
     fn encode(&self, state: State<B>) -> Result<String>;
 }
 
-/// Provides methods to obtain a working instance of a game variant and to
+/// Provides methods to obtain a working instance of a target variant and to
 /// retrieve a [`String`]-encoded specification of the variant.
 pub trait Variable {
-    /// Initializes a version of the underlying game as the specified `variant`.
+    /// Initializes a version of the underlying target as the specified `variant`.
     ///
-    /// A variant is a member of a family of games whose structure is very
+    /// A variant is a member of a family of targets whose structure is very
     /// similar. It is convenient to be able to express this because it saves
-    /// a lot of needless re-writing of game logic, while allowing for a lot
-    /// of generality in game implementations.
+    /// a lot of needless re-writing of target logic, while allowing for a lot
+    /// of generality in target implementations.
     ///
     /// # Example
     ///
@@ -303,18 +317,18 @@ pub trait Variable {
     ///
     /// # Errors
     ///
-    /// Fails if `variant` does not conform to the game's protocol for encoding
-    /// variants as strings, or if the game does not support variants in the
+    /// Fails if `variant` does not conform to the target's protocol of encoding
+    /// variants as strings, or if the target does not support variants in the
     /// first place (but has a placeholder [`Variable`] implementation).
     fn variant(variant: Variant) -> Result<Self>
     where
         Self: Sized;
 
-    /// Returns a string representing the underlying game variant.
+    /// Returns a string representing the underlying target variant.
     ///
     /// This does not provide a certain way of differentiating between the
-    /// starting state of the game (see [`Bounded::start`] for this), but it
-    /// does provide a sufficient identifier of the game's structure.
+    /// starting state of the target (see [`Bounded::start`] for this), but it
+    /// does provide a sufficient identifier of the target's structure.
     ///
     /// # Example
     ///
@@ -334,13 +348,13 @@ pub trait Variable {
     fn variant_string(&self) -> Variant;
 }
 
-/// Provides methods to safely fast-forward the starting state of a game to
+/// Provides methods to safely fast-forward the starting state of a target to
 /// a desired state in the future.
 pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
 where
     Self: Information + Bounded<B> + Codec<B> + Transition<B> + Sized,
 {
-    /// Sets the game's starting state to a pre-verified `state`.
+    /// Sets the target's starting state to a pre-verified `state`.
     ///
     /// This function is an auxiliary item for [`Forward::forward`]. While it
     /// needs to be implemented for [`Forward::forward`] to work, there should
@@ -369,18 +383,20 @@ where
     #[deprecated(
         note = "This function should not be used directly; any modification of \
         initial states should be done through [`Forward::forward`], which is \
-        fallible and provides verification for game states."
+        fallible and provides verification for target states."
     )]
     fn set_verified_start(&mut self, state: State<B>);
 
-    /// Advances the game's starting state to the last state in `history`.
+    /// Advances the target's starting state to the last state in `history`,
+    /// verifying that it is a valid traversal of the induced graph on this
+    /// target variant.
+    ///
+    /// # Example
     ///
     /// This can be useful for skipping a significant amount of computation in
     /// the process of performing subgame analysis. Requires an implementation
     /// of [`Forward::set_verified_start`] to ultimately change the starting
     /// state after `history` is verified.
-    ///
-    /// # Example
     ///
     /// Using the game [`zero_by`] with a default state of `"10-0"`:
     ///
@@ -404,7 +420,7 @@ where
     /// Here are some of the reasons this could fail:
     /// * An invalid transition is made between subsequent states in `history`.
     /// * `history` begins at a state other than the variant's starting state.
-    /// * The provided `history` plays beyond a terminal state.
+    /// * The provided `history` transitions beyond a terminal state.
     /// * A state encoding in `history` is not valid.
     /// * `history` is empty.
     #[allow(deprecated)]
@@ -416,9 +432,11 @@ where
     }
 }
 
-/// Provides methods to obtain game state transitions, enabling state search.
+/// Provides methods to obtain target state transitions, enabling state search.
 pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Returns all possible legal states that could follow `state`.
+    /// Returns all possible abstract states that could proceed `state`.
+    ///
+    /// # Example
     ///
     /// In a discrete game, we represent points in history that have equivalent
     /// strategic value using a [`State<const B: usize>`] encoding. This is a
@@ -426,8 +444,6 @@ pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
     /// (up to whatever attributes we may care about). This function returns the
     /// collection of all states that could follow `state` according to the
     /// underlying game's rules.
-    ///
-    /// # Example
     ///
     /// Using the game [`zero_by`], whose default variant involves two players
     /// alternate turns removing items from a pile that starts out with 10 items
@@ -454,7 +470,9 @@ pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
     /// and [`Bounded::start`] to bound exploration to only valid states.
     fn prograde(&self, state: State<B>) -> Vec<State<B>>;
 
-    /// Returns all possible legal states that could have come before `state`.
+    /// Returns all possible abstract states that could preceed `state`.
+    ///
+    /// # Example
     ///
     /// In a discrete game, we represent points in history that have equivalent
     /// strategic value using a [`State<const B: usize>`] encoding. This is a
@@ -462,8 +480,6 @@ pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
     /// (up to whatever attributes we may care about). This function returns the
     /// collection of all states that could have preceded `state` according to
     /// the underlying game's rules.
-    ///
-    /// # Example
     ///
     /// Using the game [`zero_by`], whose default variant involves two players
     /// alternate turns removing items from a pile that starts out with 10 items

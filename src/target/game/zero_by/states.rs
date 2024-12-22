@@ -6,12 +6,12 @@
 
 use regex::Regex;
 
-use crate::game::error::GameError;
-use crate::game::model::Player;
-use crate::game::model::State;
-use crate::game::zero_by::Elements;
-use crate::game::zero_by::Session;
-use crate::game::zero_by::NAME;
+use crate::target::error::TargetError;
+use crate::target::game::zero_by::Elements;
+use crate::target::game::zero_by::Session;
+use crate::target::game::zero_by::NAME;
+use crate::target::model::Player;
+use crate::target::model::State;
 
 /* ZERO-BY STATE ENCODING */
 
@@ -34,7 +34,7 @@ strictly less than the number of players in the game.";
 pub fn parse_state(
     session: &Session,
     from: String,
-) -> Result<State, GameError> {
+) -> Result<State, TargetError> {
     check_state_pattern(&from)?;
     let params = parse_parameters(&from)?;
     let (elements, turn) = check_param_count(&params)?;
@@ -44,10 +44,10 @@ pub fn parse_state(
 
 /* STATE STRING VERIFICATION */
 
-fn check_state_pattern(from: &String) -> Result<(), GameError> {
+fn check_state_pattern(from: &String) -> Result<(), TargetError> {
     let re = Regex::new(STATE_PATTERN).unwrap();
     if !re.is_match(from) {
-        Err(GameError::StateMalformed {
+        Err(TargetError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "Input string '{from}' does not match the pattern \
@@ -59,12 +59,12 @@ fn check_state_pattern(from: &String) -> Result<(), GameError> {
     }
 }
 
-fn parse_parameters(from: &str) -> Result<Vec<u64>, GameError> {
+fn parse_parameters(from: &str) -> Result<Vec<u64>, TargetError> {
     from.split('-')
         .map(|int_string| {
             int_string
                 .parse::<u64>()
-                .map_err(|e| GameError::StateMalformed {
+                .map_err(|e| TargetError::StateMalformed {
                     game_name: NAME,
                     hint: e.to_string(),
                 })
@@ -72,9 +72,11 @@ fn parse_parameters(from: &str) -> Result<Vec<u64>, GameError> {
         .collect()
 }
 
-fn check_param_count(params: &[u64]) -> Result<(Elements, Player), GameError> {
+fn check_param_count(
+    params: &[u64],
+) -> Result<(Elements, Player), TargetError> {
     if params.len() != 2 {
-        Err(GameError::StateMalformed {
+        Err(TargetError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "String contains {} integers, but needs to have exactly 2.",
@@ -90,9 +92,9 @@ fn check_variant_coherence(
     from: Elements,
     turn: Player,
     session: &Session,
-) -> Result<(), GameError> {
+) -> Result<(), TargetError> {
     if from > session.start_elems {
-        Err(GameError::StateMalformed {
+        Err(TargetError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "Specified more starting elements ({from}) than variant allows \
@@ -101,7 +103,7 @@ fn check_variant_coherence(
             ),
         })
     } else if turn >= session.players {
-        Err(GameError::StateMalformed {
+        Err(TargetError::StateMalformed {
             game_name: NAME,
             hint: format!(
                 "Specified a turn ({turn}) too high for this ({}-player) game \
@@ -120,7 +122,7 @@ fn check_variant_coherence(
 mod test {
 
     use super::*;
-    use crate::game::*;
+    use crate::target::*;
 
     /* STATE STRING PARSING */
 

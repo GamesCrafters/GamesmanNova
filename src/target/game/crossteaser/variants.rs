@@ -5,8 +5,8 @@
 
 use regex::Regex;
 
-use crate::game::crossteaser::{Session, NAME};
-use crate::game::error::GameError;
+use crate::target::crossteaser::{Session, NAME};
+use crate::target::error::TargetError;
 
 /* CROSSTEASER VARIANT DEFINITION */
 
@@ -25,7 +25,7 @@ for the resulting variant to not be solvable.";
 /// `variant`. Returns a `GameError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol specified, which should contain
 /// useful information about why it was not parsed/accepted.
-pub fn parse_variant(variant: String) -> Result<Session, GameError> {
+pub fn parse_variant(variant: String) -> Result<Session, TargetError> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -40,10 +40,10 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
 
 /* VARIANT STRING VERIFICATION */
 
-fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
+fn check_variant_pattern(variant: &str) -> Result<(), TargetError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(variant) {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: format!(
                 "String does not match the pattern '{VARIANT_PATTERN}'.",
@@ -54,13 +54,13 @@ fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
     }
 }
 
-fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
+fn parse_parameters(variant: &str) -> Result<Vec<u64>, TargetError> {
     variant
         .split(['x', '-'])
         .map(|int_string| {
             int_string
                 .parse::<u64>()
-                .map_err(|e| GameError::VariantMalformed {
+                .map_err(|e| TargetError::VariantMalformed {
                     game_name: NAME,
                     hint: e.to_string(),
                 })
@@ -68,9 +68,9 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
         .collect()
 }
 
-fn check_param_count(params: &[u64]) -> Result<(), GameError> {
+fn check_param_count(params: &[u64]) -> Result<(), TargetError> {
     if params.len() != 3 {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: "String needs to have exactly 3 dash-separated integers."
                 .to_owned(),
@@ -80,9 +80,9 @@ fn check_param_count(params: &[u64]) -> Result<(), GameError> {
     }
 }
 
-fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
+fn check_params_are_positive(params: &[u64]) -> Result<(), TargetError> {
     if params.iter().any(|&x| x == 0) {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: "All integers in the string must be positive.".to_owned(),
         })
@@ -91,7 +91,7 @@ fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
         .take(2)
         .any(|&x| x <= 1)
     {
-        Err(GameError::VariantMalformed {
+        Err(TargetError::VariantMalformed {
             game_name: NAME,
             hint: "L and W must both be strictly greater than 1.".to_owned(),
         })
@@ -106,7 +106,7 @@ fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
 mod test {
 
     use super::*;
-    use crate::game::Variable;
+    use crate::target::Variable;
 
     #[test]
     fn variant_pattern_is_valid_regex() {

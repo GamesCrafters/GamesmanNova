@@ -11,9 +11,9 @@ use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::{HashMap, HashSet};
 
-use crate::game::mock::Node;
-use crate::game::mock::Session;
-use crate::game::model::PlayerCount;
+use crate::target::mock::Node;
+use crate::target::mock::Session;
+use crate::target::model::PlayerCount;
 
 /* DEFINITIONS */
 

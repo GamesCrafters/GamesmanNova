@@ -6,13 +6,13 @@ use anyhow::{Context, Result};
 
 use crate::database::record::mur;
 use crate::database::{ByteMap, Persistent, ProtoRelational};
-use crate::game::model::PlayerCount;
-use crate::game::Information;
-use crate::game::{Bounded, Transition};
 use crate::interface::IOMode;
 use crate::solver::model::{IUtility, Remoteness};
 use crate::solver::{util, UtilityType};
 use crate::solver::{IntegerUtility, Sequential};
+use crate::target::model::PlayerCount;
+use crate::target::Information;
+use crate::target::{Bounded, Transition};
 use crate::util::Identify;
 
 /* SOLVERS */

@@ -12,9 +12,9 @@ use bitvec::{bitarr, BitArr};
 
 use crate::database::error::DatabaseError::RecordViolation;
 use crate::database::{Attribute, Datatype, Schema, SchemaBuilder};
-use crate::game::model::{Player, PlayerCount};
 use crate::solver::model::{IUtility, RUtility, Remoteness, SUtility};
 use crate::solver::UtilityType;
+use crate::target::model::{Player, PlayerCount};
 use crate::util;
 
 /* CONSTANTS */

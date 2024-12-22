@@ -16,20 +16,20 @@
 
 use anyhow::{Context, Result};
 
-use crate::game::crossteaser::variants::*;
-use crate::game::model::State;
-use crate::game::model::Variant;
-use crate::game::Bounded;
-use crate::game::Codec;
-use crate::game::Forward;
-use crate::game::GameData;
-use crate::game::Information;
-use crate::game::Transition;
-use crate::game::Variable;
 use crate::interface::IOMode;
 use crate::interface::Solution;
 use crate::solver::model::SUtility;
 use crate::solver::ClassicPuzzle;
+use crate::target::crossteaser::variants::*;
+use crate::target::model::State;
+use crate::target::model::Variant;
+use crate::target::Bounded;
+use crate::target::Codec;
+use crate::target::Forward;
+use crate::target::Information;
+use crate::target::TargetData;
+use crate::target::Transition;
+use crate::target::Variable;
 
 /* SUBMODULES */
 
@@ -86,7 +86,7 @@ impl Session {
 /* INFORMATION IMPLEMENTATIONS */
 
 impl Information for Session {
-    fn info() -> GameData {
+    fn info() -> TargetData {
         todo!()
     }
 }
