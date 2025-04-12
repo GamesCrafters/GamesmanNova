@@ -1,10 +1,11 @@
-//! Mock Extensive Test Game Module
+//! Mock Test Game Module
 //!
 //! This module provides a way to represent extensive-form games by declaring
 //! the game via a graph and assigning special conditions to nodes. This makes
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
+use anyhow::Result;
 use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
@@ -14,12 +15,13 @@ use petgraph::{graph::NodeIndex, Graph};
 
 use std::collections::HashMap;
 
-use crate::solver::model::IUtility;
-use crate::target::model::Player;
-use crate::target::model::PlayerCount;
-use crate::target::model::State;
-use crate::target::Bounded;
-use crate::target::Transition;
+use crate::solver::algorithm::acyclic;
+use crate::solver::{Game, IUtility, IntegerUtility, Persistent};
+use crate::target::Player;
+use crate::target::PlayerCount;
+use crate::target::State;
+use crate::target::Implicit;
+use crate::target::Transpose;
 
 /* RE-EXPORTS */
 
@@ -27,7 +29,6 @@ pub use builder::SessionBuilder;
 
 /* SUBMODULES */
 
-mod example;
 mod builder;
 
 /* DEFINITIONS */
@@ -37,7 +38,7 @@ mod builder;
 pub struct Session<'a> {
     inserted: HashMap<*const Node, NodeIndex>,
     players: PlayerCount,
-    start: NodeIndex<DefaultIx>,
+    source: NodeIndex<DefaultIx>,
     game: Graph<&'a Node, ()>,
     name: &'static str,
 }
@@ -48,7 +49,7 @@ pub struct Session<'a> {
 /// turn encoding whose player's action is pending.
 #[derive(Debug)]
 pub enum Node {
-    Terminal(Vec<IUtility>),
+    Terminal(Player, Vec<IUtility>),
     Medial(Player),
 }
 
@@ -87,7 +88,7 @@ impl<'a> Session<'a> {
 
 /* PRIVATE IMPLEMENTATION */
 
-impl<'a> Session<'a> {
+impl Session<'_> {
     /// Return the states adjacent to `state`, where `dir` specifies whether
     /// they should be connected by incoming or outgoing edges.
     fn transition(&self, state: State, dir: Direction) -> Vec<State> {
@@ -117,28 +118,60 @@ impl<'a> Session<'a> {
 
 /* UTILITY IMPLEMENTATIONS */
 
-impl Transition for Session<'_> {
-    fn prograde(&self, state: State) -> Vec<State> {
+impl Implicit for Session<'_> {
+    fn adjacent(&self, state: State) -> Vec<State> {
         self.transition(state, Direction::Outgoing)
     }
 
-    fn retrograde(&self, state: State) -> Vec<State> {
+    fn source(&self) -> State {
+        let mut state = BitArray::<_, Msb0>::ZERO;
+        state.store_be::<DefaultIx>(self.source.index() as DefaultIx);
+        state.data
+    }
+
+    fn sink(&self, state: State) -> bool {
+        match self.node(state) {
+            Node::Terminal(_, _) => true,
+            Node::Medial(_) => false,
+        }
+    }
+
+}
+
+impl Transpose for Session<'_> {
+    fn adjacent(&self, state: State) -> Vec<State> {
         self.transition(state, Direction::Incoming)
     }
 }
 
-impl Bounded for Session<'_> {
-    fn start(&self) -> State {
-        let mut state = BitArray::<_, Msb0>::ZERO;
-        state.store_be::<DefaultIx>(self.start.index() as DefaultIx);
-        state.data
+/* SOLVING IMPLEMENTATIONS */
+
+impl<const N: PlayerCount> Game<N> for Session<'_> {
+    fn turn(&self, state: State) -> Player {
+        match self.node(state) {
+            Node::Terminal(player, _) => *player,
+            Node::Medial(player) => *player,
+        }
+    }
+} 
+
+impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
+    fn utility(&self, state: State) -> [IUtility; N] {
+        todo!()
+    }
+} 
+
+impl<const N: PlayerCount> Persistent<acyclic::Solution<N>> for Session<'_> {
+    fn persist(
+        &self, 
+        state: &State, 
+        info: &acyclic::Solution<N>
+    ) -> Result<()> {
+        todo!()
     }
 
-    fn end(&self, state: State) -> bool {
-        match self.node(state) {
-            Node::Terminal(_) => true,
-            Node::Medial(_) => false,
-        }
+    fn retrieve(&self, state: &State) -> Result<Option<acyclic::Solution<N>>> {
+        todo!()
     }
 }
 
@@ -161,8 +194,8 @@ mod tests {
         let s4 = node!(1);
         let s5 = node!(0);
 
-        let t1 = node![1, 2, 3];
-        let t2 = node![3, 2, 1];
+        let t1 = node![0; 1, 2, 3];
+        let t2 = node![1; 3, 2, 1];
 
         let g = SessionBuilder::new("sample1")
             .edge(&s1, &s2)?
@@ -171,7 +204,7 @@ mod tests {
             .edge(&s4, &s5)?
             .edge(&s4, &t1)?
             .edge(&s5, &t2)?
-            .start(&s1)?
+            .source(&s1)?
             .build()?;
 
         g.visualize(MODULE_NAME)?;
@@ -204,30 +237,30 @@ mod tests {
     }
 
     #[test]
-    fn verify_start_and_end_states() -> Result<()> {
+    fn verify_source_and_sink_states() -> Result<()> {
         let s1 = node!(0);
         let s2 = node!(1);
         let s3 = node!(2);
 
-        let t1 = node![1, 2, 3];
-        let t2 = node![3, 2, 1];
+        let t1 = node![2; 1, 2, 3];
+        let t2 = node![1; 3, 2, 1];
 
         let g = SessionBuilder::new("sample2")
             .edge(&s1, &s2)?
             .edge(&s2, &s3)?
             .edge(&s2, &t1)?
             .edge(&s3, &t2)?
-            .start(&s1)?
+            .source(&s1)?
             .build()?;
 
         g.visualize(MODULE_NAME)?;
-        let start = g.state(&s1).unwrap();
-        let end1 = g.state(&t1).unwrap();
-        let end2 = g.state(&t2).unwrap();
+        let source = g.state(&s1).unwrap();
+        let sink1 = g.state(&t1).unwrap();
+        let sink2 = g.state(&t2).unwrap();
 
-        assert_eq!(g.start(), start);
-        assert!(g.end(end1));
-        assert!(g.end(end2));
+        assert_eq!(g.source(), source);
+        assert!(g.sink(sink1));
+        assert!(g.sink(sink2));
         Ok(())
     }
 
@@ -237,15 +270,15 @@ mod tests {
         let s2 = node!(1);
         let s3 = node!(2);
 
-        let t1 = node![1, 2, 3];
-        let t2 = node![3, 2, 1];
+        let t1 = node![1; 1, 2, 3];
+        let t2 = node![2; 3, 2, 1];
 
         let g = SessionBuilder::new("sample3")
             .edge(&s1, &s2)?
             .edge(&s1, &s3)?
             .edge(&s2, &t1)?
             .edge(&s3, &t2)?
-            .start(&s1)?
+            .source(&s1)?
             .build()?;
 
         g.visualize(MODULE_NAME)?;
@@ -277,11 +310,11 @@ mod tests {
     fn get_game_name() -> Result<()> {
         let s1 = node!(0);
         let s2 = node!(1);
-        let t1 = node![-1, 2];
+        let t1 = node![1; -1, 2];
         let g = SessionBuilder::new("interesting name")
             .edge(&s1, &s2)?
             .edge(&s2, &t1)?
-            .start(&s1)?
+            .source(&s1)?
             .build()?;
 
         g.visualize(MODULE_NAME)?;
@@ -293,11 +326,11 @@ mod tests {
     fn get_player_count() -> Result<()> {
         let s1 = node!(0);
         let s2 = node!(5);
-        let t1 = node![1, -2, 3, -4, 5, -6, 7];
+        let t1 = node![4; 1, -2, 3, -4, 5, -6, 7];
         let g = SessionBuilder::new("7 player game")
             .edge(&s1, &s2)?
             .edge(&s2, &t1)?
-            .start(&s1)?
+            .source(&s1)?
             .build()?;
 
         g.visualize(MODULE_NAME)?;

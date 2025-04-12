@@ -1,4 +1,4 @@
-//! Mock Extensive Test Game Builder Pattern Module
+//! Mock Test Game Builder Pattern Module
 //!
 //! This module provides an implementation of a declarative builder pattern for
 //! an extensive-form game `Session`, which allows the construction of a graph
@@ -9,11 +9,12 @@ use anyhow::Result;
 use petgraph::Direction;
 use petgraph::{graph::NodeIndex, Graph};
 
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
 use crate::target::mock::Node;
 use crate::target::mock::Session;
-use crate::target::model::PlayerCount;
+use crate::target::PlayerCount;
 
 /* DEFINITIONS */
 
@@ -21,7 +22,7 @@ use crate::target::model::PlayerCount;
 type Finalized = bool;
 
 /// Builder pattern for creating a graph game by progressively adding nodes and
-/// edges and specifying a start node. Directed unweighed edges represent
+/// edges and specifying a source node. Directed unweighed edges represent
 /// represent state transitions, and nodes containing either turn information
 /// or utility vectors store the information necessary to solve the game being
 /// represented.
@@ -43,7 +44,7 @@ type Finalized = bool;
 ///     .edge(&s0, &s1)?
 ///     .edge(&s0, &s2)?
 ///     .edge(&s1, &s2)?
-///     .start(&s0)?
+///     .source(&s0)?
 ///     .build()?;
 ///
 /// assert_eq!(session.players, 2);
@@ -51,7 +52,7 @@ type Finalized = bool;
 pub struct SessionBuilder<'a> {
     inserted: HashMap<*const Node, NodeIndex>,
     players: (PlayerCount, Finalized),
-    start: Option<NodeIndex>,
+    source: Option<NodeIndex>,
     game: Graph<&'a Node, ()>,
     name: &'static str,
 }
@@ -60,13 +61,13 @@ pub struct SessionBuilder<'a> {
 
 impl<'a> SessionBuilder<'a> {
     /// Initialize a builder struct for a graph game with an empty graph, no
-    /// starting state, and a given `name` that will be eventually used for
+    /// source state, and a given `name` that will be eventually used for
     /// the constructed game session's `id`.
     pub fn new(name: &'static str) -> Self {
         SessionBuilder {
             inserted: HashMap::new(),
             players: (0, false),
-            start: None,
+            source: None,
             game: Graph::new(),
             name,
         }
@@ -76,7 +77,7 @@ impl<'a> SessionBuilder<'a> {
     /// `from` is a terminal node, or if either `from` or `to` imply a player
     /// count that is incompatible with existing nodes.
     pub fn edge(mut self, from: &'a Node, to: &'a Node) -> Result<Self> {
-        if let Node::Terminal(_) = from {
+        if let Node::Terminal(_, _) = from {
             bail! {
                     "There was an attempt to add a terminal node on the \
                     outgoing side of an edge during the construction of the \
@@ -102,21 +103,21 @@ impl<'a> SessionBuilder<'a> {
         Ok(self)
     }
 
-    /// Indicate that `node` is the starting state for the game being built. The
+    /// Indicate that `node` is the source state for the game being built. The
     /// indicated `node` (or a node with an identical hash) must have already
     /// been added to the game. Fails if there is no such existing node.
-    pub fn start(mut self, node: &Node) -> Result<Self> {
+    pub fn source(mut self, node: &Node) -> Result<Self> {
         if let Some(index) = self
             .game
             .node_indices()
             .find(|&i| std::ptr::eq(self.game[i], node))
         {
-            self.start = Some(index);
+            self.source = Some(index);
             Ok(self)
         } else {
             bail! {
-                    "There was an attempt to set the start state of mock game \
-                    '{}', but the indicated start node has not been added to \
+                    "There was an attempt to set the source state of mock game \
+                    '{}', but the indicated source node has not been added to \
                     the game yet.",
                     self.name,
             }
@@ -124,18 +125,18 @@ impl<'a> SessionBuilder<'a> {
     }
 
     /// Instantiate a `Session` encoding the constructed game graph. Fails if no
-    /// starting state was specified, there exist non-terminal nodes with no
-    /// outgoing edges, or no terminal nodes are reachable from the starting
+    /// source state was specified, there exist non-terminal nodes with no
+    /// outgoing edges, or no terminal nodes are reachable from the source 
     /// state (assuming it is valid).
     pub fn build(self) -> Result<Session<'a>> {
-        let start = self.check_starting_state()?;
-        self.check_terminal_state(start)?;
+        let source = self.check_source_state()?;
+        self.check_terminal_state(source)?;
         self.check_outgoing_edges()?;
         let (players, _) = self.players;
         Ok(Session {
             inserted: self.inserted,
             players,
-            start,
+            source,
             game: self.game,
             name: self.name,
         })
@@ -149,8 +150,17 @@ impl<'a> SessionBuilder<'a> {
     fn update_player_count(&mut self, new: &Node) -> Result<()> {
         let (old_count, finalized) = self.players;
         let new_count = match &new {
-            Node::Terminal(vector) => {
+            Node::Terminal(player, vector) => {
                 let result = vector.len();
+                if *player >= vector.len() {
+                    bail! {
+                            "While constructing the game '{}', there was an \
+                            attempt to add a terminal node with containing \
+                            a turn that would not have a corresponding utility \
+                            entry.",
+                            self.name,
+                    }
+                }
                 if result == 0 {
                     bail! {
                             "While constructing the game '{}', there was an \
@@ -207,25 +217,25 @@ impl<'a> SessionBuilder<'a> {
         Ok(())
     }
 
-    /// Fails if no starting state was specified for the constructed game.
-    fn check_starting_state(&self) -> Result<NodeIndex> {
-        if let Some(index) = self.start {
+    /// Fails if no source state was specified for the constructed game.
+    fn check_source_state(&self) -> Result<NodeIndex> {
+        if let Some(index) = self.source {
             Ok(index)
         } else {
             bail! {
-                    "No starting node was specified for the game '{}'.",
+                    "No source node was specified for the game '{}'.",
                     self.name,
             }
         }
     }
 
-    /// Fails if there does not exist a traversable path between `start` and any
-    /// node marked as terminal in the game graph. Executes DFS from `start`
+    /// Fails if there does not exist a traversable path between `source` and any
+    /// node marked as terminal in the game graph. Executes DFS from `source`
     /// until a terminal node is found.
-    fn check_terminal_state(&self, start: NodeIndex) -> Result<()> {
+    fn check_terminal_state(&self, source: NodeIndex) -> Result<()> {
         let mut seen = HashSet::new();
         let mut stack = Vec::new();
-        stack.push(start);
+        stack.push(source);
 
         while let Some(index) = stack.pop() {
             if !seen.contains(&index) {
@@ -245,7 +255,7 @@ impl<'a> SessionBuilder<'a> {
 
         bail! {
                 "No terminal node is reachable from the node marked as the \
-                start in the game '{}'.",
+                source in the game '{}'.",
                 self.name
         }
     }
@@ -278,7 +288,7 @@ impl Node {
     /// Returns true if and only if `self` is a terminal node.
     #[inline]
     pub const fn terminal(&self) -> bool {
-        matches!(self, Node::Terminal(_))
+        matches!(self, Node::Terminal(_, _))
     }
 
     /// Returns true if and only if `self` is a medial node.
@@ -304,9 +314,9 @@ mod tests {
         let m2 = node!(2);
         let m3 = node!(0);
 
-        let t1 = node![1, 2];
-        let t2 = node![3, 2, 1];
-        let t3 = Node::Terminal(vec![]);
+        let t1 = node![1; 1, 2];
+        let t2 = node![2; 3, 2, 1];
+        let t3 = Node::Terminal(1, vec![]);
 
         let game = SessionBuilder::new("bad utility 1")
             .edge(&m1, &t1)?
@@ -330,11 +340,12 @@ mod tests {
     }
 
     #[test]
-    fn cannot_add_incorrect_turn_information() -> Result<()> {
+    fn cannot_add_incorrect_turn_information_medial() -> Result<()> {
         let m1 = node!(0);
         let m2 = node!(2);
-        let t1 = node![1, -2];
-        let t2 = node![-1, 2];
+
+        let t1 = node![0; 1, -2];
+        let t2 = node![1; -1, 2];
 
         let game = SessionBuilder::new("bad turn")
             .edge(&m1, &t1)?
@@ -346,12 +357,46 @@ mod tests {
     }
 
     #[test]
+    fn cannot_add_incorrect_turn_information_terminal() -> Result<()> {
+        let m1 = node!(0);
+        let m2 = node!(1);
+
+        let t1 = node![0; 1, -2];
+        let t2 = node![2; -1, 2];
+
+        let game = SessionBuilder::new("bad turn")
+            .edge(&m1, &m2)?
+            .edge(&m1, &t1)?
+            .edge(&m1, &t2);
+
+        assert!(game.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn cannot_add_inconsistent_turn_information() -> Result<()> {
+        let m1 = node!(0);
+        let m2 = node!(1);
+
+        let t1 = node![0; 1, -2];
+        let t2 = node![1; -1];
+
+        let game = SessionBuilder::new("bad turn")
+            .edge(&m1, &m2)?
+            .edge(&m1, &t1)?
+            .edge(&m1, &t2);
+
+        assert!(game.is_err());
+        Ok(())
+    }
+
+    #[test]
     #[should_panic]
     fn cannot_add_outgoing_edge_to_terminal_node() {
         let m1 = node!(0);
         let m2 = node!(1);
 
-        let t1 = node![1, 2, 3, 4];
+        let t1 = node![2; 1, 2, 3, 4];
 
         SessionBuilder::new("edge from terminal node")
             .edge(&t1, &m1).unwrap() // Panic
@@ -365,12 +410,12 @@ mod tests {
     }
 
     #[test]
-    fn cannot_build_graph_with_no_starting_state() -> Result<()> {
+    fn cannot_build_graph_with_no_source_state() -> Result<()> {
         let m1 = node!(0);
-        let t1 = node![1, 2];
+        let t1 = node![0; 1, 2];
 
-        let game1 = SessionBuilder::new("no starting state 1").build();
-        let game2 = SessionBuilder::new("no starting state 2")
+        let game1 = SessionBuilder::new("no source state 1").build();
+        let game2 = SessionBuilder::new("no source state 2")
             .edge(&m1, &t1)?
             .build();
 
@@ -380,19 +425,19 @@ mod tests {
     }
 
     #[test]
-    fn cannot_build_game_with_no_accessible_end() -> Result<()> {
+    fn cannot_build_game_with_no_accessible_sink() -> Result<()> {
         let a = node!(2);
         let b = node!(1);
         let c = node!(0);
         let d = node!(1);
 
-        let end = node![1, 2, 3];
+        let sink = node![1; 1, 2, 3];
 
-        let game = SessionBuilder::new("no end")
+        let game = SessionBuilder::new("no sink")
             .edge(&a, &b)?
             .edge(&c, &d)?
-            .edge(&d, &end)?
-            .start(&a)?
+            .edge(&d, &sink)?
+            .source(&a)?
             .build();
 
         assert!(game.is_err());
@@ -407,15 +452,15 @@ mod tests {
         let d = node!(1);
 
         let trap = node!(0);
-        let end = node![1, 2, 3];
+        let sink = node![0; 1, 2, 3];
 
         let game = SessionBuilder::new("trap game")
             .edge(&a, &b)?
             .edge(&b, &c)?
             .edge(&c, &d)?
-            .edge(&d, &end)?
+            .edge(&d, &sink)?
             .edge(&b, &trap)?
-            .start(&a)?
+            .source(&a)?
             .build();
 
         assert!(game.is_err());
@@ -431,8 +476,8 @@ mod tests {
         let e = node!(0);
         let f = node!(1);
 
-        let t1 = node![1, 2];
-        let t2 = node![2, 1];
+        let t1 = node![1; 1, 2];
+        let t2 = node![0; 2, 1];
 
         let game = SessionBuilder::new("acyclic")
             .edge(&a, &b)?
@@ -444,7 +489,7 @@ mod tests {
             .edge(&e, &f)?
             .edge(&c, &t1)?
             .edge(&f, &t2)?
-            .start(&a)?
+            .source(&a)?
             .build()?;
 
         game.visualize(MODULE_NAME)?;
@@ -462,8 +507,8 @@ mod tests {
         let e = node!(0);
         let f = node!(1);
 
-        let t1 = node![1, 2, -1, 4];
-        let t2 = node![2, 1, 9, -6];
+        let t1 = node![2; 1, 2, -1, 4];
+        let t2 = node![3; 2, 1, 9, -6];
 
         let game = SessionBuilder::new("cyclic")
             .edge(&a, &b)?
@@ -475,7 +520,7 @@ mod tests {
             .edge(&d, &e)?
             .edge(&e, &f)?
             .edge(&f, &t2)?
-            .start(&a)?
+            .source(&a)?
             .build()?;
 
         game.visualize(MODULE_NAME)?;

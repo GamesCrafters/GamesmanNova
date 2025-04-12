@@ -119,28 +119,14 @@ macro_rules! schema {
     };
 }
 
-/// Syntax sugar. Allows for a declarative way of expressing extensive game
-/// state nodes.
-///
-/// # Example
-///
-/// ```no_run
-/// // A medial node where it is Player 5's turn.
-/// let n1 = node!(5);
-///
-/// // A terminal node with a 5-entry utility vector.
-/// let n2 = node![-1, -4, 5, 0, 3];
-///
-/// // A terminal node with a single utility entry.
-/// let n3 = node![4,];
-/// ```
+/// TODO
 #[macro_export]
 macro_rules! node {
     ($val:expr) => {
         Node::Medial($val)
     };
-    ($($u:expr),+ $(,)?) => {
-        Node::Terminal(vec![$($u),*])
+    ($player:expr; $($u:expr),+ $(,)?) => {
+        Node::Terminal($player, vec![$($u),*])
     };
 }
 

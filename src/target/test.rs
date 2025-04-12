@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use crate::target::mock;
-use crate::target::Bounded;
+use crate::target::Implicit;
 use crate::test::*;
 
 /* IMPLEMENTATIONS */
@@ -67,7 +67,7 @@ impl Display for mock::Session<'_> {
                         mock::Node::Medial(turn) => {
                             attrs += &format!("label=P{turn} ");
                             attrs += "style=filled  ";
-                            if self.start() == self.state(node).unwrap() {
+                            if self.source() == self.state(node).unwrap() {
                                 attrs += "shape=doublecircle ";
                                 attrs += "fillcolor=navajowhite3 ";
                             } else {
@@ -75,8 +75,8 @@ impl Display for mock::Session<'_> {
                                 attrs += "fillcolor=lightsteelblue ";
                             }
                         },
-                        mock::Node::Terminal(util) => {
-                            attrs += &format!("label=\"{:?}\" ", util);
+                        mock::Node::Terminal(turn, util) => {
+                            attrs += &format!("label=\"P{turn}, {:?}\" ", util);
                             attrs += "shape=plain ";
                         },
                     }

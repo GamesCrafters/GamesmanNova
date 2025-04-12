@@ -94,5 +94,11 @@ impl<const N: PlayerCount> Default for Solution<N> {
 
 #[cfg(test)]
 mod test {
-    // TODO
+
+    use anyhow::Result;
+    use super::*;
+
+    fn acyclic_solver_on_game_1() -> Result<()> {
+        todo!()
+    }
 }
