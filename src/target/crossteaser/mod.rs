@@ -18,11 +18,11 @@ use anyhow::{Context, Result};
 
 use crate::interface::IOMode;
 use crate::interface::Solution;
-use crate::solver::model::SUtility;
+use crate::solver::SUtility;
 use crate::solver::ClassicPuzzle;
 use crate::target::crossteaser::variants::*;
-use crate::target::model::State;
-use crate::target::model::Variant;
+use crate::target::State;
+use crate::target::Variant;
 use crate::target::Bounded;
 use crate::target::Codec;
 use crate::target::Forward;

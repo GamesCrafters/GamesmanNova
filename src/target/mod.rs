@@ -1,103 +1,62 @@
 #![forbid(unsafe_code)]
-//! # Feature Extraction Target Module
+//! # Target Module
 //!
 //! This module provides interfaces and implementations for feature extraction
 //! targets.
-//!
-//! ## Working model
-//!
-//! The Nova project takes an unrestricted approach to the categories of targets
-//! it admits for feature extraction, but given its focus on efficient search,
-//! it is necessary to specify assumptions about them.
-//!
-//! In particular, the following choices pose key restrictions on the kinds of
-//! targets that can be ergonomically considered for feature extraction from a
-//! development standpoint:
-//!
-//! * [`State<const B: usize>`] is a bit-packed array of bytes used to identify
-//!   abstract states. This type encodes the byte size of the representation as
-//!   a compile-time constant. This is restrictive because it effectively
-//!   prohibits dynamically-sized state abstractions. However, knowing the state
-//!   size in advance makes it possible to leverage many optimizations.
-//!
-//! * The [`Transition`] interface allows traversing graphs over abstract
-//!   states induced by a pre-defined set of rules. Many mathematical objects
-//!   fit into this construct. An important example represented in this project
-//!   is a sequential game.
-//!
-//! ## Provided traits
-//!
-//! The [`Bounded`] interface provides a way to begin and end a traversal. Such
-//! a traversal can be carried out using the methods in [`Transition`]. Families
-//! of targets with common logic (e.g., the same board game played on bigger or
-//! smaller boards) can be expressed as "variants" of each other through the
-//! [`Variable`] interface.
-//!
-//! The [`TargetData`] struct provides a medium to communicate information about
-//! a target, which is enabled by the [`Information`] trait. Furthermore, it is
-//! possible to encode the semantics of implementaiton-native concepts like
-//! variants and states via the [`Codec`] interface wherever necessary.
-//!
-//! For more complex tasks such as end-game analysis in large board games, it
-//! can be desireable to artificially change the starting position of a game
-//! without incurring the algorithmic cost of computation. The [`Forward`]
-//! interface provides a verifiably correct way to do this (both for games and
-//! other extraction targets).
-//!
-//! ## Development
-//!
-//! An overarching hope is to make implementing a new extraction target a matter
-//! of selecting which structural interfaces it can satisfy, and of implementing
-//! enough of the other interfaces to give it access to other functionality
-//! (such as a solving algorithms in [`crate::solver::algorithm`]).
-//!
-//! Here are some concrete steps you can take to realize this in the case of
-//! sequential games:
-//!
-//! 1. **Determine the characteristics of your game:** Ascertain whether you are
-//!    dealing with a chance game, a discrete game, a perfect-information game,
-//!    etc. If you are dealing with anything that does not fit into the current
-//!    working model, this is more of an infrastructure question, and you should
-//!    reach out to a maintainer to talk about supporting a new game category.
-//!
-//! 2. **Set up a code skeleton:** Create a new submodule under this one, and
-//!    give it the name of your game. Declare some kind of `Session` struct to
-//!    represent the necessary information to encode an instance of your game.
-//!    You should not need to mutate its state beyond initialization.
-//!
-//! 3. **Declare a set of interfaces:** Take a look at the provided traits, and
-//!    declare the ones that seem to best fit the structure of your game and
-//!    what you want to do with it. Reading documentation should help out a lot
-//!    here.
-//!
-//! 4. **Reference existing implementations:** To actually implement the game,
-//!    it will be very helpful to take a look at existing implementations. In
-//!    particular, take a look at the [`zero_by`] module, which is an simple
-//!    yet full-featured game implementation that we constantly make sure is
-//!    up to standard.
-//!
-//! 5. **Write testing modules where appropriate:** If it happens that you have
-//!    to implement anything that requires non-trivial logic, you should make
-//!    sure to test it. This includes any kind of verification of encodings.
-//!    Taking a look at existing unit tests will help significantly.
 
 use anyhow::{Context, Result};
-use model::{ExtractorName, FeatureName};
-use serde_json::Value;
-
-use crate::target::model::{State, DEFAULT_STATE_BYTES};
+use clap::ValueEnum;
 
 /* UTILITY MODULES */
 
+#[cfg(test)]
+mod test;
+
 pub mod util;
-pub mod model;
 pub mod error;
 
-/* MODULES */
+/* TARGET MODULES */
 
-pub mod game;
+#[cfg(test)]
+pub mod mock;
+
+pub mod zero_by;
+pub mod crossteaser;
+
+/* TYPES */
+
+/// The default number of bytes used to encode states.
+pub const DEFAULT_STATE_BYTES: usize = 8;
+
+/// Unique identifier of a particular state in a target.
+pub type State<const B: usize = DEFAULT_STATE_BYTES> = [u8; B];
+
+/// String encoding some specific target's variant.
+pub type Variant = String;
+
+/// Unique identifier for a player in a game.
+pub type Player = usize;
+
+/// Unique identifier of a subset of states of a game.
+pub type Partition = u64;
+
+/// Count of the number of states in a game.
+pub type StateCount = u64;
+
+/// Count of the number of players in a game.
+pub type PlayerCount = Player;
 
 /* DEFINITIONS */
+
+// Specifies the target offerings available through all interfaces.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum TargetModule {
+    /// Grid-like 3d puzzle with rotating pieces.
+    Crossteaser,
+
+    /// Abstract game played over sets of items.
+    ZeroBy,
+}
 
 /// Contains useful data about an extraction target.
 ///
@@ -160,21 +119,8 @@ pub struct TargetData {
     pub state_default: &'static str,
 }
 
-/* INTERFACES */
+/* EXTRACTION INTERFACES */
 
-/// TODO
-pub trait Target {
-    /// TODO
-    fn extractors(&self, config: Value) -> Vec<Box<dyn Extractor<Self>>>;
-}
-
-pub trait Extractor<T> {
-    fn run(&self, target: &T) -> Result<()>;
-    fn provides(&self) -> &[FeatureName];
-    fn name(&self) -> ExtractorName;
-}
-
-/// Provides a method to obtain information about a target.
 pub trait Information {
     /// Provides a way to retrieve useful information about a target for both
     /// internal and user-facing modules.
@@ -195,7 +141,89 @@ pub trait Information {
     fn info() -> TargetData;
 }
 
-/// Provides a method of bounding exploration of abstract states.
+/* IMPLICIT GRAPH INTERFACE */
+
+pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
+    /// Returns all possible abstract states that could proceed `state`.
+    ///
+    /// # Example
+    ///
+    /// In a discrete game, we represent points in history that have equivalent
+    /// strategic value using a [`State<const B: usize>`] encoding. This is a
+    /// bit-packed representation of the state of the game at a point in time
+    /// (up to whatever attributes we may care about). This function returns the
+    /// collection of all states that could follow `state` according to the
+    /// underlying game's rules.
+    ///
+    /// Using the game [`zero_by`], whose default variant involves two players
+    /// alternate turns removing items from a pile that starts out with 10 items
+    /// (where Player 0 starts), we can provide the following example:
+    ///
+    /// ```
+    /// use crate::game::zero_by;
+    ///
+    /// let mut game = zero_by::Session::new();
+    /// let possible_next_states = vec![
+    ///     "9-1".into(), // 9 items left, player 1's turn
+    ///     "8-1".into(), // 8 items left, player 1's turn
+    /// ];
+    ///
+    /// assert_eq!(game.prograde(game.start()), possible_next_states);
+    /// ```
+    ///
+    /// # Warning
+    ///
+    /// In practice, it is extremely difficult to make it impossible for this
+    /// function to always return an empty collection if `state` is invalid, as
+    /// it is hard to statically verify the validity of a state. Hence, this
+    /// behavior is only guaranteed when `state` is valid. See [`Bounded::end`]
+    /// and [`Bounded::start`] to bound exploration to only valid states.
+    fn prograde(&self, state: State<B>) -> Vec<State<B>>;
+
+    /// Returns all possible abstract states that could preceed `state`.
+    ///
+    /// # Example
+    ///
+    /// In a discrete game, we represent points in history that have equivalent
+    /// strategic value using a [`State<const B: usize>`] encoding. This is a
+    /// bit-packed representation of the state of the game at a point in time
+    /// (up to whatever attributes we may care about). This function returns the
+    /// collection of all states that could have preceded `state` according to
+    /// the underlying game's rules.
+    ///
+    /// Using the game [`zero_by`], whose default variant involves two players
+    /// alternate turns removing items from a pile that starts out with 10 items
+    /// (where Player 0 starts), we can provide the following example:
+    ///
+    /// ```
+    /// use crate::game::zero_by;
+    ///
+    /// // Get state with 8 items left and player 1 to move
+    /// let mut game = zero_by::Session::new();
+    /// let state = game.decode("8-1".into())?;
+    ///
+    /// let possible_previous_states = vec![
+    ///     "9-0".into(), // 9 items left, player 0's turn (invalid state)
+    ///     "10-0".into(), // 8 items left, player 0's turn
+    /// ];
+    ///
+    /// assert_eq!(game.retrograde(state), possible_previous_states);
+    /// ```
+    ///
+    /// # Warning
+    ///
+    /// As you can see from the example, this function provides no guarantees
+    /// about the validity of the states that it returns, because in the general
+    /// case, it is impossible to verify whether or not a preceding state is
+    /// actually valid.
+    ///
+    /// This obstacle is usually overcome by keeping track of observed states
+    /// through a prograde exploration (using [`Transition::prograde`] and the
+    /// functions provided by [`Bounded`]), and cross-referencing the outputs of
+    /// this function with those observed states to validate them.
+    fn retrograde(&self, state: State<B>) -> Vec<State<B>>;
+}
+
 pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
     /// Returns the starting state of the underlying target.
     ///
@@ -234,8 +262,8 @@ pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
     fn end(&self, state: State<B>) -> bool;
 }
 
-/// Provides methods to encode and decode bit-packed [`State<B>`] instances to
-/// and from [`String`]s to facilitate manual interfaces.
+/* UTILITY INTEFACES */
+
 pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     /// Decodes a state [`String`] encoding into a bit-packed [`State<B>`].
     ///
@@ -289,8 +317,6 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     fn encode(&self, state: State<B>) -> Result<String>;
 }
 
-/// Provides methods to obtain a working instance of a target variant and to
-/// retrieve a [`String`]-encoded specification of the variant.
 pub trait Variable {
     /// Initializes a version of the underlying target as the specified `variant`.
     ///
@@ -348,8 +374,6 @@ pub trait Variable {
     fn variant_string(&self) -> Variant;
 }
 
-/// Provides methods to safely fast-forward the starting state of a target to
-/// a desired state in the future.
 pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
 where
     Self: Information + Bounded<B> + Codec<B> + Transition<B> + Sized,
@@ -432,84 +456,3 @@ where
     }
 }
 
-/// Provides methods to obtain target state transitions, enabling state search.
-pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Returns all possible abstract states that could proceed `state`.
-    ///
-    /// # Example
-    ///
-    /// In a discrete game, we represent points in history that have equivalent
-    /// strategic value using a [`State<const B: usize>`] encoding. This is a
-    /// bit-packed representation of the state of the game at a point in time
-    /// (up to whatever attributes we may care about). This function returns the
-    /// collection of all states that could follow `state` according to the
-    /// underlying game's rules.
-    ///
-    /// Using the game [`zero_by`], whose default variant involves two players
-    /// alternate turns removing items from a pile that starts out with 10 items
-    /// (where Player 0 starts), we can provide the following example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// let mut game = zero_by::Session::new();
-    /// let possible_next_states = vec![
-    ///     "9-1".into(), // 9 items left, player 1's turn
-    ///     "8-1".into(), // 8 items left, player 1's turn
-    /// ];
-    ///
-    /// assert_eq!(game.prograde(game.start()), possible_next_states);
-    /// ```
-    ///
-    /// # Warning
-    ///
-    /// In practice, it is extremely difficult to make it impossible for this
-    /// function to always return an empty collection if `state` is invalid, as
-    /// it is hard to statically verify the validity of a state. Hence, this
-    /// behavior is only guaranteed when `state` is valid. See [`Bounded::end`]
-    /// and [`Bounded::start`] to bound exploration to only valid states.
-    fn prograde(&self, state: State<B>) -> Vec<State<B>>;
-
-    /// Returns all possible abstract states that could preceed `state`.
-    ///
-    /// # Example
-    ///
-    /// In a discrete game, we represent points in history that have equivalent
-    /// strategic value using a [`State<const B: usize>`] encoding. This is a
-    /// bit-packed representation of the state of the game at a point in time
-    /// (up to whatever attributes we may care about). This function returns the
-    /// collection of all states that could have preceded `state` according to
-    /// the underlying game's rules.
-    ///
-    /// Using the game [`zero_by`], whose default variant involves two players
-    /// alternate turns removing items from a pile that starts out with 10 items
-    /// (where Player 0 starts), we can provide the following example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// // Get state with 8 items left and player 1 to move
-    /// let mut game = zero_by::Session::new();
-    /// let state = game.decode("8-1".into())?;
-    ///
-    /// let possible_previous_states = vec![
-    ///     "9-0".into(), // 9 items left, player 0's turn (invalid state)
-    ///     "10-0".into(), // 8 items left, player 0's turn
-    /// ];
-    ///
-    /// assert_eq!(game.retrograde(state), possible_previous_states);
-    /// ```
-    ///
-    /// # Warning
-    ///
-    /// As you can see from the example, this function provides no guarantees
-    /// about the validity of the states that it returns, because in the general
-    /// case, it is impossible to verify whether or not a preceding state is
-    /// actually valid.
-    ///
-    /// This obstacle is usually overcome by keeping track of observed states
-    /// through a prograde exploration (using [`Transition::prograde`] and the
-    /// functions provided by [`Bounded`]), and cross-referencing the outputs of
-    /// this function with those observed states to validate them.
-    fn retrograde(&self, state: State<B>) -> Vec<State<B>>;
-}

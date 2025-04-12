@@ -3,19 +3,6 @@
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 
-use crate::database::model::SequenceKey;
-
-/* INTERFACES */
-
-/// Provides a way to loosely identify objects that is not as concrete as a
-/// hash function. The precise semantics of this interface are undefined.
-pub trait Identify {
-    /// Returns an ID that is unique in some degree to the state of this object.
-    /// The semantics of when variations are acceptable are implicit, and should
-    /// be enforced by an API consuming the [`Identify`] trait.
-    fn id(&self) -> SequenceKey;
-}
-
 /* BIT FIELDS */
 
 /// Returns the minimum number of bits required to represent unsigned `val`.

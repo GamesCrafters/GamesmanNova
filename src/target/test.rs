@@ -13,7 +13,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::target::game::mock;
+use crate::target::mock;
 use crate::target::Bounded;
 use crate::test::*;
 
@@ -86,3 +86,4 @@ impl Display for mock::Session<'_> {
         )
     }
 }
+

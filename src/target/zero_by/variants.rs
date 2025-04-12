@@ -9,8 +9,8 @@ use bitvec::order::Msb0;
 use regex::Regex;
 
 use crate::target::error::TargetError;
-use crate::target::game::zero_by::{Session, NAME};
-use crate::target::model::Player;
+use crate::target::zero_by::{Session, NAME};
+use crate::target::Player;
 use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
@@ -65,7 +65,7 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, TargetError> {
             int_string
                 .parse::<u64>()
                 .map_err(|e| TargetError::VariantMalformed {
-                    game_name: NAME,
+                    target_name: NAME,
                     hint: e.to_string(),
                 })
         })
@@ -77,7 +77,7 @@ fn check_variant_pattern(variant: &str) -> Result<(), TargetError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(variant) {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: format!(
                 "String does not match the pattern '{VARIANT_PATTERN}'.",
             ),
@@ -90,7 +90,7 @@ fn check_variant_pattern(variant: &str) -> Result<(), TargetError> {
 fn check_param_count(params: &[u64]) -> Result<(), TargetError> {
     if params.len() < 3 {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: "String needs to have at least 3 dash-separated integers."
                 .to_string(),
         })
@@ -102,7 +102,7 @@ fn check_param_count(params: &[u64]) -> Result<(), TargetError> {
 fn check_params_are_positive(params: &[u64]) -> Result<(), TargetError> {
     if params.iter().any(|&x| x == 0) {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: "All integers in the string must be positive.".to_string(),
         })
     } else {
@@ -113,7 +113,7 @@ fn check_params_are_positive(params: &[u64]) -> Result<(), TargetError> {
 fn parse_player_count(params: &[u64]) -> Result<Player, TargetError> {
     if params[0] > (Player::MAX as u64) {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: format!(
                 "The number of players in the game must be lower than {}.",
                 Player::MAX

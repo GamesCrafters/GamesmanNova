@@ -9,12 +9,11 @@ use std::fmt;
 
 /* UTILITY MODULES */
 
-mod error;
 mod util;
 
 /* INTERFACE IMPLEMENTATIONS */
 
-pub mod standard;
+pub mod cli;
 
 /* DEFINITIONS */
 

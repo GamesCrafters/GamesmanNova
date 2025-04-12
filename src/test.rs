@@ -110,3 +110,4 @@ fn find_cargo_lock_directory() -> Result<PathBuf> {
     }
     bail!("Could not find any parent directory with a Cargo.lock file.")
 }
+

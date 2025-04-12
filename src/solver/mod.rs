@@ -6,22 +6,20 @@
 //! solutions, or finding "solutions" under different game-theoretic definitions
 //! of that word.
 
-use crate::solver::model::{IUtility, RUtility, SUtility};
-use crate::target::model::Partition;
-use crate::target::model::Player;
-use crate::target::model::PlayerCount;
-use crate::target::model::State;
-use crate::target::model::StateCount;
-use crate::target::model::DEFAULT_STATE_BYTES as DBYTES;
+use anyhow::Result;
+
+use crate::interface::Solution;
+use crate::target::Partition;
+use crate::target::Player;
+use crate::target::PlayerCount;
+use crate::target::State;
+use crate::target::StateCount;
+use crate::target::DEFAULT_STATE_BYTES as DBYTES;
 
 /* UTILITY MODULES */
 
-#[cfg(test)]
-mod test;
 mod util;
-
 pub mod error;
-pub mod model;
 
 /* MODULES */
 
@@ -29,38 +27,41 @@ pub mod model;
 /// compute different features of interest associated with groups of states or
 /// particular states.
 pub mod algorithm {
-    /// Solving algorithms for games that are either of incomplete information
-    /// or non-deterministic. The strategies used here diverge somewhat from the
-    /// other solving procedures, as bringing in probability is a fundamental
-    /// change.
-    pub mod stochastic {
-        pub mod acyclic;
-        pub mod cyclic;
-    }
-
-    /// Solving algorithms for deterministic complete-information games that are
-    /// able to generate complete solution sets (from which an equilibrium
-    /// strategy can be distilled for any possible state in the game).
-    pub mod strong {
-        pub mod acyclic;
-        pub mod cyclic;
-    }
-
-    /// Solving algorithms for deterministic complete-information games that
-    /// only guarantee to provide an equilibrium strategy for the underlying
-    /// game's starting position, but which do not necessarily explore entire
-    /// game trees.
-    pub mod weak {
-        pub mod acyclic;
-        pub mod cyclic;
-    }
+    pub mod acyclic;
 }
 
-/* CONSTANTS */
+/* TYPES */
 
-/// This string is added as a postfix to a game variant encoding to create a
-/// table name for its solution set within a given database.
-pub const SOLUTION_TABLE_POSTFIX: &str = "solution";
+/// Indicates the "depth of draw" which a drawing position corresponds to.
+/// For more information, see [this whitepaper](TODO). This value should be
+/// 0 for non-drawing positions.
+pub type DrawDepth = u64;
+
+/// Indicates the number of choices that players have to make to reach a
+/// terminal state in a game under perfect play. For drawing positions,
+/// indicates the number of choices players can make to bring the game to a
+/// state which can transition to a non-drawing state.
+pub type Remoteness = u64;
+
+/// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
+pub type MinExclusion = u64;
+
+/// A discrete measure of how "good" an outcome is for a given player.
+/// Positive values indicate an overall gain from having played the game,
+/// and negative values are net losses. The metric over abstract utility is
+/// subjective.
+pub type IUtility = i64;
+
+/// A simple measure of hoe "good" an outcome is for a given player in a
+/// game. The specific meaning of each variant can change based on the game
+/// in consideration, but this is ultimately an intuitive notion.
+#[derive(Clone, Copy)]
+#[repr(i8)]
+pub enum SUtility {
+    Lose = -1,
+    Tie = 0,
+    Win = 1,
+}
 
 /* DEFINITIONS */
 
@@ -74,8 +75,6 @@ pub enum UtilityType {
 
 /* STRUCTURAL INTERFACES */
 
-/// Indicates that a discrete game is played sequentially, which allows for
-/// representing histories as discrete [`State`]s.
 pub trait Sequential<const N: PlayerCount, const B: usize = DBYTES> {
     /// Returns the player `i` whose turn it is at the given `state`.
     ///
@@ -98,8 +97,6 @@ pub trait Sequential<const N: PlayerCount, const B: usize = DBYTES> {
     }
 }
 
-/// Indicates that a game can be partitioned into sub-games that can be solved
-/// somewhat independently of each other.
 pub trait Composite<const N: PlayerCount, const B: usize = DBYTES> {
     /// Returns an identifier for a subset of the space of states which `state`
     /// belongs to.
@@ -148,27 +145,6 @@ pub trait Composite<const N: PlayerCount, const B: usize = DBYTES> {
 
 /* UTILITY MEASURE INTERFACES */
 
-/// Indicates that a multiplayer game's players can only obtain utility values
-/// that are real numbers.
-pub trait RealUtility<const N: PlayerCount, const B: usize = DBYTES> {
-    /// Returns the utility vector associated with a terminal `state` whose
-    /// `i`'th entry is the utility of the state for player `i`.
-    ///
-    /// The behavior of this function is undefined in cases where `state` is not
-    /// terminal. No assumptions are made about the possible utility values that
-    /// players can obtain through playing the game, except that they can be
-    /// represented with real numbers (see [`RUtility`]).
-    ///
-    /// # Example
-    ///
-    /// An extreme example of such a game would be a discrete auction, where
-    /// players can gain arbitrary amounts of money, but can only act at known
-    /// discrete points in time.
-    fn utility(&self, state: State<B>) -> [RUtility; N];
-}
-
-/// Indicates that a multiplayer game's players can only obtain utility values
-/// that are integers.
 pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES> {
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
@@ -187,8 +163,6 @@ pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES> {
     fn utility(&self, state: State<B>) -> [IUtility; N];
 }
 
-/// Indicates that a multiplayer game's players can only obtain utility values
-/// within specific known categories.
 pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES> {
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
@@ -212,8 +186,6 @@ pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES> {
 
 /* UTILITY STRUCTURE INTERFACES */
 
-/// Indicates that a game is 2-player, has categorical utility values, and is
-/// zero-sum, allowing the implementer to eschew providing a player's utility.
 pub trait ClassicGame<const B: usize = DBYTES> {
     /// Returns the utility of the only player whose turn it is at `state`.
     ///
@@ -245,8 +217,6 @@ pub trait ClassicGame<const B: usize = DBYTES> {
     fn utility(&self, state: State<B>) -> SUtility;
 }
 
-/// Provides a method to find the utility of terminal values in "classic"
-/// puzzles, which are single-player games with categorical [`SUtility`] values.
 pub trait ClassicPuzzle<const B: usize = DBYTES> {
     /// Returns the utility of the only player in the puzzle at `state`.
     ///
@@ -279,22 +249,6 @@ pub trait ClassicPuzzle<const B: usize = DBYTES> {
 }
 
 /* BLANKET IMPLEMENTATIONS */
-
-// All N-player integer-utility games are also N-player real-utility games.
-impl<const N: PlayerCount, const B: usize, G> RealUtility<N, B> for G
-where
-    G: IntegerUtility<N, B>,
-{
-    fn utility(&self, state: State<B>) -> [RUtility; N] {
-        let iutility = self.utility(state);
-        let mut rutility = [0.0; N];
-        rutility
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, u)| *u = iutility[i] as RUtility);
-        rutility
-    }
-}
 
 // All N-player simple-utility games are also N-player integer-utility games.
 impl<const N: PlayerCount, const B: usize, G> IntegerUtility<N, B> for G
@@ -337,3 +291,4 @@ where
         [self.utility(state)]
     }
 }
+

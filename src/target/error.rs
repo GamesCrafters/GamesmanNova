@@ -12,14 +12,6 @@ use std::{error::Error, fmt};
 /// of interface elements in `crate::target::mod`.
 #[derive(Debug)]
 pub enum TargetError {
-    /// An error to indicate that a user attempted to extract a feature from a
-    /// target variant which is valid, but offers no extractor for the specified
-    /// feature.
-    ExtractorNotFound {
-        input_target_name: &'static str,
-        feature_name: String,
-    },
-
     /// An error to indicate that the variant passed to the target with
     /// `target_name` was not in a format the target could parse. Includes a
     /// message from the target implementation on exactly what went wrong. Note
@@ -55,16 +47,6 @@ impl Error for TargetError {}
 impl fmt::Display for TargetError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::ExtractorNotFound {
-                input_target_name,
-                feature_name,
-            } => {
-                write!(
-                    f,
-                    "There is no extractor for the feature '{feature_name}' \
-                    implemented for the target '{input_target_name}'."
-                )
-            },
             Self::VariantMalformed { target_name, hint } => {
                 write!(
                     f,

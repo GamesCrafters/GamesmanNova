@@ -1,19 +1,82 @@
-//! # Standard Interface Module
+//! # Command Line Module
 //!
-//! This module defines the behavior of the project's standard (STDIN/STDOUT)
-//! interfaces. The CLI module is the primary entry point for the program.
+//! This module offers UNIX-like CLI tooling in order to facilitate scripting
+//! and ergonomic use of GamesmanNova. This uses the
+//! [clap](https://docs.rs/clap/latest/clap/) crate to provide standard
+//! behavior, which is outlined in [this](https://clig.dev/) great guide.
 
 use anyhow::{anyhow, Context, Result};
+use clap::{Args, Parser, Subcommand};
 
 use std::{io::BufRead, process};
 
 use crate::interface::util;
 use crate::interface::{InfoFormat, TargetAttribute};
 use crate::{interface::IOMode, target::TargetData};
+use crate::target::TargetModule;
 
-/* SPECIFIC INTERFACES */
+/* CLI DEFINITIONS */
 
-pub mod cli;
+/// TODO
+#[derive(Parser)]
+#[command(author, version, about, long_about = None, propagate_version = true)]
+pub struct Cli {
+    /* REQUIRED COMMANDS */
+    /// Available subcommands for the main 'nova' command.
+    #[command(subcommand)]
+    pub command: Commands,
+
+    /* DEFAULTS PROVIDED */
+    /// Send no output to STDOUT during successful execution.
+    #[arg(short, long, group = "output")]
+    pub quiet: bool,
+}
+
+/// Subcommand choices, specified as `nova <subcommand>`.
+#[derive(Subcommand)]
+pub enum Commands {
+    /// Build a dataset associated with an exploration target.
+    Build(BuildArgs),
+
+    /// Provides information about the system's offerings.
+    Info(InfoArgs),
+}
+
+/* ARGUMENT AND OPTION DEFINITIONS */
+
+/// TODO
+#[derive(Args)]
+pub struct BuildArgs {
+    /* REQUIRED ARGUMENTS */
+    /// Target name.
+    pub target: TargetModule,
+
+    /* OPTIONAL ARGUMENTS */
+
+    #[arg(short, long)]
+    /// Specifies which variant of the target to explore.
+    pub variant: Option<String>,
+
+    #[arg(short, long, default_value_t = IOMode::Constructive)]
+    /// Specifies how to handle persistent operations.
+    pub mode: IOMode,
+}
+
+/// TODO
+#[derive(Args)]
+pub struct InfoArgs {
+    /// Specify the target to provide information about.
+    pub target: TargetModule,
+
+    /// Specify which of the target's attributes to provide information about.
+    #[arg(short, long, value_delimiter = ',', num_args(1..))]
+    pub attributes: Vec<TargetAttribute>,
+
+    /* OPTIONAL ARGUMENTS */
+    /// Format in which to send output to STDOUT.
+    #[arg(short, long, default_value_t = InfoFormat::Legible)]
+    pub output: InfoFormat,
+}
 
 /* STANDARD INPUT API */
 
@@ -73,3 +136,4 @@ pub fn format_and_output_game_attributes(
     print!("{out}");
     Ok(())
 }
+

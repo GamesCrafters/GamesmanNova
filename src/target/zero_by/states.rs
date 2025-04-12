@@ -7,11 +7,11 @@
 use regex::Regex;
 
 use crate::target::error::TargetError;
-use crate::target::game::zero_by::Elements;
-use crate::target::game::zero_by::Session;
-use crate::target::game::zero_by::NAME;
-use crate::target::model::Player;
-use crate::target::model::State;
+use crate::target::zero_by::Elements;
+use crate::target::zero_by::Session;
+use crate::target::zero_by::NAME;
+use crate::target::Player;
+use crate::target::State;
 
 /* ZERO-BY STATE ENCODING */
 
@@ -48,7 +48,7 @@ fn check_state_pattern(from: &String) -> Result<(), TargetError> {
     let re = Regex::new(STATE_PATTERN).unwrap();
     if !re.is_match(from) {
         Err(TargetError::StateMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: format!(
                 "Input string '{from}' does not match the pattern \
                 '{STATE_PATTERN}'.",
@@ -65,7 +65,7 @@ fn parse_parameters(from: &str) -> Result<Vec<u64>, TargetError> {
             int_string
                 .parse::<u64>()
                 .map_err(|e| TargetError::StateMalformed {
-                    game_name: NAME,
+                    target_name: NAME,
                     hint: e.to_string(),
                 })
         })
@@ -77,7 +77,7 @@ fn check_param_count(
 ) -> Result<(Elements, Player), TargetError> {
     if params.len() != 2 {
         Err(TargetError::StateMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: format!(
                 "String contains {} integers, but needs to have exactly 2.",
                 params.len()
@@ -95,7 +95,7 @@ fn check_variant_coherence(
 ) -> Result<(), TargetError> {
     if from > session.start_elems {
         Err(TargetError::StateMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: format!(
                 "Specified more starting elements ({from}) than variant allows \
                 ({}).",
@@ -104,7 +104,7 @@ fn check_variant_coherence(
         })
     } else if turn >= session.players {
         Err(TargetError::StateMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: format!(
                 "Specified a turn ({turn}) too high for this ({}-player) game \
                 variant.",

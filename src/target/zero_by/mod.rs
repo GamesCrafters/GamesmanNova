@@ -9,27 +9,24 @@
 //! users to specify which abstract instance of the Zero-By game they wish to
 //! emulate.
 
-use anyhow::bail;
 use anyhow::{Context, Result};
 use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 
-use crate::database::{Persistent, ProtoRelational};
-use crate::interface::{IOMode, Solution};
-use crate::solver::algorithm::strong;
-use crate::solver::model::SUtility;
+use crate::solver::SUtility;
 use crate::solver::{Sequential, SimpleUtility};
-use crate::target::error::TargetError;
-use crate::target::game::zero_by::states::*;
-use crate::target::game::zero_by::variants::*;
-use crate::target::model::Variant;
-use crate::target::model::{Player, PlayerCount, State};
-use crate::target::util::ExtractorBuilder;
+use crate::target::zero_by::states::*;
+use crate::target::zero_by::variants::*;
+use crate::target::Variant;
 use crate::target::{Bounded, Codec, Forward};
-use crate::target::{Extractor, Variable};
-use crate::target::{Information, Target};
+use crate::target::Variable;
+use crate::target::Information;
 use crate::target::{TargetData, Transition};
+use crate::target::State;
+
+use crate::target::PlayerCount;
+use crate::target::Player;
 
 /* SUBMODULES */
 
@@ -89,18 +86,6 @@ impl Session {
 }
 
 /* INFORMATION IMPLEMENTATIONS */
-
-impl Target for Session {
-    fn extractors(&self) -> Result<Vec<Extractor<Self>>> {
-        let extractors = vec![ExtractorBuilder::new("solver")
-            .extracts("utility")
-            .extracts("remoteness")
-            .runs(|todo| Ok(()))
-            .build()
-            .context("Failed to create solver extractor.")?];
-        Ok(extractors)
-    }
-}
 
 impl Information for Session {
     fn info() -> TargetData {

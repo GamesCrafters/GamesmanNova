@@ -44,7 +44,7 @@ fn check_variant_pattern(variant: &str) -> Result<(), TargetError> {
     let re = Regex::new(VARIANT_PATTERN).unwrap();
     if !re.is_match(variant) {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: format!(
                 "String does not match the pattern '{VARIANT_PATTERN}'.",
             ),
@@ -61,7 +61,7 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, TargetError> {
             int_string
                 .parse::<u64>()
                 .map_err(|e| TargetError::VariantMalformed {
-                    game_name: NAME,
+                    target_name: NAME,
                     hint: e.to_string(),
                 })
         })
@@ -71,7 +71,7 @@ fn parse_parameters(variant: &str) -> Result<Vec<u64>, TargetError> {
 fn check_param_count(params: &[u64]) -> Result<(), TargetError> {
     if params.len() != 3 {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: "String needs to have exactly 3 dash-separated integers."
                 .to_owned(),
         })
@@ -83,7 +83,7 @@ fn check_param_count(params: &[u64]) -> Result<(), TargetError> {
 fn check_params_are_positive(params: &[u64]) -> Result<(), TargetError> {
     if params.iter().any(|&x| x == 0) {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: "All integers in the string must be positive.".to_owned(),
         })
     } else if params
@@ -92,7 +92,7 @@ fn check_params_are_positive(params: &[u64]) -> Result<(), TargetError> {
         .any(|&x| x <= 1)
     {
         Err(TargetError::VariantMalformed {
-            game_name: NAME,
+            target_name: NAME,
             hint: "L and W must both be strictly greater than 1.".to_owned(),
         })
     } else {

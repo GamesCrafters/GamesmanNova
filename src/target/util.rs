@@ -6,83 +6,12 @@ use anyhow::bail;
 use anyhow::{Context, Result};
 
 use std::fmt::Display;
-use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::database::model::SequenceKey;
 use crate::interface::TargetAttribute;
-use crate::target::model::State;
+use crate::target::State;
 use crate::target::Information;
 use crate::target::TargetData;
-use crate::target::Variable;
 use crate::target::{error::TargetError, Bounded, Codec, Transition};
-use crate::target::{Extractor, Target};
-use crate::util::Identify;
-
-/* DEFINITIONS */
-
-/// TODO
-pub struct ExtractorBuilder<'a, T>
-where
-    T: Target,
-{
-    name: &'a str,
-    function: Option<Box<dyn Fn(&'a T) -> Result<()> + 'a>>,
-    features: Vec<&'a str>,
-    requires: Vec<&'a str>,
-}
-
-/* EXTRACTOR BUILDER PATTERN */
-
-impl<'a, T> ExtractorBuilder<'a, T>
-where
-    T: Target,
-{
-    /// TODO
-    pub fn new(name: &'a str) -> Self {
-        Self {
-            name,
-            function: None,
-            features: Vec::new(),
-            requires: Vec::new(),
-        }
-    }
-
-    /// TODO
-    pub fn runs(mut self, function: impl Fn(&'a T) -> Result<()> + 'a) -> Self {
-        self.function = Some(Box::new(function));
-        self
-    }
-
-    /// TODO
-    pub fn extracts(mut self, name: &'a str) -> Self {
-        self.features.push(name);
-        self
-    }
-
-    /// TODO
-    pub fn requires(mut self, name: &'a str) -> Self {
-        self.requires.push(name);
-        self
-    }
-
-    /// TODO
-    pub fn build(self) -> Result<Extractor<'a, T>> {
-        if self.features.len() == 0 {
-            todo!()
-        }
-
-        if let Some(function) = self.function {
-            Ok(Extractor {
-                name: self.name,
-                function,
-                provides: self.features,
-                requires: self.requires,
-            })
-        } else {
-            todo!()
-        }
-    }
-}
 
 /* STATE HISTORY VERIFICATION */
 
@@ -229,16 +158,3 @@ impl TargetData {
     }
 }
 
-/* IDENTIFICATION */
-
-impl<T> Identify for T
-where
-    T: Variable,
-{
-    fn id(&self) -> SequenceKey {
-        let mut hasher = DefaultHasher::new();
-        self.variant_string()
-            .hash(&mut hasher);
-        hasher.finish()
-    }
-}
