@@ -14,19 +14,22 @@ use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 
+use crate::solver::Game;
 use crate::solver::SUtility;
-use crate::solver::{Sequential, SimpleUtility};
+use crate::solver::SimpleUtility;
 use crate::target::zero_by::states::*;
 use crate::target::zero_by::variants::*;
 use crate::target::Variant;
-use crate::target::{Bounded, Codec, Forward};
+use crate::target::{Codec, Forward};
 use crate::target::Variable;
 use crate::target::Information;
-use crate::target::{TargetData, Transition};
+use crate::target::{TargetData, Implicit};
 use crate::target::State;
 
 use crate::target::PlayerCount;
 use crate::target::Player;
+
+use super::Transpose;
 
 /* SUBMODULES */
 
@@ -126,8 +129,8 @@ impl Variable for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl Transition for Session {
-    fn prograde(&self, state: State) -> Vec<State> {
+impl Implicit for Session {
+    fn adjacent(&self, state: State) -> Vec<State> {
         let (turn, elements) = self.decode_state(state);
         let mut next = self
             .by
@@ -142,7 +145,18 @@ impl Transition for Session {
         next
     }
 
-    fn retrograde(&self, state: State) -> Vec<State> {
+    fn source(&self) -> State {
+        self.start_state
+    }
+
+    fn sink(&self, state: State) -> bool {
+        let (_, elements) = self.decode_state(state);
+        elements == 0
+    }
+}
+
+impl Transpose for Session {
+    fn adjacent(&self, state: State) -> Vec<State> {
         let (turn, elements) = self.decode_state(state);
         let mut next = self
             .by
@@ -166,17 +180,6 @@ impl Transition for Session {
 
 /* STATE RESOLUTION IMPLEMENTATIONS */
 
-impl Bounded for Session {
-    fn start(&self) -> State {
-        self.start_state
-    }
-
-    fn end(&self, state: State) -> bool {
-        let (_, elements) = self.decode_state(state);
-        elements == 0
-    }
-}
-
 impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
         Ok(parse_state(self, string)?)
@@ -196,7 +199,7 @@ impl Forward for Session {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl<const N: PlayerCount> Sequential<N> for Session {
+impl<const N: PlayerCount> Game<N> for Session {
     fn turn(&self, state: State) -> Player {
         let (turn, _) = self.decode_state(state);
         turn

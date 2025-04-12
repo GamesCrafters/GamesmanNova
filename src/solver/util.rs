@@ -7,6 +7,7 @@ use std::ops::Not;
 
 use crate::solver::error::SolverError;
 use crate::solver::{IUtility, SUtility};
+use crate::target::State;
 
 /* CONVERSIONS INTO SIMPLE UTILITY */
 
@@ -75,3 +76,4 @@ impl Not for SUtility {
         }
     }
 }
+

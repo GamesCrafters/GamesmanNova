@@ -11,7 +11,7 @@ use crate::interface::TargetAttribute;
 use crate::target::State;
 use crate::target::Information;
 use crate::target::TargetData;
-use crate::target::{error::TargetError, Bounded, Codec, Transition};
+use crate::target::{error::TargetError, Codec, Implicit};
 
 /* STATE HISTORY VERIFICATION */
 
@@ -22,20 +22,20 @@ pub fn verify_state_history<const B: usize, T>(
     history: Vec<String>,
 ) -> Result<State<B>>
 where
-    T: Information + Bounded<B> + Codec<B> + Transition<B>,
+    T: Information +  Codec<B> + Implicit<B>,
 {
     let history = sanitize_input(history);
     if let Some((l, s)) = history.first() {
         let mut prev = target
             .decode(s.clone())
             .context(format!("Failed to parse line #{l}."))?;
-        if prev == target.start() {
+        if prev == target.source() {
             for h in history.iter().skip(1) {
                 let (l, s) = h.clone();
                 let next = target
                     .decode(s)
                     .context(format!("Failed to parse line #{l}."))?;
-                if target.end(prev) {
+                if target.sink(prev) {
                     bail!(
                         terminal_history_error(target, prev, next)?.context(
                             format!(
@@ -44,7 +44,7 @@ where
                         )
                     )
                 }
-                let transitions = target.prograde(prev);
+                let transitions = target.adjacent(prev);
                 if !transitions.contains(&next) {
                     bail!(transition_history_error(target, prev, next)?
                         .context(format!(
@@ -60,7 +60,7 @@ where
                 hint: format!(
                     "The state history must begin with the starting state for \
                     the provided game variant, which is {}.",
-                    target.encode(target.start())?
+                    target.encode(target.source())?
                 ),
             })
         }
@@ -90,7 +90,7 @@ fn transition_history_error<const B: usize, T>(
     next: State<B>,
 ) -> Result<anyhow::Error>
 where
-    T: Information + Codec<B> + Bounded<B>,
+    T: Information + Codec<B>,
 {
     bail!(TargetError::InvalidHistory {
         target_name: T::info().name,
@@ -109,7 +109,7 @@ fn terminal_history_error<const B: usize, T>(
     next: State<B>,
 ) -> Result<anyhow::Error>
 where
-    T: Information + Codec<B> + Bounded<B>,
+    T: Information + Codec<B>,
 {
     bail!(TargetError::InvalidHistory {
         target_name: T::info().name,

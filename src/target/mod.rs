@@ -122,145 +122,36 @@ pub struct TargetData {
 /* EXTRACTION INTERFACES */
 
 pub trait Information {
-    /// Provides a way to retrieve useful information about a target for both
-    /// internal and user-facing modules.
-    ///
-    /// The information included here should be broadly applicable to any
-    /// variant of the underlying target type (hence why it is a static method).
-    /// For specifics on the information to provide, see [`TargetData`].
-    ///
-    /// # Example
-    ///
-    /// Using the game [`zero_by`] as an example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    /// let game = zero_by::Session::new();
-    /// assert_eq!(game.info().name, "zero-by");
-    /// ```
+    /// TODO
     fn info() -> TargetData;
 }
 
 /* IMPLICIT GRAPH INTERFACE */
 
-pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Returns all possible abstract states that could proceed `state`.
-    ///
-    /// # Example
-    ///
-    /// In a discrete game, we represent points in history that have equivalent
-    /// strategic value using a [`State<const B: usize>`] encoding. This is a
-    /// bit-packed representation of the state of the game at a point in time
-    /// (up to whatever attributes we may care about). This function returns the
-    /// collection of all states that could follow `state` according to the
-    /// underlying game's rules.
-    ///
-    /// Using the game [`zero_by`], whose default variant involves two players
-    /// alternate turns removing items from a pile that starts out with 10 items
-    /// (where Player 0 starts), we can provide the following example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// let mut game = zero_by::Session::new();
-    /// let possible_next_states = vec![
-    ///     "9-1".into(), // 9 items left, player 1's turn
-    ///     "8-1".into(), // 8 items left, player 1's turn
-    /// ];
-    ///
-    /// assert_eq!(game.prograde(game.start()), possible_next_states);
-    /// ```
-    ///
-    /// # Warning
-    ///
-    /// In practice, it is extremely difficult to make it impossible for this
-    /// function to always return an empty collection if `state` is invalid, as
-    /// it is hard to statically verify the validity of a state. Hence, this
-    /// behavior is only guaranteed when `state` is valid. See [`Bounded::end`]
-    /// and [`Bounded::start`] to bound exploration to only valid states.
-    fn prograde(&self, state: State<B>) -> Vec<State<B>>;
+pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
+    /// TODO
+    fn adjacent(&self, state: State<B>) -> Vec<State<B>>;
 
-    /// Returns all possible abstract states that could preceed `state`.
-    ///
-    /// # Example
-    ///
-    /// In a discrete game, we represent points in history that have equivalent
-    /// strategic value using a [`State<const B: usize>`] encoding. This is a
-    /// bit-packed representation of the state of the game at a point in time
-    /// (up to whatever attributes we may care about). This function returns the
-    /// collection of all states that could have preceded `state` according to
-    /// the underlying game's rules.
-    ///
-    /// Using the game [`zero_by`], whose default variant involves two players
-    /// alternate turns removing items from a pile that starts out with 10 items
-    /// (where Player 0 starts), we can provide the following example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// // Get state with 8 items left and player 1 to move
-    /// let mut game = zero_by::Session::new();
-    /// let state = game.decode("8-1".into())?;
-    ///
-    /// let possible_previous_states = vec![
-    ///     "9-0".into(), // 9 items left, player 0's turn (invalid state)
-    ///     "10-0".into(), // 8 items left, player 0's turn
-    /// ];
-    ///
-    /// assert_eq!(game.retrograde(state), possible_previous_states);
-    /// ```
-    ///
-    /// # Warning
-    ///
-    /// As you can see from the example, this function provides no guarantees
-    /// about the validity of the states that it returns, because in the general
-    /// case, it is impossible to verify whether or not a preceding state is
-    /// actually valid.
-    ///
-    /// This obstacle is usually overcome by keeping track of observed states
-    /// through a prograde exploration (using [`Transition::prograde`] and the
-    /// functions provided by [`Bounded`]), and cross-referencing the outputs of
-    /// this function with those observed states to validate them.
-    fn retrograde(&self, state: State<B>) -> Vec<State<B>>;
+    /// TODO
+    fn source(&self) -> State<B>;
+
+    /// TODO
+    fn sink(&self, state: State<B>) -> bool;
 }
 
-pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Returns the starting state of the underlying target.
-    ///
-    /// Starting states are usually determined by target variants, but it is
-    /// possible to alter them while remaining in the same game variant through
-    /// the [`Forward`] interface. Such antics are necessary to ensure state
-    /// validity at a variant-specific level. See [`Forward::forward`] for more.
-    ///
-    /// # Example
-    ///
-    /// Using the game [`zero_by`] with default state `"10-0"`:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    /// let game = zero_by::Session::new();
-    /// assert_eq!(game.encode(game.start())?, "10-0".into());
-    /// ```
-    fn start(&self) -> State<B>;
-
-    /// Returns true if `state` is a terminal state of the underlying target.
-    ///
-    /// Note that this function could return `true` for an invalid `state`, so
-    /// it is recommended that consumers verify that `state` is reachable in the
-    /// first place through a traversal interface (see [`Transition`]).
-    ///
-    /// # Example
-    ///
-    /// Using the game [`zero_by`] as an example, which ends at any state with
-    /// zero elements left:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    /// let game = zero_by::Session::new();
-    /// assert!(game.end(game.decode("0-0")?));
-    /// ```
-    fn end(&self, state: State<B>) -> bool;
+pub trait Transpose<const B: usize = DEFAULT_STATE_BYTES> {
+    /// TODO
+    fn adjacent(&self, state: State<B>) -> Vec<State<B>>;
 }
+
+pub trait Composite<const B: usize = DEFAULT_STATE_BYTES> {
+    /// TODO
+    fn partition(&self, state: State<B>) -> Partition;
+
+    /// TODO
+    fn size(&self, partition: Partition) -> StateCount;
+}
+
 
 /* UTILITY INTEFACES */
 
@@ -376,7 +267,7 @@ pub trait Variable {
 
 pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
 where
-    Self: Information + Bounded<B> + Codec<B> + Transition<B> + Sized,
+    Self: Information + Codec<B> + Implicit<B> + Sized,
 {
     /// Sets the target's starting state to a pre-verified `state`.
     ///

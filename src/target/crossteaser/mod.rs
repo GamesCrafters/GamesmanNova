@@ -18,17 +18,17 @@ use anyhow::{Context, Result};
 
 use crate::interface::IOMode;
 use crate::interface::Solution;
+use crate::solver::Game;
 use crate::solver::SUtility;
 use crate::solver::ClassicPuzzle;
 use crate::target::crossteaser::variants::*;
 use crate::target::State;
 use crate::target::Variant;
-use crate::target::Bounded;
 use crate::target::Codec;
 use crate::target::Forward;
 use crate::target::Information;
 use crate::target::TargetData;
-use crate::target::Transition;
+use crate::target::Implicit;
 use crate::target::Variable;
 
 /* SUBMODULES */
@@ -112,27 +112,21 @@ impl Variable for Session {
 
 /* TRAVERSAL IMPLEMENTATIONS */
 
-impl Transition for Session {
-    fn prograde(&self, state: State) -> Vec<State> {
+impl Implicit for Session {
+    fn adjacent(&self, state: State) -> Vec<State> {
         todo!()
     }
 
-    fn retrograde(&self, state: State) -> Vec<State> {
+    fn source(&self) -> State {
+        todo!()
+    }
+
+    fn sink(&self, state: State) -> bool {
         todo!()
     }
 }
 
 /* STATE RESOLUTION IMPLEMENTATIONS */
-
-impl Bounded for Session {
-    fn start(&self) -> State {
-        todo!()
-    }
-
-    fn end(&self, state: State) -> bool {
-        todo!()
-    }
-}
 
 impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
@@ -151,6 +145,12 @@ impl Forward for Session {
 }
 
 /* SOLVING IMPLEMENTATIONS */
+
+impl Game<1> for Session {
+    fn turn(&self, state: State) -> super::Player {
+        todo!()
+    }
+}
 
 impl ClassicPuzzle for Session {
     fn utility(&self, state: State) -> SUtility {

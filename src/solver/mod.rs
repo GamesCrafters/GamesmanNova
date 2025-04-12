@@ -75,7 +75,7 @@ pub enum UtilityType {
 
 /* STRUCTURAL INTERFACES */
 
-pub trait Sequential<const N: PlayerCount, const B: usize = DBYTES> {
+pub trait Game<const N: PlayerCount, const B: usize = DBYTES> {
     /// Returns the player `i` whose turn it is at the given `state`.
     ///
     /// In general, it can be assumed that the player whose turn it is at there
@@ -97,55 +97,12 @@ pub trait Sequential<const N: PlayerCount, const B: usize = DBYTES> {
     }
 }
 
-pub trait Composite<const N: PlayerCount, const B: usize = DBYTES> {
-    /// Returns an identifier for a subset of the space of states which `state`
-    /// belongs to.
-    ///
-    /// This method is generally useful for computing different sub-games in
-    /// parallel, which is why it is desireable that partitions are independent
-    /// of each other (meaning that we do not need to know information about one
-    /// to generate information about the other).
-    ///
-    /// Additional properties are desirable. For example, we can try to create
-    /// partitions of low "conductance," or in other words, which have a lot of
-    /// states within partitions, but not many state transitions between them.
-    /// Knowing how to do this effectively is hard, and it is an active area of
-    /// research when talking about general graphs.
-    ///
-    /// # Example
-    ///
-    /// Consider a standard game of Tic-Tac-Toe. Here, the rules prevent players
-    /// from removing any pieces placed on the board. This tells us that there
-    /// are no transitions between states with the same number of pieces on the
-    /// board. Hence, one way to implement this function would be to simply
-    /// return the number of pieces left on the board. (This is an illustrative
-    /// example; it would not provide very much of a computational benefit.)
-    fn partition(&self, state: State<B>) -> Partition;
-
-    /// Returns an estimate of the number of states in `partition`.
-    ///
-    /// It can be useful to know how many states are in a given partition for
-    /// practical purposes, such as distributing the load of exploring different
-    /// partitions in a balanced way; counting the states precisely would more
-    /// often than not defeat the purpose of saving computation.
-    ///
-    /// For many purposes, it is also enough for the return value of this
-    /// function to be accurate relative to other partitions, and not in actual
-    /// magnitude. The precise semantics of the output are left unspecified.
-    ///
-    /// # Example
-    ///
-    /// An example heuristic that could be used to estimate the number of states
-    /// in a game partition could be the amount of information required to be
-    /// able to differentiate among states within it. For example, if there are
-    /// more pieces on a board game partition than another, it is likely that it
-    /// has more states in it.
-    fn size(&self, partition: Partition) -> StateCount;
-}
-
 /* UTILITY MEASURE INTERFACES */
 
-pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES> {
+pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES>
+where 
+    Self: Game<N, B>
+{
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
     ///
@@ -163,7 +120,10 @@ pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES> {
     fn utility(&self, state: State<B>) -> [IUtility; N];
 }
 
-pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES> {
+pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES>
+where 
+    Self: Game<N, B>
+{
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
     ///
@@ -186,7 +146,10 @@ pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES> {
 
 /* UTILITY STRUCTURE INTERFACES */
 
-pub trait ClassicGame<const B: usize = DBYTES> {
+pub trait ClassicGame<const B: usize = DBYTES>
+where 
+    Self: Game<2, B>
+{
     /// Returns the utility of the only player whose turn it is at `state`.
     ///
     /// This assumes that `state` is terminal, that the underlying game is
@@ -217,7 +180,10 @@ pub trait ClassicGame<const B: usize = DBYTES> {
     fn utility(&self, state: State<B>) -> SUtility;
 }
 
-pub trait ClassicPuzzle<const B: usize = DBYTES> {
+pub trait ClassicPuzzle<const B: usize = DBYTES> 
+where 
+    Self: Game<1, B>
+{
     /// Returns the utility of the only player in the puzzle at `state`.
     ///
     /// This assumes that `state` is terminal. The utility structure implies
@@ -248,6 +214,16 @@ pub trait ClassicPuzzle<const B: usize = DBYTES> {
     fn utility(&self, state: State<B>) -> SUtility;
 }
 
+/* PERSISTENCE INTERFACES */
+
+pub trait Persistent<S, const B: usize = DBYTES> {
+    /// TODO
+    fn persist(&self, state: &State<B>, info: &S) -> Result<()>;  
+
+    /// TODO
+    fn retrieve(&self, state: &State<B>) -> Result<Option<S>>;
+}
+
 /* BLANKET IMPLEMENTATIONS */
 
 // All N-player simple-utility games are also N-player integer-utility games.
@@ -269,7 +245,7 @@ where
 // All 2-player zero-sum games are also 2-player simple-utility games.
 impl<const B: usize, G> SimpleUtility<2, B> for G
 where
-    G: Sequential<2, B> + ClassicGame<B>,
+    G: ClassicGame<B>,
 {
     fn utility(&self, state: State<B>) -> [SUtility; 2] {
         let mut sutility = [SUtility::Tie; 2];
