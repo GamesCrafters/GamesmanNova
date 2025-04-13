@@ -1,7 +1,7 @@
 //! # Game Test Utilities Module
 //!
 //! This module provides integration and unit testing utilities for the `game`
-//! target module.
+//! module.
 
 use anyhow::Context;
 use anyhow::Result;
@@ -13,8 +13,8 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::target::mock;
-use crate::target::Implicit;
+use crate::game::mock;
+use crate::game::Implicit;
 use crate::test::*;
 
 /* IMPLEMENTATIONS */

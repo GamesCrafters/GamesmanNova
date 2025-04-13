@@ -1,8 +1,7 @@
 #![forbid(unsafe_code)]
-//! # Target Module
+//! # Game Module
 //!
-//! This module provides interfaces and implementations for feature extraction
-//! targets.
+//! TODO
 
 use anyhow::{Context, Result};
 use clap::ValueEnum;
@@ -15,7 +14,7 @@ mod test;
 pub mod util;
 pub mod error;
 
-/* TARGET MODULES */
+/* GAME MODULES */
 
 #[cfg(test)]
 pub mod mock;
@@ -28,10 +27,10 @@ pub mod crossteaser;
 /// The default number of bytes used to encode states.
 pub const DEFAULT_STATE_BYTES: usize = 8;
 
-/// Unique identifier of a particular state in a target.
+/// Unique identifier of a particular state in a game.
 pub type State<const B: usize = DEFAULT_STATE_BYTES> = [u8; B];
 
-/// String encoding some specific target's variant.
+/// String encoding some specific game's variant.
 pub type Variant = String;
 
 /// Unique identifier for a player in a game.
@@ -48,9 +47,9 @@ pub type PlayerCount = Player;
 
 /* DEFINITIONS */
 
-// Specifies the target offerings available through all interfaces.
+// Specifies the game offerings available through all interfaces.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum TargetModule {
+pub enum GameModule {
     /// Grid-like 3d puzzle with rotating pieces.
     Crossteaser,
 
@@ -58,11 +57,11 @@ pub enum TargetModule {
     ZeroBy,
 }
 
-/// Contains useful data about an extraction target.
+/// Contains useful data about a game.
 ///
 /// The information here is intended to provide users of the program information
 /// they can use to understand the output of feature extractors, in addition to
-/// specifying formats/protocols for communicating with target implementations,
+/// specifying formats/protocols for communicating with game implementations,
 /// and providing descriptive error outputs. See [`Information::info`] for how
 /// to expose this information.
 ///
@@ -81,25 +80,25 @@ pub enum TargetModule {
 /// * State pattern: r"^\d+-\d+$"
 /// * State default: "10-0"
 /// ```
-pub struct TargetData {
+pub struct GameData {
     /* GENERAL */
-    /// Known name for the target. This should return a string that can be used
+    /// Known name for the game. This should return a string that can be used
     /// in the command-line as an argument to the CLI endpoints which require a
-    /// name as a target (e.g. `nova solve <TARGET>`).
+    /// name as a game (e.g. `nova solve <TARGET>`).
     pub name: &'static str,
 
-    /// The names of people who implemented the target listed out, optionally
+    /// The names of people who implemented the game listed out, optionally
     /// including their contact. For example: "John Doe <john@rust-lang.org>,
     /// Ricardo L. <ricardo@go-lang.com>, Quin Bligh".
     pub authors: &'static str,
 
-    /// General introduction to the target's rules, setup, etc., including any
+    /// General introduction to the game's rules, setup, etc., including any
     /// facts that are noteworthy about it.
     pub about: &'static str,
 
     /* VARIANTS */
     /// Explanation of how to use strings to communicate which variant a user
-    /// wishes to provide to the target's implementation.
+    /// wishes to provide to the game's implementation.
     pub variant_protocol: &'static str,
 
     /// Regular expression pattern that all variant strings must match.
@@ -123,7 +122,7 @@ pub struct TargetData {
 
 pub trait Information {
     /// TODO
-    fn info() -> TargetData;
+    fn info() -> GameData;
 }
 
 /* IMPLICIT GRAPH INTERFACE */
@@ -178,10 +177,10 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     /// # Errors
     ///
     /// Fails if `state` is detectably invalid or unreachable in the underlying
-    /// target variant.
+    /// game variant.
     fn decode(&self, string: String) -> Result<State<B>>;
 
-    /// Encodes a target `state` into a compact string representation.
+    /// Encodes a game `state` into a compact string representation.
     ///
     /// The output representation is not designed to be space efficient. It is
     /// used for manual input/output. This function (and [`Codec::decode`])
@@ -204,17 +203,17 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     /// # Errors
     ///
     /// Fails if `state` is detectably invalid or unreachable in the underlying
-    /// target variant.
+    /// game variant.
     fn encode(&self, state: State<B>) -> Result<String>;
 }
 
 pub trait Variable {
-    /// Initializes a version of the underlying target as the specified `variant`.
+    /// Initializes a version of the underlying game as the specified `variant`.
     ///
-    /// A variant is a member of a family of targets whose structure is very
+    /// A variant is a member of a family of games whose structure is very
     /// similar. It is convenient to be able to express this because it saves
-    /// a lot of needless re-writing of target logic, while allowing for a lot
-    /// of generality in target implementations.
+    /// a lot of needless re-writing of game logic, while allowing for a lot
+    /// of generality in game implementations.
     ///
     /// # Example
     ///
@@ -234,18 +233,18 @@ pub trait Variable {
     ///
     /// # Errors
     ///
-    /// Fails if `variant` does not conform to the target's protocol of encoding
-    /// variants as strings, or if the target does not support variants in the
+    /// Fails if `variant` does not conform to the game's protocol of encoding
+    /// variants as strings, or if the game does not support variants in the
     /// first place (but has a placeholder [`Variable`] implementation).
     fn variant(variant: Variant) -> Result<Self>
     where
         Self: Sized;
 
-    /// Returns a string representing the underlying target variant.
+    /// Returns a string representing the underlying game variant.
     ///
     /// This does not provide a certain way of differentiating between the
-    /// starting state of the target (see [`Bounded::start`] for this), but it
-    /// does provide a sufficient identifier of the target's structure.
+    /// starting state of the game (see [`Bounded::start`] for this), but it
+    /// does provide a sufficient identifier of the game's structure.
     ///
     /// # Example
     ///
@@ -269,7 +268,7 @@ pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
 where
     Self: Information + Codec<B> + Implicit<B> + Sized,
 {
-    /// Sets the target's starting state to a pre-verified `state`.
+    /// Sets the game's starting state to a pre-verified `state`.
     ///
     /// This function is an auxiliary item for [`Forward::forward`]. While it
     /// needs to be implemented for [`Forward::forward`] to work, there should
@@ -298,13 +297,13 @@ where
     #[deprecated(
         note = "This function should not be used directly; any modification of \
         initial states should be done through [`Forward::forward`], which is \
-        fallible and provides verification for target states."
+        fallible and provides verification for game states."
     )]
     fn set_verified_start(&mut self, state: State<B>);
 
-    /// Advances the target's starting state to the last state in `history`,
+    /// Advances the game's starting state to the last state in `history`,
     /// verifying that it is a valid traversal of the induced graph on this
-    /// target variant.
+    /// game variant.
     ///
     /// # Example
     ///

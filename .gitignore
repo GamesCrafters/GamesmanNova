@@ -19,3 +19,6 @@ flamegraph.svg
 
 # Development data
 /dev
+
+# Environment file
+.env

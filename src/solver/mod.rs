@@ -8,13 +8,10 @@
 
 use anyhow::Result;
 
-use crate::interface::Solution;
-use crate::target::Partition;
-use crate::target::Player;
-use crate::target::PlayerCount;
-use crate::target::State;
-use crate::target::StateCount;
-use crate::target::DEFAULT_STATE_BYTES as DBYTES;
+use crate::game::Player;
+use crate::game::PlayerCount;
+use crate::game::State;
+use crate::game::DEFAULT_STATE_BYTES as DBYTES;
 
 /* UTILITY MODULES */
 

@@ -5,8 +5,8 @@
 use anyhow::{Context, Result};
 
 use crate::solver::{Game, IUtility, IntegerUtility, Persistent, Remoteness};
-use crate::target::{Player, PlayerCount};
-use crate::target::Implicit;
+use crate::game::{Player, PlayerCount};
+use crate::game::Implicit;
 
 /* DEFINITIONS */
 
@@ -20,7 +20,7 @@ pub struct Solution<const N: PlayerCount> {
 /* SOLVERS */
 
 /// TODO
-pub fn solver<const N: PlayerCount, const B: usize, G>(game: &G) -> Result<()>
+pub fn solve<const N: PlayerCount, const B: usize, G>(game: &G) -> Result<()>
 where
     G: Implicit<B>
         + Game<N, B>
@@ -96,9 +96,39 @@ impl<const N: PlayerCount> Default for Solution<N> {
 mod test {
 
     use anyhow::Result;
+
+    use crate::node;
+    use crate::game::mock::SessionBuilder;
+    use crate::game::mock::Node;
+    use crate::game::mock;
+
     use super::*;
 
+    /// Used for storing generated visualizations of the mock games being used
+    /// for testing purposes in this module under their own subdirectory.
+    const MODULE_NAME: &str = "acyclic-solver-tests";
+
+    #[test]
     fn acyclic_solver_on_game_1() -> Result<()> {
-        todo!()
+        let s1 = node!(0);
+        let s2 = node!(1);
+        let s3 = node!(2);
+
+        let t1 = node![1; 1, 2, 3];
+        let t2 = node![2; 3, 2, 1];
+
+        let g = SessionBuilder::new("sample1")
+            .edge(&s1, &s2)?
+            .edge(&s1, &s3)?
+            .edge(&s2, &t1)?
+            .edge(&s3, &t2)?
+            .source(&s1)?
+            .build()?;
+
+        // TODO: Fix
+        solve::<3, 8, mock::Session<'_>>(&g)?;
+        g.visualize(MODULE_NAME)?;
+
+        Ok(())
     }
 }

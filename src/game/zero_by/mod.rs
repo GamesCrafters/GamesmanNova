@@ -17,19 +17,17 @@ use bitvec::order::Msb0;
 use crate::solver::Game;
 use crate::solver::SUtility;
 use crate::solver::SimpleUtility;
-use crate::target::zero_by::states::*;
-use crate::target::zero_by::variants::*;
-use crate::target::Variant;
-use crate::target::{Codec, Forward};
-use crate::target::Variable;
-use crate::target::Information;
-use crate::target::{TargetData, Implicit};
-use crate::target::State;
-
-use crate::target::PlayerCount;
-use crate::target::Player;
-
-use super::Transpose;
+use crate::game::zero_by::states::*;
+use crate::game::zero_by::variants::*;
+use crate::game::Variant;
+use crate::game::{Codec, Forward};
+use crate::game::Variable;
+use crate::game::Information;
+use crate::game::{GameData, Implicit};
+use crate::game::State;
+use crate::game::PlayerCount;
+use crate::game::Player;
+use crate::game::Transpose;
 
 /* SUBMODULES */
 
@@ -91,8 +89,8 @@ impl Session {
 /* INFORMATION IMPLEMENTATIONS */
 
 impl Information for Session {
-    fn info() -> TargetData {
-        TargetData {
+    fn info() -> GameData {
+        GameData {
             name: NAME,
             authors: AUTHORS,
             about: ABOUT,

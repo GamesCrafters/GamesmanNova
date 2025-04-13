@@ -1,28 +1,30 @@
-//! # Extraction Target Utility Module
+//! # Game Utility Module
 //!
-//! This module defines utilities used across extraction target implementations.
+//! This module defines utilities used game implementations.
 
 use anyhow::bail;
 use anyhow::{Context, Result};
 
 use std::fmt::Display;
 
-use crate::interface::TargetAttribute;
-use crate::target::State;
-use crate::target::Information;
-use crate::target::TargetData;
-use crate::target::{error::TargetError, Codec, Implicit};
+use crate::interface::GameAttribute;
+use crate::game::State;
+use crate::game::Information;
+use crate::game::GameData;
+use crate::game::{error::GameError, Codec, Implicit};
 
 /* STATE HISTORY VERIFICATION */
 
 /// Verifies that the elements of `history` are a valid sequence of states under
 /// the rules of `target`, failing if this is not true.
-pub fn verify_state_history<const B: usize, T>(
-    target: &T,
+pub fn verify_state_history<const B: usize, G>(
+    target: &G,
     history: Vec<String>,
 ) -> Result<State<B>>
 where
-    T: Information +  Codec<B> + Implicit<B>,
+    G: Information 
+        + Implicit<B>
+        + Codec<B>,
 {
     let history = sanitize_input(history);
     if let Some((l, s)) = history.first() {
@@ -55,8 +57,8 @@ where
             }
             Ok(prev)
         } else {
-            bail!(TargetError::InvalidHistory {
-                target_name: T::info().name,
+            bail!(GameError::InvalidHistory {
+                game: G::info().name,
                 hint: format!(
                     "The state history must begin with the starting state for \
                     the provided game variant, which is {}.",
@@ -65,8 +67,8 @@ where
             })
         }
     } else {
-        bail!(TargetError::InvalidHistory {
-            target_name: T::info().name,
+        bail!(GameError::InvalidHistory {
+            game: G::info().name,
             hint: "State history must contain at least one state.".into(),
         })
     }
@@ -84,16 +86,16 @@ fn sanitize_input(mut input: Vec<String>) -> Vec<(usize, String)> {
 
 /* HISTORY VERIFICATION ERRORS */
 
-fn transition_history_error<const B: usize, T>(
-    target: &T,
+fn transition_history_error<const B: usize, G>(
+    target: &G,
     prev: State<B>,
     next: State<B>,
 ) -> Result<anyhow::Error>
 where
-    T: Information + Codec<B>,
+    G: Information + Codec<B>,
 {
-    bail!(TargetError::InvalidHistory {
-        target_name: T::info().name,
+    bail!(GameError::InvalidHistory {
+        game: G::info().name,
         hint: format!(
             "Transitioning from the state '{}' to the sate '{}' is illegal in \
             the provided target variant.",
@@ -103,16 +105,16 @@ where
     })
 }
 
-fn terminal_history_error<const B: usize, T>(
-    target: &T,
+fn terminal_history_error<const B: usize, G>(
+    target: &G,
     prev: State<B>,
     next: State<B>,
 ) -> Result<anyhow::Error>
 where
-    T: Information + Codec<B>,
+    G: Information + Codec<B>,
 {
-    bail!(TargetError::InvalidHistory {
-        target_name: T::info().name,
+    bail!(GameError::InvalidHistory {
+        game: G::info().name,
         hint: format!(
             "Transitioning from the state '{}' to the sate '{}' is illegal in \
             the provided target variant, because '{}' is a terminal state.",
@@ -123,37 +125,37 @@ where
     })
 }
 
-/* TARGET DATA UTILITIES */
+/* GAME DATA UTILITIES */
 
-impl Display for TargetAttribute {
+impl Display for GameAttribute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let content = match self {
-            TargetAttribute::VariantProtocol => "variant-protocol",
-            TargetAttribute::VariantPattern => "variant-pattern",
-            TargetAttribute::VariantDefault => "variant-default",
-            TargetAttribute::StateProtocol => "state-protocol",
-            TargetAttribute::StateDefault => "state-default",
-            TargetAttribute::StatePattern => "state-pattern",
-            TargetAttribute::Authors => "authors",
-            TargetAttribute::About => "about",
-            TargetAttribute::Name => "name",
+            GameAttribute::VariantProtocol => "variant-protocol",
+            GameAttribute::VariantPattern => "variant-pattern",
+            GameAttribute::VariantDefault => "variant-default",
+            GameAttribute::StateProtocol => "state-protocol",
+            GameAttribute::StateDefault => "state-default",
+            GameAttribute::StatePattern => "state-pattern",
+            GameAttribute::Authors => "authors",
+            GameAttribute::About => "about",
+            GameAttribute::Name => "name",
         };
         write!(f, "{content}")
     }
 }
 
-impl TargetData {
-    pub fn find(&self, attribute: TargetAttribute) -> &str {
+impl GameData {
+    pub fn find(&self, attribute: GameAttribute) -> &str {
         match attribute {
-            TargetAttribute::VariantProtocol => self.variant_protocol,
-            TargetAttribute::VariantPattern => self.variant_pattern,
-            TargetAttribute::VariantDefault => self.variant_default,
-            TargetAttribute::StateProtocol => self.state_protocol,
-            TargetAttribute::StateDefault => self.state_default,
-            TargetAttribute::StatePattern => self.state_pattern,
-            TargetAttribute::Authors => self.authors,
-            TargetAttribute::About => self.about,
-            TargetAttribute::Name => self.name,
+            GameAttribute::VariantProtocol => self.variant_protocol,
+            GameAttribute::VariantPattern => self.variant_pattern,
+            GameAttribute::VariantDefault => self.variant_default,
+            GameAttribute::StateProtocol => self.state_protocol,
+            GameAttribute::StateDefault => self.state_default,
+            GameAttribute::StatePattern => self.state_pattern,
+            GameAttribute::Authors => self.authors,
+            GameAttribute::About => self.about,
+            GameAttribute::Name => self.name,
         }
     }
 }

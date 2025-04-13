@@ -12,9 +12,9 @@ use petgraph::{graph::NodeIndex, Graph};
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
-use crate::target::mock::Node;
-use crate::target::mock::Session;
-use crate::target::PlayerCount;
+use crate::game::mock::Node;
+use crate::game::mock::Session;
+use crate::game::PlayerCount;
 
 /* DEFINITIONS */
 

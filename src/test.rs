@@ -49,8 +49,8 @@ pub enum TestSetting {
 pub fn test_setting() -> Result<TestSetting> {
     if let Ok(setting) = env::var("TEST_SETTING") {
         match &setting[..] {
-            "0" => Ok(TestSetting::Correctness),
-            "1" => Ok(TestSetting::Development),
+            "Correctness" => Ok(TestSetting::Correctness),
+            "Development" => Ok(TestSetting::Development),
             _ => bail!("TEST_SETTING assignment '{setting}' not recognized."),
         }
     } else {

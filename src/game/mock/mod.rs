@@ -17,11 +17,11 @@ use std::collections::HashMap;
 
 use crate::solver::algorithm::acyclic;
 use crate::solver::{Game, IUtility, IntegerUtility, Persistent};
-use crate::target::Player;
-use crate::target::PlayerCount;
-use crate::target::State;
-use crate::target::Implicit;
-use crate::target::Transpose;
+use crate::game::Player;
+use crate::game::PlayerCount;
+use crate::game::State;
+use crate::game::Implicit;
+use crate::game::Transpose;
 
 /* RE-EXPORTS */
 

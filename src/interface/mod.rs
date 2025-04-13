@@ -64,7 +64,7 @@ pub enum Solution {
 /// the creation of custom objects containing any choice of these without the
 /// need to mangle this program's output.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum TargetAttribute {
+pub enum GameAttribute {
     /// The conventional name of the game, formatted to be unique.
     Name,
 

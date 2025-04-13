@@ -15,8 +15,8 @@ use clap::Parser;
 use std::process;
 
 use crate::interface::cli::*;
-use crate::target::Information;
-use crate::target::TargetModule;
+use crate::game::Information;
+use crate::game::GameModule;
 
 /* MODULES */
 
@@ -25,12 +25,13 @@ mod test;
 
 mod interface;
 mod solver;
-mod target;
+mod game;
 mod util;
 
 /* PROGRAM ENTRY */
 
 fn main() -> Result<()> {
+    dotenv::dotenv()?;
     let cli = Cli::parse();
     let res = match cli.command {
         Commands::Info(args) => info(args),
@@ -50,8 +51,8 @@ fn build(args: BuildArgs) -> Result<()> {
 
 fn info(args: InfoArgs) -> Result<()> {
     let data = match args.target {
-        TargetModule::ZeroBy => target::zero_by::Session::info(),
-        TargetModule::Crossteaser => todo!(),
+        GameModule::ZeroBy => game::zero_by::Session::info(),
+        GameModule::Crossteaser => todo!(),
     };
     interface::cli::format_and_output_game_attributes(
         data,

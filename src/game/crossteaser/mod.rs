@@ -21,15 +21,15 @@ use crate::interface::Solution;
 use crate::solver::Game;
 use crate::solver::SUtility;
 use crate::solver::ClassicPuzzle;
-use crate::target::crossteaser::variants::*;
-use crate::target::State;
-use crate::target::Variant;
-use crate::target::Codec;
-use crate::target::Forward;
-use crate::target::Information;
-use crate::target::TargetData;
-use crate::target::Implicit;
-use crate::target::Variable;
+use crate::game::crossteaser::variants::*;
+use crate::game::State;
+use crate::game::Variant;
+use crate::game::Codec;
+use crate::game::Forward;
+use crate::game::Information;
+use crate::game::GameData;
+use crate::game::Implicit;
+use crate::game::Variable;
 
 /* SUBMODULES */
 
@@ -86,7 +86,7 @@ impl Session {
 /* INFORMATION IMPLEMENTATIONS */
 
 impl Information for Session {
-    fn info() -> TargetData {
+    fn info() -> GameData {
         todo!()
     }
 }

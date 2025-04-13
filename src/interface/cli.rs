@@ -11,9 +11,9 @@ use clap::{Args, Parser, Subcommand};
 use std::{io::BufRead, process};
 
 use crate::interface::util;
-use crate::interface::{InfoFormat, TargetAttribute};
-use crate::{interface::IOMode, target::TargetData};
-use crate::target::TargetModule;
+use crate::interface::{InfoFormat, GameAttribute};
+use crate::{interface::IOMode, game::GameData};
+use crate::game::GameModule;
 
 /* CLI DEFINITIONS */
 
@@ -35,7 +35,7 @@ pub struct Cli {
 /// Subcommand choices, specified as `nova <subcommand>`.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Build a dataset associated with an exploration target.
+    /// Build a dataset associated with an exploration game.
     Build(BuildArgs),
 
     /// Provides information about the system's offerings.
@@ -48,29 +48,33 @@ pub enum Commands {
 #[derive(Args)]
 pub struct BuildArgs {
     /* REQUIRED ARGUMENTS */
-    /// Target name.
-    pub target: TargetModule,
+    /// Target game name.
+    pub target: GameModule,
 
     /* OPTIONAL ARGUMENTS */
 
-    #[arg(short, long)]
-    /// Specifies which variant of the target to explore.
-    pub variant: Option<String>,
+     /// Solve a specific variant of game.
+     #[arg(short, long)]
+     pub variant: Option<String>,
 
-    #[arg(short, long, default_value_t = IOMode::Constructive)]
-    /// Specifies how to handle persistent operations.
-    pub mode: IOMode,
+     /// Specify whether the solution should be fetched or re-generated.
+     #[arg(short, long, default_value_t = IOMode::Constructive)]
+     pub mode: IOMode,
+
+     /// Compute solution starting after a state history read from STDIN.
+     #[arg(short, long)]
+     pub forward: bool,
 }
 
 /// TODO
 #[derive(Args)]
 pub struct InfoArgs {
-    /// Specify the target to provide information about.
-    pub target: TargetModule,
+    /// Specify the game to provide information about.
+    pub target: GameModule,
 
-    /// Specify which of the target's attributes to provide information about.
+    /// Specify which of the game's attributes to provide information about.
     #[arg(short, long, value_delimiter = ',', num_args(1..))]
-    pub attributes: Vec<TargetAttribute>,
+    pub attributes: Vec<GameAttribute>,
 
     /* OPTIONAL ARGUMENTS */
     /// Format in which to send output to STDOUT.
@@ -122,8 +126,8 @@ pub fn stdin_lines() -> Result<Vec<String>> {
 /// into a specific `format`, and prints them to STDOUT. If `attrs` is `None`,
 /// all possible game attributes are sent to STDOUT.
 pub fn format_and_output_game_attributes(
-    data: TargetData,
-    attrs: Vec<TargetAttribute>,
+    data: GameData,
+    attrs: Vec<GameAttribute>,
     format: InfoFormat,
 ) -> Result<()> {
     let out = if attrs.is_empty() {
