@@ -8,17 +8,16 @@ use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use regex::Regex;
 
-use crate::game::error::GameError;
-use crate::game::zero_by::{Session, NAME};
 use crate::game::Player;
+use crate::game::error::GameError;
+use crate::game::zero_by::{NAME, Session};
 use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
 
 pub const VARIANT_DEFAULT: &str = "2-10-1-2";
 pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
-pub const VARIANT_PROTOCOL: &str =
-"The variant string should be a dash-separated group of three or more positive \
+pub const VARIANT_PROTOCOL: &str = "The variant string should be a dash-separated group of three or more positive \
 integers. For example, '4-232-23-6-3-6' is valid but '598', '-23-1-5', and \
 'fifteen-2-5' are not. The first integer represents the number of players in \
 the game. The second integer represents the number of elements in the set. The \

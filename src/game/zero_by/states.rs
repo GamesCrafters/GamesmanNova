@@ -6,19 +6,18 @@
 
 use regex::Regex;
 
-use crate::game::error::GameError;
-use crate::game::zero_by::Elements;
-use crate::game::zero_by::Session;
-use crate::game::zero_by::NAME;
 use crate::game::Player;
 use crate::game::State;
+use crate::game::error::GameError;
+use crate::game::zero_by::Elements;
+use crate::game::zero_by::NAME;
+use crate::game::zero_by::Session;
 
 /* ZERO-BY STATE ENCODING */
 
 pub const STATE_DEFAULT: &str = "10-0";
 pub const STATE_PATTERN: &str = r"^\d+-\d+$";
-pub const STATE_PROTOCOL: &str =
-"The state string should be two dash-separated positive integers without any \
+pub const STATE_PROTOCOL: &str = "The state string should be two dash-separated positive integers without any \
 decimal points. The first integer will indicate the amount of elements left to \
 remove from the set, and the second indicates whose turn it is to remove an \
 element. The first integer must be less than or equal to the number of initial \
@@ -72,9 +71,7 @@ fn parse_parameters(from: &str) -> Result<Vec<u64>, GameError> {
         .collect()
 }
 
-fn check_param_count(
-    params: &[u64],
-) -> Result<(Elements, Player), GameError> {
+fn check_param_count(params: &[u64]) -> Result<(Elements, Player), GameError> {
     if params.len() != 2 {
         Err(GameError::StateMalformed {
             game: NAME,
@@ -231,33 +228,47 @@ mod test {
         let i6: Vec<&str> = vec![]; // No history
         let i7 = vec![""]; // Empty string
 
-        assert!(Session::default()
-            .forward(owned(i1))
-            .is_err());
+        assert!(
+            Session::default()
+                .forward(owned(i1))
+                .is_err()
+        );
 
-        assert!(Session::default()
-            .forward(owned(i2))
-            .is_err());
+        assert!(
+            Session::default()
+                .forward(owned(i2))
+                .is_err()
+        );
 
-        assert!(Session::default()
-            .forward(owned(i3))
-            .is_err());
+        assert!(
+            Session::default()
+                .forward(owned(i3))
+                .is_err()
+        );
 
-        assert!(Session::default()
-            .forward(owned(i4))
-            .is_err());
+        assert!(
+            Session::default()
+                .forward(owned(i4))
+                .is_err()
+        );
 
-        assert!(Session::default()
-            .forward(owned(i5))
-            .is_err());
+        assert!(
+            Session::default()
+                .forward(owned(i5))
+                .is_err()
+        );
 
-        assert!(Session::default()
-            .forward(owned(i6))
-            .is_err());
+        assert!(
+            Session::default()
+                .forward(owned(i6))
+                .is_err()
+        );
 
-        assert!(Session::default()
-            .forward(owned(i7))
-            .is_err());
+        assert!(
+            Session::default()
+                .forward(owned(i7))
+                .is_err()
+        );
     }
 
     #[test]
@@ -269,29 +280,41 @@ mod test {
         let c5 = vec!["10-0", " ", "9-1"];
         let c6 = vec!["", "10-0", " "];
 
-        assert!(Session::default()
-            .forward(owned(c1))
-            .is_ok());
+        assert!(
+            Session::default()
+                .forward(owned(c1))
+                .is_ok()
+        );
 
-        assert!(Session::default()
-            .forward(owned(c2))
-            .is_ok());
+        assert!(
+            Session::default()
+                .forward(owned(c2))
+                .is_ok()
+        );
 
-        assert!(Session::default()
-            .forward(owned(c3))
-            .is_ok());
+        assert!(
+            Session::default()
+                .forward(owned(c3))
+                .is_ok()
+        );
 
-        assert!(Session::default()
-            .forward(owned(c4))
-            .is_ok());
+        assert!(
+            Session::default()
+                .forward(owned(c4))
+                .is_ok()
+        );
 
-        assert!(Session::default()
-            .forward(owned(c5))
-            .is_ok());
+        assert!(
+            Session::default()
+                .forward(owned(c5))
+                .is_ok()
+        );
 
-        assert!(Session::default()
-            .forward(owned(c6))
-            .is_ok());
+        assert!(
+            Session::default()
+                .forward(owned(c6))
+                .is_ok()
+        );
     }
 
     #[test]
@@ -307,34 +330,46 @@ mod test {
             "110-7", "80-0", "79-1",
         ];
 
-        assert!(&variant(v)?
-            .forward(owned(c1))
-            .is_ok());
+        assert!(
+            &variant(v)?
+                .forward(owned(c1))
+                .is_ok()
+        );
 
-        assert!(&variant(v)?
-            .forward(owned(c2))
-            .is_ok());
+        assert!(
+            &variant(v)?
+                .forward(owned(c2))
+                .is_ok()
+        );
 
         let i1 = vec!["200-0", "184-1", "115-2", "114-3"]; // Illegal move
         let i2 = vec!["200-0", "185-1", "115-1", "114-2"]; // Turns don't switch
         let i3 = vec!["200-2", "185-3", "115-4", "114-5"]; // Bad initial turn
         let i4 = vec!["201-0", "186-1", "116-2", "115-3"]; // Bad initial state
 
-        assert!(&variant(v)?
-            .forward(owned(i1))
-            .is_err());
+        assert!(
+            &variant(v)?
+                .forward(owned(i1))
+                .is_err()
+        );
 
-        assert!(&variant(v)?
-            .forward(owned(i2))
-            .is_err());
+        assert!(
+            &variant(v)?
+                .forward(owned(i2))
+                .is_err()
+        );
 
-        assert!(&variant(v)?
-            .forward(owned(i3))
-            .is_err());
+        assert!(
+            &variant(v)?
+                .forward(owned(i3))
+                .is_err()
+        );
 
-        assert!(&variant(v)?
-            .forward(owned(i4))
-            .is_err());
+        assert!(
+            &variant(v)?
+                .forward(owned(i4))
+                .is_err()
+        );
 
         Ok(())
     }

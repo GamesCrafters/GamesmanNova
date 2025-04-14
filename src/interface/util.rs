@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 
 use crate::game::GameData;
 
-use super::{InfoFormat, GameAttribute};
+use super::{GameAttribute, InfoFormat};
 
 /* CONSTANTS */
 

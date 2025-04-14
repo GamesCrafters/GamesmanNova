@@ -4,7 +4,9 @@
 //! on throughout the project, and defines the structure of the development
 //! resources that are generated through tests.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
+use once_cell::sync::OnceCell;
+use sqlx::SqlitePool;
 use strum_macros::Display;
 
 use std::env;
@@ -23,6 +25,11 @@ pub static DIRECTORY_LOCK: RwLock<()> = RwLock::new(());
 /// The name of the global directory at the project root used for generated
 /// development data. This directory is not shipped with release builds.
 const DEV_DIRECTORY: &str = "dev";
+
+/* SINGLETONS */
+
+/// TODO
+static DB: OnceCell<SqlitePool> = OnceCell::new();
 
 /* DEFINITIONS */
 
@@ -44,13 +51,55 @@ pub enum TestSetting {
 
 /* UTILITY FUNCTIONS */
 
+/// TODO
+pub fn dev_db() -> Result<SqlitePool> {
+    let db = DB
+        .get()
+        .ok_or(anyhow!("Failed to access database singleton."))?;
+
+    Ok(db.clone())
+}
+
+/// TODO
+pub async fn prepare() -> Result<()> {
+    dotenv::dotenv().context("Failed to parse environment (.env) file.")?;
+
+    let db_addr = match test_setting()? {
+        TestSetting::Correctness => "sqlite::memory:".to_string(),
+        TestSetting::Development => {
+            let db_path = format!(
+                "{}/{}",
+                &DEV_DIRECTORY,
+                &DevelopmentData::Data.to_string()
+            );
+
+            fs::create_dir_all(&db_path)
+                .context("Failed to create development database directory.")?;
+
+            format!(
+                "sqlite://{}/{}",
+                db_path,
+                env::var("DEV_DATABASE")
+                    .context("DEV_DATABASE environment variable not set.")?
+            )
+        },
+    };
+
+    let db_pool = SqlitePool::connect(&db_addr)
+        .await
+        .context("Failed to initialize SQLite connection.")?;
+
+    let _ = DB.set(db_pool);
+    Ok(())
+}
+
 /// Returns the testing side effects setting as obtained from the `TEST_SETTING`
 /// environment variable.
 pub fn test_setting() -> Result<TestSetting> {
     if let Ok(setting) = env::var("TEST_SETTING") {
         match &setting[..] {
-            "Correctness" => Ok(TestSetting::Correctness),
-            "Development" => Ok(TestSetting::Development),
+            "correctness" => Ok(TestSetting::Correctness),
+            "development" => Ok(TestSetting::Development),
             _ => bail!("TEST_SETTING assignment '{setting}' not recognized."),
         }
     } else {
@@ -110,4 +159,3 @@ fn find_cargo_lock_directory() -> Result<PathBuf> {
     }
     bail!("Could not find any parent directory with a Cargo.lock file.")
 }
-

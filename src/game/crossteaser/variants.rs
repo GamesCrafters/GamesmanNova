@@ -5,7 +5,7 @@
 
 use regex::Regex;
 
-use crate::game::crossteaser::{Session, NAME};
+use crate::game::crossteaser::{NAME, Session};
 use crate::game::error::GameError;
 
 /* CROSSTEASER VARIANT DEFINITION */

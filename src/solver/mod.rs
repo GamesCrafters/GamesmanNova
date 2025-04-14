@@ -8,10 +8,10 @@
 
 use anyhow::Result;
 
+use crate::game::DEFAULT_STATE_BYTES as DBYTES;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
-use crate::game::DEFAULT_STATE_BYTES as DBYTES;
 
 /* UTILITY MODULES */
 
@@ -32,16 +32,16 @@ pub mod algorithm {
 /// Indicates the "depth of draw" which a drawing position corresponds to.
 /// For more information, see [this whitepaper](TODO). This value should be
 /// 0 for non-drawing positions.
-pub type DrawDepth = u64;
+pub type DrawDepth = u32;
 
 /// Indicates the number of choices that players have to make to reach a
 /// terminal state in a game under perfect play. For drawing positions,
 /// indicates the number of choices players can make to bring the game to a
 /// state which can transition to a non-drawing state.
-pub type Remoteness = u64;
+pub type Remoteness = u32;
 
 /// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
-pub type MinExclusion = u64;
+pub type MinExclusion = u32;
 
 /// A discrete measure of how "good" an outcome is for a given player.
 /// Positive values indicate an overall gain from having played the game,
@@ -97,8 +97,8 @@ pub trait Game<const N: PlayerCount, const B: usize = DBYTES> {
 /* UTILITY MEASURE INTERFACES */
 
 pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES>
-where 
-    Self: Game<N, B>
+where
+    Self: Game<N, B>,
 {
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
@@ -118,8 +118,8 @@ where
 }
 
 pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES>
-where 
-    Self: Game<N, B>
+where
+    Self: Game<N, B>,
 {
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
@@ -144,8 +144,8 @@ where
 /* UTILITY STRUCTURE INTERFACES */
 
 pub trait ClassicGame<const B: usize = DBYTES>
-where 
-    Self: Game<2, B>
+where
+    Self: Game<2, B>,
 {
     /// Returns the utility of the only player whose turn it is at `state`.
     ///
@@ -177,9 +177,9 @@ where
     fn utility(&self, state: State<B>) -> SUtility;
 }
 
-pub trait ClassicPuzzle<const B: usize = DBYTES> 
-where 
-    Self: Game<1, B>
+pub trait ClassicPuzzle<const B: usize = DBYTES>
+where
+    Self: Game<1, B>,
 {
     /// Returns the utility of the only player in the puzzle at `state`.
     ///
@@ -215,10 +215,13 @@ where
 
 pub trait Persistent<S, const B: usize = DBYTES> {
     /// TODO
-    fn persist(&self, state: &State<B>, info: &S) -> Result<()>;  
+    fn persist(&self, state: &State<B>, info: &S) -> Result<()>;
 
     /// TODO
     fn retrieve(&self, state: &State<B>) -> Result<Option<S>>;
+
+    /// TODO
+    fn prepare(&self) -> Result<()>;
 }
 
 /* BLANKET IMPLEMENTATIONS */
@@ -264,4 +267,3 @@ where
         [self.utility(state)]
     }
 }
-

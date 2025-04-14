@@ -7,11 +7,11 @@ use anyhow::{Context, Result};
 
 use std::fmt::Display;
 
-use crate::interface::GameAttribute;
-use crate::game::State;
-use crate::game::Information;
 use crate::game::GameData;
-use crate::game::{error::GameError, Codec, Implicit};
+use crate::game::Information;
+use crate::game::State;
+use crate::game::{Codec, Implicit, error::GameError};
+use crate::interface::GameAttribute;
 
 /* STATE HISTORY VERIFICATION */
 
@@ -22,9 +22,7 @@ pub fn verify_state_history<const B: usize, G>(
     history: Vec<String>,
 ) -> Result<State<B>>
 where
-    G: Information 
-        + Implicit<B>
-        + Codec<B>,
+    G: Information + Implicit<B> + Codec<B>,
 {
     let history = sanitize_input(history);
     if let Some((l, s)) = history.first() {
@@ -48,10 +46,13 @@ where
                 }
                 let transitions = target.adjacent(prev);
                 if !transitions.contains(&next) {
-                    bail!(transition_history_error(target, prev, next)?
-                        .context(format!(
-                            "Invalid state transition found at line #{l}."
-                        ),))
+                    bail!(
+                        transition_history_error(target, prev, next)?.context(
+                            format!(
+                                "Invalid state transition found at line #{l}."
+                            ),
+                        )
+                    )
                 }
                 prev = next;
             }
@@ -159,4 +160,3 @@ impl GameData {
         }
     }
 }
-

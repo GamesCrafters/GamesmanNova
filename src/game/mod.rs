@@ -5,6 +5,8 @@
 
 use anyhow::{Context, Result};
 use clap::ValueEnum;
+use once_cell::sync::OnceCell;
+use sqlx::SqlitePool;
 
 /* UTILITY MODULES */
 
@@ -44,6 +46,11 @@ pub type StateCount = u64;
 
 /// Count of the number of players in a game.
 pub type PlayerCount = Player;
+
+/* SINGLETONS */
+
+/// TODO
+pub static DB: OnceCell<SqlitePool> = OnceCell::new();
 
 /* DEFINITIONS */
 
@@ -150,7 +157,6 @@ pub trait Composite<const B: usize = DEFAULT_STATE_BYTES> {
     /// TODO
     fn size(&self, partition: Partition) -> StateCount;
 }
-
 
 /* UTILITY INTEFACES */
 
@@ -345,4 +351,3 @@ where
         Ok(())
     }
 }
-

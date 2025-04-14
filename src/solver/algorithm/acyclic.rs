@@ -4,18 +4,19 @@
 
 use anyhow::{Context, Result};
 
-use crate::solver::{Game, IUtility, IntegerUtility, Persistent, Remoteness};
-use crate::game::{Player, PlayerCount};
 use crate::game::Implicit;
+use crate::game::{Player, PlayerCount};
+use crate::solver::{Game, IUtility, IntegerUtility, Persistent, Remoteness};
 
 /* DEFINITIONS */
 
 /// TODO
+#[derive(Debug)]
 pub struct Solution<const N: PlayerCount> {
-    remoteness: Remoteness,
-    utility: [IUtility; N], 
-    player: Player,
-} 
+    pub remoteness: Remoteness,
+    pub utility: [IUtility; N],
+    pub player: Player,
+}
 
 /* SOLVERS */
 
@@ -27,6 +28,9 @@ where
         + IntegerUtility<N, B>
         + Persistent<Solution<N>, B>,
 {
+    game.prepare()
+        .context("Failed to prepare persistent solution.")?;
+
     let mut stack = Vec::new();
     stack.push(game.source());
     while let Some(curr) = stack.pop() {
@@ -44,36 +48,37 @@ where
                     .context("Failed to persist solution of terminal state.")?;
             } else {
                 stack.push(curr);
-                stack.extend(
-                    children
-                        .iter()
-                        .filter(|x| {
-                            game
-                                .retrieve(x)
-                                .expect("Database retireval error.")
-                                .is_none()
-                        })
-                );
+                stack.extend(children.iter().filter(|x| {
+                    game.retrieve(x)
+                        .expect("Database retireval error.")
+                        .is_none()
+                }));
             }
         } else {
-            let mut optimal = Solution::default();
+            let mut next = Solution::default();
             let mut max_val = IUtility::MIN;
             let mut min_rem = Remoteness::MAX;
             for state in children {
-                let solution = game.retrieve(&state)?
+                let solved = game
+                    .retrieve(&state)?
                     .expect("Algorithmic guarantee breached.");
 
-                let rem = solution.remoteness;
-                let val = solution.utility[game.turn(curr)];
+                let rem = solved.remoteness;
+                let val = solved.utility[game.turn(curr)];
                 if val > max_val || (val == max_val && rem < min_rem) {
                     max_val = val;
                     min_rem = rem;
-                    optimal = solution;
+                    next = solved;
                 }
             }
 
-            optimal.remoteness += 1;
-            game.persist(&curr, &optimal)
+            let solution = Solution {
+                remoteness: next.remoteness + 1,
+                utility: next.utility,
+                player: game.turn(curr),
+            };
+
+            game.persist(&curr, &solution)
                 .context("Failed to persist solution of medial state")?;
         }
     }
@@ -84,10 +89,10 @@ where
 
 impl<const N: PlayerCount> Default for Solution<N> {
     fn default() -> Self {
-        Self { 
-            remoteness: Default::default(), 
-            utility: [Default::default(); N], 
-            player: Default::default(), 
+        Self {
+            remoteness: Default::default(),
+            utility: [Default::default(); N],
+            player: Default::default(),
         }
     }
 }
@@ -97,10 +102,11 @@ mod test {
 
     use anyhow::Result;
 
-    use crate::node;
-    use crate::game::mock::SessionBuilder;
-    use crate::game::mock::Node;
     use crate::game::mock;
+    use crate::game::mock::Node;
+    use crate::game::mock::SessionBuilder;
+    use crate::node;
+    use crate::test;
 
     use super::*;
 
@@ -108,8 +114,10 @@ mod test {
     /// for testing purposes in this module under their own subdirectory.
     const MODULE_NAME: &str = "acyclic-solver-tests";
 
-    #[test]
-    fn acyclic_solver_on_game_1() -> Result<()> {
+    #[tokio::test(flavor = "multi_thread")]
+    async fn acyclic_solver_on_sample1() -> Result<()> {
+        test::prepare().await?;
+
         let s1 = node!(0);
         let s2 = node!(1);
         let s3 = node!(2);
@@ -125,7 +133,41 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        // TODO: Fix
+        solve::<3, 8, mock::Session<'_>>(&g)?;
+        g.visualize(MODULE_NAME)?;
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn acyclic_solver_on_sample2() -> Result<()> {
+        test::prepare().await?;
+
+        let s1 = node!(0);
+        let s2 = node!(1);
+        let s3 = node!(2);
+        let s4 = node!(0);
+        let s5 = node!(1);
+        let s6 = node!(2);
+
+        let t1 = node![1; 1, 2, 3];
+        let t2 = node![0; 3, 2, 1];
+
+        let g = SessionBuilder::new("sample2")
+            .edge(&s1, &s2)?
+            .edge(&s2, &s3)?
+            .edge(&s3, &s4)?
+            .edge(&s1, &s3)?
+            .edge(&s2, &s4)?
+            .edge(&s2, &s5)?
+            .edge(&s5, &s6)?
+            .edge(&s3, &s5)?
+            .edge(&s5, &t1)?
+            .edge(&s6, &t2)?
+            .edge(&s4, &t1)?
+            .source(&s1)?
+            .build()?;
+
         solve::<3, 8, mock::Session<'_>>(&g)?;
         g.visualize(MODULE_NAME)?;
 

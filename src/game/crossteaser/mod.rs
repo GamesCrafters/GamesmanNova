@@ -16,20 +16,20 @@
 
 use anyhow::{Context, Result};
 
-use crate::interface::IOMode;
-use crate::interface::Solution;
-use crate::solver::Game;
-use crate::solver::SUtility;
-use crate::solver::ClassicPuzzle;
-use crate::game::crossteaser::variants::*;
-use crate::game::State;
-use crate::game::Variant;
 use crate::game::Codec;
 use crate::game::Forward;
-use crate::game::Information;
 use crate::game::GameData;
 use crate::game::Implicit;
+use crate::game::Information;
+use crate::game::State;
 use crate::game::Variable;
+use crate::game::Variant;
+use crate::game::crossteaser::variants::*;
+use crate::interface::IOMode;
+use crate::interface::Solution;
+use crate::solver::ClassicPuzzle;
+use crate::solver::Game;
+use crate::solver::SUtility;
 
 /* SUBMODULES */
 

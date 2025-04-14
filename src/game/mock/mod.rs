@@ -5,23 +5,27 @@
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
-use petgraph::csr::DefaultIx;
 use petgraph::Direction;
-use petgraph::{graph::NodeIndex, Graph};
+use petgraph::csr::DefaultIx;
+use petgraph::{Graph, graph::NodeIndex};
+use sqlx::Row;
 
 use std::collections::HashMap;
+use std::fmt::Write;
 
-use crate::solver::algorithm::acyclic;
-use crate::solver::{Game, IUtility, IntegerUtility, Persistent};
+use crate::game::Implicit;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
-use crate::game::Implicit;
 use crate::game::Transpose;
+use crate::interface::IOMode;
+use crate::solver::algorithm::acyclic;
+use crate::solver::{Game, IUtility, IntegerUtility, Persistent};
+use crate::test;
 
 /* RE-EXPORTS */
 
@@ -68,16 +72,13 @@ impl<'a> Session<'a> {
 
     /// Return the state hash being internally used for `node`.
     pub fn state(&self, node: &Node) -> Option<State> {
-        if let Some(index) = self
-            .inserted
+        self.inserted
             .get(&(node as *const Node))
-        {
-            let mut state = BitArray::<_, Msb0>::ZERO;
-            state.store_be::<DefaultIx>(index.index() as DefaultIx);
-            Some(state.data)
-        } else {
-            None
-        }
+            .map(|idx| {
+                let mut state = BitArray::<_, Msb0>::ZERO;
+                state.store_be::<DefaultIx>(idx.index() as DefaultIx);
+                state.data
+            })
     }
 
     /// Return an immutable borrow of the graph underlying the game.
@@ -135,7 +136,6 @@ impl Implicit for Session<'_> {
             Node::Medial(_) => false,
         }
     }
-
 }
 
 impl Transpose for Session<'_> {
@@ -153,25 +153,155 @@ impl<const N: PlayerCount> Game<N> for Session<'_> {
             Node::Medial(player) => *player,
         }
     }
-} 
+}
 
 impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
     fn utility(&self, state: State) -> [IUtility; N] {
-        todo!()
+        match self.node(state) {
+            Node::Terminal(_, payoffs) => {
+                let mut res = [0; N];
+                res[..N].copy_from_slice(&payoffs[..N]);
+                res
+            },
+            Node::Medial(_) => {
+                panic!("Attempt to fetch utility of medial state.")
+            },
+        }
     }
-} 
+}
 
 impl<const N: PlayerCount> Persistent<acyclic::Solution<N>> for Session<'_> {
+    fn prepare(&self) -> Result<()> {
+        let mut sql = format!(
+            "CREATE TABLE IF NOT EXISTS {} (
+                state INTEGER PRIMARY KEY,
+                remoteness INTEGER NOT NULL,
+                player INTEGER NOT NULL,",
+            self.name()
+        );
+
+        for i in 0..N {
+            write!(sql, " utility_{} INTEGER NOT NULL,", i)?;
+        }
+
+        sql.pop();
+        sql.push_str(");");
+
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async {
+                sqlx::query(&sql)
+                    .execute(&test::dev_db()?)
+                    .await
+                    .context("Failed to create table")?;
+                Ok(())
+            })
+        })
+    }
+
     fn persist(
-        &self, 
-        state: &State, 
-        info: &acyclic::Solution<N>
+        &self,
+        state: &State,
+        info: &acyclic::Solution<N>,
     ) -> Result<()> {
-        todo!()
+        let state = *state;
+        let player = info.player as i32;
+        let remoteness = info.remoteness as i32;
+        let utility_profile: Vec<i64> = info.utility.into();
+        let utility_columns: Vec<String> = (0..N)
+            .map(|i| format!("utility_{}", i))
+            .collect();
+
+        let columns = ["state", "remoteness", "player"]
+            .iter()
+            .map(|x| x.to_string())
+            .chain(utility_columns.iter().cloned())
+            .map(|s| format!("\"{}\"", s))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let placeholders = vec!["?"; N + 3].join(", ");
+
+        let update_clause = ["remoteness", "player"]
+            .iter()
+            .map(|x| x.to_string())
+            .chain(utility_columns.iter().cloned())
+            .map(|col| format!("\"{}\" = excluded.\"{}\"", col, col))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let sql = format!(
+            "INSERT INTO {} ({}) VALUES ({}) ON CONFLICT(state) DO UPDATE SET {}",
+            self.name(),
+            columns,
+            placeholders,
+            update_clause
+        );
+
+        let mut query = sqlx::query(&sql)
+            .bind(i64::from_be_bytes(state))
+            .bind(remoteness)
+            .bind(player);
+
+        for val in &utility_profile {
+            query = query.bind(*val);
+        }
+
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                query
+                    .execute(&test::dev_db()?)
+                    .await?;
+                Ok(())
+            })
+        })
     }
 
     fn retrieve(&self, state: &State) -> Result<Option<acyclic::Solution<N>>> {
-        todo!()
+        let state = *state;
+        let utility_columns: Vec<String> = (0..N)
+            .map(|i| format!("utility_{}", i))
+            .collect();
+
+        let select_clause = ["remoteness", "player"]
+            .iter()
+            .map(|x| x.to_string())
+            .chain(utility_columns.iter().cloned())
+            .map(|col| format!("\"{}\"", col))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let sql = format!(
+            "SELECT {} FROM {} WHERE state = ?",
+            select_clause,
+            self.name()
+        );
+
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                let row_opt = sqlx::query(&sql)
+                    .bind(i64::from_be_bytes(state))
+                    .fetch_optional(&test::dev_db()?)
+                    .await?;
+
+                if let Some(row) = row_opt {
+                    let remoteness: i64 = row.try_get("remoteness")?;
+                    let player: i32 = row.try_get("player")?;
+                    let mut utility = [0; N];
+                    for (i, _) in utility_columns.iter().enumerate() {
+                        let val: i64 = row.try_get(i)?;
+                        utility[i] = val;
+                    }
+
+                    Ok(Some(acyclic::Solution {
+                        remoteness: remoteness as u32,
+                        utility: utility.map(|x| x as i64),
+                        player: player as usize,
+                    }))
+                } else {
+                    Ok(None)
+                }
+            })
+        })
     }
 }
 

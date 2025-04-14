@@ -4,17 +4,17 @@
 //! an extensive-form game `Session`, which allows the construction of a graph
 //! of nodes representing game states.
 
-use anyhow::bail;
 use anyhow::Result;
+use anyhow::bail;
 use petgraph::Direction;
-use petgraph::{graph::NodeIndex, Graph};
+use petgraph::{Graph, graph::NodeIndex};
 
-use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 
+use crate::game::PlayerCount;
 use crate::game::mock::Node;
 use crate::game::mock::Session;
-use crate::game::PlayerCount;
+use crate::test;
 
 /* DEFINITIONS */
 
@@ -126,7 +126,7 @@ impl<'a> SessionBuilder<'a> {
 
     /// Instantiate a `Session` encoding the constructed game graph. Fails if no
     /// source state was specified, there exist non-terminal nodes with no
-    /// outgoing edges, or no terminal nodes are reachable from the source 
+    /// outgoing edges, or no terminal nodes are reachable from the source
     /// state (assuming it is valid).
     pub fn build(self) -> Result<Session<'a>> {
         let source = self.check_source_state()?;

@@ -14,9 +14,11 @@ use clap::Parser;
 
 use std::process;
 
-use crate::interface::cli::*;
-use crate::game::Information;
 use crate::game::GameModule;
+use crate::game::Information;
+use crate::game::crossteaser;
+use crate::game::zero_by;
+use crate::interface::cli::*;
 
 /* MODULES */
 
@@ -30,8 +32,9 @@ mod util;
 
 /* PROGRAM ENTRY */
 
-fn main() -> Result<()> {
-    dotenv::dotenv()?;
+#[tokio::main]
+async fn main() -> Result<()> {
+    util::prepare().await?;
     let cli = Cli::parse();
     let res = match cli.command {
         Commands::Info(args) => info(args),
@@ -51,8 +54,8 @@ fn build(args: BuildArgs) -> Result<()> {
 
 fn info(args: InfoArgs) -> Result<()> {
     let data = match args.target {
-        GameModule::ZeroBy => game::zero_by::Session::info(),
-        GameModule::Crossteaser => todo!(),
+        GameModule::Crossteaser => crossteaser::Session::info(),
+        GameModule::ZeroBy => zero_by::Session::info(),
     };
     interface::cli::format_and_output_game_attributes(
         data,
@@ -61,4 +64,3 @@ fn info(args: InfoArgs) -> Result<()> {
     )?;
     Ok(())
 }
-

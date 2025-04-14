@@ -14,20 +14,20 @@ use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 
+use crate::game::Information;
+use crate::game::Player;
+use crate::game::PlayerCount;
+use crate::game::State;
+use crate::game::Transpose;
+use crate::game::Variable;
+use crate::game::Variant;
+use crate::game::zero_by::states::*;
+use crate::game::zero_by::variants::*;
+use crate::game::{Codec, Forward};
+use crate::game::{GameData, Implicit};
 use crate::solver::Game;
 use crate::solver::SUtility;
 use crate::solver::SimpleUtility;
-use crate::game::zero_by::states::*;
-use crate::game::zero_by::variants::*;
-use crate::game::Variant;
-use crate::game::{Codec, Forward};
-use crate::game::Variable;
-use crate::game::Information;
-use crate::game::{GameData, Implicit};
-use crate::game::State;
-use crate::game::PlayerCount;
-use crate::game::Player;
-use crate::game::Transpose;
 
 /* SUBMODULES */
 
@@ -43,8 +43,7 @@ type Elements = u64;
 
 const NAME: &str = "zero-by";
 const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
-const ABOUT: &str =
-"Many players take turns removing a number of elements from a set of arbitrary \
+const ABOUT: &str = "Many players take turns removing a number of elements from a set of arbitrary \
 size. The game variant determines how many players are in the game, how many \
 elements are in the set to begin with, and the options players have in the \
 amount of elements to remove during their turn. The player who is left with 0 \

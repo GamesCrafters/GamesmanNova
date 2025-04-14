@@ -5,15 +5,15 @@
 //! [clap](https://docs.rs/clap/latest/clap/) crate to provide standard
 //! behavior, which is outlined in [this](https://clig.dev/) great guide.
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use clap::{Args, Parser, Subcommand};
 
 use std::{io::BufRead, process};
 
-use crate::interface::util;
-use crate::interface::{InfoFormat, GameAttribute};
-use crate::{interface::IOMode, game::GameData};
 use crate::game::GameModule;
+use crate::interface::util;
+use crate::interface::{GameAttribute, InfoFormat};
+use crate::{game::GameData, interface::IOMode};
 
 /* CLI DEFINITIONS */
 
@@ -52,18 +52,17 @@ pub struct BuildArgs {
     pub target: GameModule,
 
     /* OPTIONAL ARGUMENTS */
+    /// Solve a specific variant of game.
+    #[arg(short, long)]
+    pub variant: Option<String>,
 
-     /// Solve a specific variant of game.
-     #[arg(short, long)]
-     pub variant: Option<String>,
+    /// Specify whether the solution should be fetched or re-generated.
+    #[arg(short, long, default_value_t = IOMode::Constructive)]
+    pub mode: IOMode,
 
-     /// Specify whether the solution should be fetched or re-generated.
-     #[arg(short, long, default_value_t = IOMode::Constructive)]
-     pub mode: IOMode,
-
-     /// Compute solution starting after a state history read from STDIN.
-     #[arg(short, long)]
-     pub forward: bool,
+    /// Compute solution starting after a state history read from STDIN.
+    #[arg(short, long)]
+    pub forward: bool,
 }
 
 /// TODO
@@ -140,4 +139,3 @@ pub fn format_and_output_game_attributes(
     print!("{out}");
     Ok(())
 }
-

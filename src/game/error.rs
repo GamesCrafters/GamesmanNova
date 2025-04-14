@@ -13,31 +13,22 @@ use std::{error::Error, fmt};
 #[derive(Debug)]
 pub enum GameError {
     /// An error to indicate that the variant passed to the game with the name
-    /// `game` was not in a format the game could parse. Includes a message 
-    /// from the game implementation on exactly what went wrong. Note: `game` 
+    /// `game` was not in a format the game could parse. Includes a message
+    /// from the game implementation on exactly what went wrong. Note: `game`
     /// should be a valid argument to the `--target` parameter in the CLI.
-    VariantMalformed {
-        game: &'static str,
-        hint: String,
-    },
+    VariantMalformed { game: &'static str, hint: String },
 
     /// An error to indicate that the state string passed to the game with the
     /// name `game` was not in a format the game could parse. Includes a message
-    /// from the game implementation on exactly what went wrong. Note: `game` 
+    /// from the game implementation on exactly what went wrong. Note: `game`
     /// should be a valid argument to the `--target` parameter in the CLI.    
-    StateMalformed {
-        game: &'static str,
-        hint: String,
-    },
+    StateMalformed { game: &'static str, hint: String },
 
     /// An error to indicate that a sequence of states in string form would
     /// be impossible to reproduce in real play. Includes a message from the
     /// game implementation on exactly what went wrong. Note: `target_name`
     /// should be a valid argument to the `--target` parameter in the CLI.
-    InvalidHistory {
-        game: &'static str,
-        hint: String,
-    },
+    InvalidHistory { game: &'static str, hint: String },
 }
 
 impl Error for GameError {}

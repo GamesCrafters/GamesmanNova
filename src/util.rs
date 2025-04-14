@@ -3,6 +3,13 @@
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 
+use anyhow::{Context, Result, anyhow};
+use sqlx::SqlitePool;
+
+use std::env;
+
+use crate::game;
+
 /* BIT FIELDS */
 
 /// Returns the minimum number of bits required to represent unsigned `val`.
@@ -11,15 +18,33 @@ pub const fn min_ubits(val: u64) -> usize {
     (u64::BITS - val.leading_zeros()) as usize
 }
 
-/// Return the minimum number of bits necessary to encode `utility`, which
-/// should be a signed integer in two's complement.
-#[inline(always)]
-pub const fn min_sbits(utility: i64) -> usize {
-    if utility >= 0 {
-        min_ubits(utility as u64) + 1
-    } else {
-        min_ubits(((-utility) - 1) as u64) + 1
-    }
+/* DATABASE */
+
+/// TODO
+pub fn game_db() -> Result<SqlitePool> {
+    let db = game::DB
+        .get()
+        .ok_or(anyhow!("Failed to access database singleton."))?;
+
+    Ok(db.clone())
+}
+
+/// TODO
+pub async fn prepare() -> Result<()> {
+    dotenv::dotenv().context("Failed to parse environment (.env) file.")?;
+
+    let db_addr = format!(
+        "sqlite://{}",
+        env::var("DATABASE")
+            .context("DATABASE environment variable not set.")?
+    );
+
+    let db_pool = SqlitePool::connect(&db_addr)
+        .await
+        .context("Failed to initialize SQLite connection.")?;
+
+    let _ = game::DB.set(db_pool);
+    Ok(())
 }
 
 /* DECLARATIVE MACROS */
@@ -148,20 +173,5 @@ mod tests {
         assert_eq!(min_ubits(0x0000_0000_F00B_1351), 32);
         assert_eq!(min_ubits(0x0000_0000_F020_0DE0), 32);
         assert_eq!(min_ubits(0x0000_0000_0000_FDE0), 16);
-    }
-
-    #[test]
-    fn minimum_bits_for_positive_signed_integer() {
-        assert_eq!(min_sbits(0x0000_8000_2222_0001), 49);
-        assert_eq!(min_sbits(0x0070_DEAD_0380_7DE0), 56);
-        assert_eq!(min_sbits(0x0000_0000_F00B_1351), 33);
-        assert_eq!(min_sbits(0x0000_0000_0000_0700), 12);
-        assert_eq!(min_sbits(0x0000_0000_0000_0001), 2);
-
-        assert_eq!(min_sbits(-10000), 15);
-        assert_eq!(min_sbits(-1000), 11);
-        assert_eq!(min_sbits(-255), 9);
-        assert_eq!(min_sbits(-128), 8);
-        assert_eq!(min_sbits(0), 1);
     }
 }
