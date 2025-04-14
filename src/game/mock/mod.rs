@@ -288,7 +288,7 @@ impl<const N: PlayerCount> Persistent<acyclic::Solution<N>> for Session<'_> {
                     let player: i32 = row.try_get("player")?;
                     let mut utility = [0; N];
                     for (i, _) in utility_columns.iter().enumerate() {
-                        let val: i64 = row.try_get(i)?;
+                        let val: i64 = row.try_get(i + 2)?;
                         utility[i] = val;
                     }
 
