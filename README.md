@@ -1,6 +1,6 @@
 # GamesmanNova
 
-Nova is a UC Berkeley research project primarily built for efficiently searching extensive-form games, such as Tic-Tac-Toe, Connect4, and Chess (if it weren't so darn big). In particular, the prupose of this project is to take learnings and ambitions from [Prof. Dan Garcia's](https://people.eecs.berkeley.edu/~ddgarcia/) multi-decade project [GamesmanClassic](https://github.com/GamesCrafters/GamesmanClassic) and provide a software system that is more general, performant, and ergonomic.
+Nova is a research project for generating datasets of sequential games with finite state representations, which includes games Tic-Tac-Toe and Connect4. As a system, it is the first step of data pipelines that provide analyses of these games' state spaces.
 
 ## Installation
 
@@ -38,8 +38,8 @@ This will display a list of sub-commands and their descriptions. Nova uses [`cla
 
 ## Development
 
-As a research project, the primary users of Nova will be people who intend to build on it as a platform. In the long-term, we wish to make this evident by splitting Nova into multiple modular crates that better express this, in a way that makes the project more accessible.
+As a research project, the primary users of Nova will be people who intend to build on it as a platform. 
 
-For now, we make our best attempt at providing a good experience when building from this repository via rustdocs and a reasonable architecture. The project adheres to semantic versioning per Rust's standards, and is currently unstable.
+For now, we make our best attempt at providing a good experience when building from this repository via rustdocs and a reasonable architecture. The project adheres to semantic versioning per Rust's standards, and will remain unstable for the foreseeable future.
 
 -- Cheers, [Max Fierro](https://www.maxfierro.me/)
