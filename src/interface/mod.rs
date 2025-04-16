@@ -28,34 +28,6 @@ pub enum InfoFormat {
     Json,
 }
 
-/// Describes the format in which calls to the `query` CLI command to the binary
-/// should print its output.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum QueryFormat {
-    /// Comma-separated list of record attributes separated by line breaks.
-    CSV,
-
-    /// JSON list of record objects containing attribute sub-objects.
-    Json,
-}
-
-/// Specifies how exhaustive a solving algorithm should be when computing a
-/// solution set. Different algorithms will be used for computing a strong
-/// solution (e.g., minimax) versus a weak solution (e.g., alpha-beta pruning).
-///
-/// Note that specifying a weak solution on a specific game variant does not
-/// guarantee that the solving algorithm will traverse less states than the
-/// strong alternative. The relative convenience of a weak solution relies on
-/// the structure of the underlying game.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum Solution {
-    /// Minimally prove an optimal strategy beginning from a starting state.
-    Weak,
-
-    /// Provide a strategy for all game states reachable from starting state.
-    Strong,
-}
-
 /// Specifies a category of information kept about a game. Used for finding
 /// specific information about game implementations through the `info` CLI
 /// command. See [`crate::game::GameData`] for the provider data structure.
@@ -142,29 +114,11 @@ impl fmt::Display for IOMode {
     }
 }
 
-impl fmt::Display for Solution {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Solution::Strong => write!(f, "strong"),
-            Solution::Weak => write!(f, "weak"),
-        }
-    }
-}
-
 impl fmt::Display for InfoFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InfoFormat::Legible => write!(f, "legible"),
             InfoFormat::Json => write!(f, "json"),
-        }
-    }
-}
-
-impl fmt::Display for QueryFormat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            QueryFormat::Json => write!(f, "json"),
-            QueryFormat::CSV => write!(f, "csv"),
         }
     }
 }

@@ -26,7 +26,6 @@ use crate::game::Variable;
 use crate::game::Variant;
 use crate::game::crossteaser::variants::*;
 use crate::interface::IOMode;
-use crate::interface::Solution;
 use crate::solver::ClassicPuzzle;
 use crate::solver::Game;
 use crate::solver::SUtility;
@@ -78,7 +77,7 @@ pub struct Session {
 }
 
 impl Session {
-    fn solve(&self, mode: IOMode, method: Solution) -> Result<()> {
+    fn solve(&self, mode: IOMode) -> Result<()> {
         todo!()
     }
 }

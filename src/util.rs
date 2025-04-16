@@ -6,6 +6,7 @@
 use anyhow::{Context, Result, anyhow};
 use sqlx::SqlitePool;
 
+use std::collections::HashSet;
 use std::env;
 
 use crate::game;
@@ -45,6 +46,20 @@ pub async fn prepare() -> Result<()> {
 
     let _ = game::DB.set(db_pool);
     Ok(())
+}
+
+/* MISC */
+
+pub fn first_duplicate<T: Eq + std::hash::Hash + Clone>(
+    vec: &[T],
+) -> Option<T> {
+    let mut seen = HashSet::new();
+    for item in vec {
+        if !seen.insert(item) {
+            return Some(item.clone());
+        }
+    }
+    None
 }
 
 /* DECLARATIVE MACROS */

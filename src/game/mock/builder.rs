@@ -7,14 +7,17 @@
 use anyhow::Result;
 use anyhow::bail;
 use petgraph::Direction;
-use petgraph::{Graph, graph::NodeIndex};
+use petgraph::Graph;
+use petgraph::graph::NodeIndex;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::game::PlayerCount;
 use crate::game::mock::Node;
 use crate::game::mock::Session;
-use crate::test;
+use crate::solver::db::Schema;
+use crate::solver::db::SchemaBuilder;
 
 /* DEFINITIONS */
 
@@ -132,10 +135,13 @@ impl<'a> SessionBuilder<'a> {
         let source = self.check_source_state()?;
         self.check_terminal_state(source)?;
         self.check_outgoing_edges()?;
+
         let (players, _) = self.players;
+        let schema = self.schema(players, self.name)?;
         Ok(Session {
             inserted: self.inserted,
             players,
+            schema,
             source,
             game: self.game,
             name: self.name,
@@ -279,6 +285,18 @@ impl<'a> SessionBuilder<'a> {
         } else {
             Ok(())
         }
+    }
+
+    /// Creates the schema for this instance, to be used for constructing
+    /// database queries.
+    fn schema(&self, players: PlayerCount, table: &str) -> Result<Schema> {
+        SchemaBuilder::new()
+            .table(table)
+            .players(players)
+            .key("state", "INTEGER")
+            .column("remoteness", "INTEGER")
+            .column("player", "INTEGER")
+            .build()
     }
 }
 

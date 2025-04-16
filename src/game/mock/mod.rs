@@ -5,26 +5,30 @@
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
-use anyhow::{Context, Result};
+use anyhow::Context;
+use anyhow::Result;
 use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use petgraph::Direction;
+use petgraph::Graph;
 use petgraph::csr::DefaultIx;
-use petgraph::{Graph, graph::NodeIndex};
+use petgraph::graph::NodeIndex;
 use sqlx::Row;
 
 use std::collections::HashMap;
-use std::fmt::Write;
 
 use crate::game::Implicit;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
 use crate::game::Transpose;
-use crate::interface::IOMode;
-use crate::solver::algorithm::acyclic;
-use crate::solver::{Game, IUtility, IntegerUtility, Persistent};
+use crate::solver::Game;
+use crate::solver::IUtility;
+use crate::solver::IntegerUtility;
+use crate::solver::Persistent;
+use crate::solver::Solution;
+use crate::solver::db::Schema;
 use crate::test;
 
 /* RE-EXPORTS */
@@ -43,6 +47,7 @@ pub struct Session<'a> {
     inserted: HashMap<*const Node, NodeIndex>,
     players: PlayerCount,
     source: NodeIndex<DefaultIx>,
+    schema: Schema,
     game: Graph<&'a Node, ()>,
     name: &'static str,
 }
@@ -170,23 +175,9 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
     }
 }
 
-impl<const N: PlayerCount> Persistent<acyclic::Solution<N>> for Session<'_> {
+impl<const N: PlayerCount> Persistent<N> for Session<'_> {
     fn prepare(&self) -> Result<()> {
-        let mut sql = format!(
-            "CREATE TABLE IF NOT EXISTS {} (
-                state INTEGER PRIMARY KEY,
-                remoteness INTEGER NOT NULL,
-                player INTEGER NOT NULL,",
-            self.name()
-        );
-
-        for i in 0..N {
-            write!(sql, " utility_{} INTEGER NOT NULL,", i)?;
-        }
-
-        sql.pop();
-        sql.push_str(");");
-
+        let sql = self.schema.create_table_query();
         tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async {
                 sqlx::query(&sql)
@@ -198,54 +189,15 @@ impl<const N: PlayerCount> Persistent<acyclic::Solution<N>> for Session<'_> {
         })
     }
 
-    fn persist(
-        &self,
-        state: &State,
-        info: &acyclic::Solution<N>,
-    ) -> Result<()> {
-        let state = *state;
-        let player = info.player as i32;
-        let remoteness = info.remoteness as i32;
-        let utility_profile: Vec<i64> = info.utility.into();
-        let utility_columns: Vec<String> = (0..N)
-            .map(|i| format!("utility_{}", i))
-            .collect();
-
-        let columns = ["state", "remoteness", "player"]
-            .iter()
-            .map(|x| x.to_string())
-            .chain(utility_columns.iter().cloned())
-            .map(|s| format!("\"{}\"", s))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let placeholders = vec!["?"; N + 3].join(", ");
-
-        let update_clause = ["remoteness", "player"]
-            .iter()
-            .map(|x| x.to_string())
-            .chain(utility_columns.iter().cloned())
-            .map(|col| format!("\"{}\" = excluded.\"{}\"", col, col))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let sql = format!(
-            "INSERT INTO {} ({}) VALUES ({}) ON CONFLICT(state) DO UPDATE SET {}",
-            self.name(),
-            columns,
-            placeholders,
-            update_clause
-        );
-
+    fn persist(&self, state: &State, info: &Solution<N>) -> Result<()> {
+        let sql = self.schema.insert_query();
         let mut query = sqlx::query(&sql)
-            .bind(i64::from_be_bytes(state))
-            .bind(remoteness)
-            .bind(player);
-
-        for val in &utility_profile {
+            .bind(i64::from_be_bytes(*state))
+            .bind(info.remoteness as i32)
+            .bind(info.player as i32);
+        for val in info.utility.iter() {
             query = query.bind(*val);
         }
-
         tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async move {
                 query
@@ -256,43 +208,23 @@ impl<const N: PlayerCount> Persistent<acyclic::Solution<N>> for Session<'_> {
         })
     }
 
-    fn retrieve(&self, state: &State) -> Result<Option<acyclic::Solution<N>>> {
-        let state = *state;
-        let utility_columns: Vec<String> = (0..N)
-            .map(|i| format!("utility_{}", i))
-            .collect();
-
-        let select_clause = ["remoteness", "player"]
-            .iter()
-            .map(|x| x.to_string())
-            .chain(utility_columns.iter().cloned())
-            .map(|col| format!("\"{}\"", col))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        let sql = format!(
-            "SELECT {} FROM {} WHERE state = ?",
-            select_clause,
-            self.name()
-        );
-
+    fn retrieve(&self, state: &State) -> Result<Option<Solution<N>>> {
+        let sql = self.schema.select_query();
+        let query = sqlx::query(&sql).bind(i64::from_be_bytes(*state));
         tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async move {
-                let row_opt = sqlx::query(&sql)
-                    .bind(i64::from_be_bytes(state))
+                let row_opt = query
                     .fetch_optional(&test::dev_db()?)
                     .await?;
-
                 if let Some(row) = row_opt {
-                    let remoteness: i64 = row.try_get("remoteness")?;
+                    let mut utility: [i64; N] = [0; N];
                     let player: i32 = row.try_get("player")?;
-                    let mut utility = [0; N];
-                    for (i, _) in utility_columns.iter().enumerate() {
-                        let val: i64 = row.try_get(i + 2)?;
-                        utility[i] = val;
+                    let remoteness: i64 = row.try_get("remoteness")?;
+                    let start = self.schema.utility_index();
+                    for (i, item) in utility.iter_mut().enumerate() {
+                        *item = row.try_get(start + i)?;
                     }
-
-                    Ok(Some(acyclic::Solution {
+                    Ok(Some(Solution {
                         remoteness: remoteness as u32,
                         utility: utility.map(|x| x as i64),
                         player: player as usize,

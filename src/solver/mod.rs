@@ -15,14 +15,12 @@ use crate::game::State;
 
 /* UTILITY MODULES */
 
-mod util;
+pub mod util;
 pub mod error;
 
 /* MODULES */
 
-/// Implementations of algorithms that can consume game implementations and
-/// compute different features of interest associated with groups of states or
-/// particular states.
+pub mod db;
 pub mod algorithm {
     pub mod acyclic;
 }
@@ -68,6 +66,14 @@ pub enum UtilityType {
     Integer,
     Simple,
     Real,
+}
+
+/// TODO
+#[derive(Debug)]
+pub struct Solution<const N: PlayerCount> {
+    pub remoteness: Remoteness,
+    pub utility: [IUtility; N],
+    pub player: Player,
 }
 
 /* STRUCTURAL INTERFACES */
@@ -213,14 +219,9 @@ where
 
 /* PERSISTENCE INTERFACES */
 
-pub trait Persistent<S, const B: usize = DBYTES> {
-    /// TODO
-    fn persist(&self, state: &State<B>, info: &S) -> Result<()>;
-
-    /// TODO
-    fn retrieve(&self, state: &State<B>) -> Result<Option<S>>;
-
-    /// TODO
+pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
+    fn persist(&self, state: &State<B>, info: &Solution<N>) -> Result<()>;
+    fn retrieve(&self, state: &State<B>) -> Result<Option<Solution<N>>>;
     fn prepare(&self) -> Result<()>;
 }
 

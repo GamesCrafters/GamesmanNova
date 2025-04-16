@@ -5,28 +5,16 @@
 use anyhow::{Context, Result};
 
 use crate::game::Implicit;
-use crate::game::{Player, PlayerCount};
+use crate::game::PlayerCount;
+use crate::solver::Solution;
 use crate::solver::{Game, IUtility, IntegerUtility, Persistent, Remoteness};
-
-/* DEFINITIONS */
-
-/// TODO
-#[derive(Debug)]
-pub struct Solution<const N: PlayerCount> {
-    pub remoteness: Remoteness,
-    pub utility: [IUtility; N],
-    pub player: Player,
-}
 
 /* SOLVERS */
 
 /// TODO
 pub fn solve<const N: PlayerCount, const B: usize, G>(game: &G) -> Result<()>
 where
-    G: Implicit<B>
-        + Game<N, B>
-        + IntegerUtility<N, B>
-        + Persistent<Solution<N>, B>,
+    G: Implicit<B> + Game<N, B> + IntegerUtility<N, B> + Persistent<N, B>,
 {
     game.prepare()
         .context("Failed to prepare persistent solution.")?;

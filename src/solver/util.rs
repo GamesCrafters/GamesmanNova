@@ -3,10 +3,13 @@
 //! This module makes room for common utility routines used throughout the
 //! `crate::solver` module.
 
+use anyhow::Result;
+
 use std::ops::Not;
 
+use crate::solver::IUtility;
+use crate::solver::SUtility;
 use crate::solver::error::SolverError;
-use crate::solver::{IUtility, SUtility};
 
 /* CONVERSIONS INTO SIMPLE UTILITY */
 
@@ -36,9 +39,9 @@ impl TryFrom<i8> for SUtility {
 
     fn try_from(v: i8) -> Result<Self, Self::Error> {
         match v {
-            _ if v as i8 == SUtility::Lose as i8 => Ok(SUtility::Lose),
-            _ if v as i8 == SUtility::Tie as i8 => Ok(SUtility::Tie),
-            _ if v as i8 == SUtility::Win as i8 => Ok(SUtility::Win),
+            _ if v == SUtility::Lose as i8 => Ok(SUtility::Lose),
+            _ if v == SUtility::Tie as i8 => Ok(SUtility::Tie),
+            _ if v == SUtility::Win as i8 => Ok(SUtility::Win),
             _ => Err(SolverError::InvalidConversion {
                 input_t: "i8".into(),
                 output_t: "Simple Utility".into(),
