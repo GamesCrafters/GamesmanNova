@@ -220,9 +220,10 @@ where
 /* PERSISTENCE INTERFACES */
 
 pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
-    fn persist(&self, state: &State<B>, info: &Solution<N>) -> Result<()>;
-    fn retrieve(&self, state: &State<B>) -> Result<Option<Solution<N>>>;
-    fn prepare(&self) -> Result<()>;
+    fn insert(&mut self, state: &State<B>, info: &Solution<N>) -> Result<()>;
+    fn select(&mut self, state: &State<B>) -> Result<Option<Solution<N>>>;
+    fn prepare(&mut self) -> Result<()>;
+    fn commit(&mut self) -> Result<()>;
 }
 
 /* BLANKET IMPLEMENTATIONS */

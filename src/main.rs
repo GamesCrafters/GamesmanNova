@@ -11,6 +11,7 @@
 
 use anyhow::Result;
 use clap::Parser;
+use game::Variable;
 
 use std::process;
 
@@ -34,11 +35,10 @@ mod util;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    util::prepare().await?;
     let cli = Cli::parse();
     let res = match cli.command {
         Commands::Info(args) => info(args),
-        Commands::Build(args) => build(args),
+        Commands::Build(args) => build(args).await,
     };
     if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
@@ -48,8 +48,25 @@ async fn main() -> Result<()> {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn build(args: BuildArgs) -> Result<()> {
-    todo!()
+async fn build(args: BuildArgs) -> Result<()> {
+    util::prepare().await?;
+    match args.target {
+        GameModule::Crossteaser => {
+            let session = if let Some(variant) = args.variant {
+                crossteaser::Session::variant(variant)?;
+            } else {
+                crossteaser::Session::default();
+            };
+        },
+        GameModule::ZeroBy => {
+            let session = if let Some(variant) = args.variant {
+                zero_by::Session::variant(variant)?;
+            } else {
+                zero_by::Session::default();
+            };
+        },
+    }
+    Ok(())
 }
 
 fn info(args: InfoArgs) -> Result<()> {

@@ -1,6 +1,7 @@
 //! # Solver Database Module
 //!
-//! TODO
+//! Contains abstractions for handling database logic, including schema
+//! definitions and constructors.
 
 use anyhow::Result;
 use anyhow::bail;
@@ -10,14 +11,16 @@ use crate::util;
 
 /* DEFINITIONS */
 
-/// TODO
+/// A database column within a table schema, corresponding to one attribute.
 #[derive(Default, Clone)]
 pub struct Column {
     name: String,
     data: String,
 }
 
-/// TODO
+/// Builder pattern for a database table schema, specifying and guaranteeing a
+/// collection of different columns, a primary key, table name, and the correct
+/// number of utility attributes.
 pub struct SchemaBuilder {
     columns: Vec<Column>,
     players: Option<PlayerCount>,
@@ -25,7 +28,8 @@ pub struct SchemaBuilder {
     key: Option<Column>,
 }
 
-/// TODO
+/// A database table schema containing a collection of columns (with a set
+/// amount of utility entries), a table name, and a primary key specification.
 pub struct Schema {
     columns: Vec<Column>,
     players: PlayerCount,
@@ -36,7 +40,7 @@ pub struct Schema {
 /* QUERY UTILITIES */
 
 impl SchemaBuilder {
-    /// TODO
+    /// Initialize a builder.
     pub fn new() -> Self {
         Self {
             columns: Vec::new(),
@@ -46,13 +50,13 @@ impl SchemaBuilder {
         }
     }
 
-    /// TODO
+    /// Specifies the number of players this schema is built to contain.
     pub fn players(mut self, count: PlayerCount) -> Self {
         self.players = Some(count);
         self
     }
 
-    /// TODO
+    /// Inserts a new column into the table schema.
     pub fn column(mut self, name: &str, data: &str) -> Self {
         self.columns
             .push(Column::new(name, data));
@@ -60,19 +64,19 @@ impl SchemaBuilder {
         self
     }
 
-    /// TODO
+    /// Specifies a table name for this schema.
     pub fn table(mut self, name: &str) -> Self {
         self.table = Some(name.to_string());
         self
     }
 
-    /// TODO
+    /// Adds a column that will be marked as primary key.
     pub fn key(mut self, name: &str, data: &str) -> Self {
         self.key = Some(Column::new(name, data));
         self
     }
 
-    /// TODO
+    /// Checks for correctness and builds the complete schema.
     pub fn build(mut self) -> Result<Schema> {
         let players = if let Some(players) = self.players {
             players
@@ -139,7 +143,8 @@ impl SchemaBuilder {
 }
 
 impl Schema {
-    /// TODO
+    /// Returns an SQL 'INSERT' query string with placeholders for the values
+    /// to be inserted into the schema's table.
     pub fn insert_query(&self) -> String {
         format!(
             "INSERT INTO {} ({}) VALUES ({}) ON CONFLICT({}) DO UPDATE SET {}",
@@ -151,7 +156,8 @@ impl Schema {
         )
     }
 
-    /// TODO
+    /// Returns an SQL 'INSERT' query string with one placeholder for the key
+    /// to be queried from the schema's table.
     pub fn select_query(&self) -> String {
         format!(
             "SELECT {} FROM {} WHERE state = ?",
@@ -160,7 +166,8 @@ impl Schema {
         )
     }
 
-    /// TODO
+    /// Returns an SQL 'CREATE TABLE' query that materializes a table with the
+    /// columns specified in this schema.
     pub fn create_table_query(&self) -> String {
         format!(
             "CREATE TABLE IF NOT EXISTS {} ({});",
@@ -169,7 +176,7 @@ impl Schema {
         )
     }
 
-    /// TODO
+    /// Returns the table row index where utility entries start in the schema.
     pub fn utility_index(&self) -> usize {
         self.len() - self.players
     }
@@ -233,21 +240,18 @@ impl Schema {
 }
 
 impl Column {
-    /// TODO
-    pub fn new(name: &str, data: &str) -> Self {
+    fn new(name: &str, data: &str) -> Self {
         Self {
             name: name.to_string(),
             data: data.to_string(),
         }
     }
 
-    /// TODO
-    pub fn datatype(&self) -> &str {
+    fn datatype(&self) -> &str {
         &self.data
     }
 
-    /// TODO
-    pub fn name(&self) -> &str {
+    fn name(&self) -> &str {
         &self.name
     }
 }

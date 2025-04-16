@@ -12,19 +12,36 @@ use crate::solver::{Game, IUtility, IntegerUtility, Persistent, Remoteness};
 /* SOLVERS */
 
 /// TODO
-pub fn solve<const N: PlayerCount, const B: usize, G>(game: &G) -> Result<()>
+pub fn solve<const N: PlayerCount, const B: usize, G>(
+    game: &mut G,
+) -> Result<()>
 where
     G: Implicit<B> + Game<N, B> + IntegerUtility<N, B> + Persistent<N, B>,
 {
     game.prepare()
         .context("Failed to prepare persistent solution.")?;
 
+    backward_induction(game)
+        .context("Backward induction algorithm failed during execution.")?;
+
+    game.commit()
+        .context("Failed to commit transaction.")?;
+
+    Ok(())
+}
+
+fn backward_induction<const N: PlayerCount, const B: usize, G>(
+    game: &mut G,
+) -> Result<()>
+where
+    G: Implicit<B> + Game<N, B> + IntegerUtility<N, B> + Persistent<N, B>,
+{
     let mut stack = Vec::new();
     stack.push(game.source());
     while let Some(curr) = stack.pop() {
         let children = game.adjacent(curr);
-        if game.retrieve(&curr)?.is_none() {
-            game.persist(&curr, &Solution::default())?;
+        if game.select(&curr)?.is_none() {
+            game.insert(&curr, &Solution::default())?;
             if game.sink(curr) {
                 let solution = Solution {
                     remoteness: 0,
@@ -32,12 +49,12 @@ where
                     player: game.turn(curr),
                 };
 
-                game.persist(&curr, &solution)
+                game.insert(&curr, &solution)
                     .context("Failed to persist solution of terminal state.")?;
             } else {
                 stack.push(curr);
                 stack.extend(children.iter().filter(|x| {
-                    game.retrieve(x)
+                    game.select(x)
                         .expect("Database retireval error.")
                         .is_none()
                 }));
@@ -48,7 +65,7 @@ where
             let mut min_rem = Remoteness::MAX;
             for state in children {
                 let solved = game
-                    .retrieve(&state)?
+                    .select(&state)?
                     .expect("Algorithmic guarantee breached.");
 
                 let rem = solved.remoteness;
@@ -66,7 +83,7 @@ where
                 player: game.turn(curr),
             };
 
-            game.persist(&curr, &solution)
+            game.insert(&curr, &solution)
                 .context("Failed to persist solution of medial state")?;
         }
     }
@@ -89,6 +106,7 @@ impl<const N: PlayerCount> Default for Solution<N> {
 mod test {
 
     use anyhow::Result;
+    use serial_test::serial;
 
     use crate::game::mock;
     use crate::game::mock::Node;
@@ -102,6 +120,7 @@ mod test {
     /// for testing purposes in this module under their own subdirectory.
     const MODULE_NAME: &str = "acyclic-solver-tests";
 
+    #[serial]
     #[tokio::test(flavor = "multi_thread")]
     async fn acyclic_solver_on_sample1() -> Result<()> {
         test::prepare().await?;
@@ -113,7 +132,7 @@ mod test {
         let t1 = node![1; 1, 2, 3];
         let t2 = node![2; 3, 2, 1];
 
-        let g = SessionBuilder::new("sample1")
+        let mut g = SessionBuilder::new("sample1")
             .edge(&s1, &s2)?
             .edge(&s1, &s3)?
             .edge(&s2, &t1)?
@@ -121,12 +140,13 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&g)?;
+        solve::<3, 8, mock::Session<'_>>(&mut g)?;
         g.visualize(MODULE_NAME)?;
 
         Ok(())
     }
 
+    #[serial]
     #[tokio::test(flavor = "multi_thread")]
     async fn acyclic_solver_on_sample2() -> Result<()> {
         test::prepare().await?;
@@ -141,7 +161,7 @@ mod test {
         let t1 = node![1; 1, 2, 3];
         let t2 = node![0; 3, 2, 1];
 
-        let g = SessionBuilder::new("sample2")
+        let mut g = SessionBuilder::new("sample2")
             .edge(&s1, &s2)?
             .edge(&s2, &s3)?
             .edge(&s3, &s4)?
@@ -156,7 +176,7 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&g)?;
+        solve::<3, 8, mock::Session<'_>>(&mut g)?;
         g.visualize(MODULE_NAME)?;
 
         Ok(())

@@ -21,7 +21,6 @@ use crate::solver::db::SchemaBuilder;
 
 /* DEFINITIONS */
 
-/// Semantics. Used to identify whether the current player count is final.
 type Finalized = bool;
 
 /// Builder pattern for creating a graph game by progressively adding nodes and
@@ -139,6 +138,7 @@ impl<'a> SessionBuilder<'a> {
         let (players, _) = self.players;
         let schema = self.schema(players, self.name)?;
         Ok(Session {
+            transaction: None,
             inserted: self.inserted,
             players,
             schema,
@@ -150,9 +150,6 @@ impl<'a> SessionBuilder<'a> {
 
     /* HELPER METHODS */
 
-    /// Infers and updates the player count of the game under construction based
-    /// on the turn information or number of utility entries of `new`. Fails if
-    /// adding `new` to the game would result in an invalid state.
     fn update_player_count(&mut self, new: &Node) -> Result<()> {
         let (old_count, finalized) = self.players;
         let new_count = match &new {
@@ -223,7 +220,6 @@ impl<'a> SessionBuilder<'a> {
         Ok(())
     }
 
-    /// Fails if no source state was specified for the constructed game.
     fn check_source_state(&self) -> Result<NodeIndex> {
         if let Some(index) = self.source {
             Ok(index)
@@ -235,9 +231,6 @@ impl<'a> SessionBuilder<'a> {
         }
     }
 
-    /// Fails if there does not exist a traversable path between `source` and any
-    /// node marked as terminal in the game graph. Executes DFS from `source`
-    /// until a terminal node is found.
     fn check_terminal_state(&self, source: NodeIndex) -> Result<()> {
         let mut seen = HashSet::new();
         let mut stack = Vec::new();
@@ -266,8 +259,6 @@ impl<'a> SessionBuilder<'a> {
         }
     }
 
-    /// Fails if there exists a node marked as medial in the game graph which
-    /// does not have any outgoing edges.
     fn check_outgoing_edges(&self) -> Result<()> {
         if self.game.node_indices().any(|i| {
             self.game[i].medial()
@@ -287,8 +278,6 @@ impl<'a> SessionBuilder<'a> {
         }
     }
 
-    /// Creates the schema for this instance, to be used for constructing
-    /// database queries.
     fn schema(&self, players: PlayerCount, table: &str) -> Result<Schema> {
         SchemaBuilder::new()
             .table(table)
@@ -322,8 +311,6 @@ mod tests {
     use super::*;
     use crate::node;
 
-    /// Used for storing generated visualizations of the mock games being used
-    /// for testing purposes in this module under their own subdirectory.
     const MODULE_NAME: &str = "mock-builder-tests";
 
     #[test]
