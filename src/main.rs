@@ -57,12 +57,7 @@ async fn build(args: BuildArgs) -> Result<()> {
 
     match args.target {
         GameModule::Crossteaser => {
-            let mut session = if let Some(variant) = args.variant {
-                crossteaser::Session::variant(variant)?
-            } else {
-                crossteaser::Session::default()
-            };
-
+            let mut session = crossteaser::Session::new(args.variant)?;
             if args.forward {
                 let input = stdin_lines()
                     .context("Failed to read STDIN history input.")?;
@@ -77,12 +72,7 @@ async fn build(args: BuildArgs) -> Result<()> {
                 .context("Failed solver execution for crossteaser.")?
         },
         GameModule::ZeroBy => {
-            let mut session = if let Some(variant) = args.variant {
-                zero_by::Session::variant(variant)?
-            } else {
-                zero_by::Session::default()
-            };
-
+            let mut session = zero_by::Session::new(args.variant)?;
             if args.forward {
                 let input = stdin_lines()
                     .context("Failed to read STDIN history input.")?;

@@ -24,4 +24,4 @@ flamegraph.svg
 .env
 
 # Solutions database
-.solutions.db
+solutions.db

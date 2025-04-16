@@ -221,9 +221,16 @@ where
 /* PERSISTENCE INTERFACES */
 
 pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
+    /// TODO
     fn insert(&mut self, state: &State<B>, info: &Solution<N>) -> Result<()>;
+
+    /// TODO
     fn select(&mut self, state: &State<B>) -> Result<Option<Solution<N>>>;
+
+    /// TODO
     fn prepare(&mut self, mode: IOMode) -> Result<()>;
+
+    /// TODO
     fn commit(&mut self) -> Result<()>;
 }
 

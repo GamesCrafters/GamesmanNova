@@ -279,8 +279,7 @@ impl<'a> SessionBuilder<'a> {
     }
 
     fn schema(&self, players: PlayerCount, table: &str) -> Result<Schema> {
-        SchemaBuilder::new()
-            .table(table)
+        SchemaBuilder::new(table)
             .players(players)
             .key("state", "INTEGER")
             .column("remoteness", "INTEGER")

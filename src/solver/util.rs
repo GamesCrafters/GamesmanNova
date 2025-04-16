@@ -11,6 +11,28 @@ use crate::solver::IUtility;
 use crate::solver::SUtility;
 use crate::solver::error::SolverError;
 
+/* UTILITIES */
+
+/// Transform input string into a valid SQL identifier.
+pub fn sqlize(s: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if i == 0 {
+            if ch.is_ascii_alphabetic() || ch == '_' {
+                out.push(ch);
+            } else {
+                out.push('_');
+            }
+        } else if ch.is_ascii_alphanumeric() || ch == '_' {
+            out.push(ch);
+        } else {
+            out.push('_');
+        }
+    }
+
+    out
+}
+
 /* CONVERSIONS INTO SIMPLE UTILITY */
 
 impl TryFrom<IUtility> for SUtility {

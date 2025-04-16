@@ -7,6 +7,7 @@ use anyhow::Result;
 use anyhow::bail;
 
 use crate::game::PlayerCount;
+use crate::solver::util::sqlize;
 use crate::util;
 
 /* DEFINITIONS */
@@ -24,8 +25,8 @@ pub struct Column {
 pub struct SchemaBuilder {
     columns: Vec<Column>,
     players: Option<PlayerCount>,
-    table: Option<String>,
     key: Option<Column>,
+    table: String,
 }
 
 /// A database table schema containing a collection of columns (with a set
@@ -40,12 +41,12 @@ pub struct Schema {
 /* QUERY UTILITIES */
 
 impl SchemaBuilder {
-    /// Initialize a builder.
-    pub fn new() -> Self {
+    /// Initialize a schema builder for a table with the provided `name`.
+    pub fn new(table: &str) -> Self {
         Self {
+            table: sqlize(table),
             columns: Vec::new(),
             players: None,
-            table: None,
             key: None,
         }
     }
@@ -61,12 +62,6 @@ impl SchemaBuilder {
         self.columns
             .push(Column::new(name, data));
 
-        self
-    }
-
-    /// Specifies a table name for this schema.
-    pub fn table(mut self, name: &str) -> Self {
-        self.table = Some(name.to_string());
         self
     }
 
@@ -87,12 +82,6 @@ impl SchemaBuilder {
         let utility_cols = self.utility_columns(players);
         self.columns
             .extend_from_slice(&utility_cols);
-
-        let table = if let Some(table) = self.table {
-            table
-        } else {
-            bail!("Attempted to initialize schema without table.")
-        };
 
         let key = if let Some(key) = self.key {
             key
@@ -127,8 +116,8 @@ impl SchemaBuilder {
 
         Ok(Schema {
             columns: self.columns,
+            table: self.table,
             players,
-            table,
             key,
         })
     }
@@ -248,8 +237,8 @@ impl Schema {
 impl Column {
     fn new(name: &str, data: &str) -> Self {
         Self {
-            name: name.to_string(),
-            data: data.to_string(),
+            name: sqlize(name),
+            data: sqlize(data),
         }
     }
 
@@ -269,18 +258,16 @@ mod tests {
 
     #[test]
     fn builder_fails_if_columns_repeat() -> Result<()> {
-        let b1 = SchemaBuilder::new()
+        let b1 = SchemaBuilder::new("example")
             .column("field", "INTEGER")
             .column("field", "FLOAT")
             .key("key", "INTEGER")
-            .table("example")
             .build();
 
         assert!(b1.is_err());
-        let b2 = SchemaBuilder::new()
+        let b2 = SchemaBuilder::new("example")
             .column("field", "INTEGER")
             .key("field", "INTEGER")
-            .table("example")
             .build();
 
         assert!(b2.is_err());
@@ -289,18 +276,11 @@ mod tests {
 
     #[test]
     fn builder_fails_if_elements_missing() -> Result<()> {
-        let key_missing = SchemaBuilder::new()
+        let key_missing = SchemaBuilder::new("example")
             .column("field", "INTEGER")
-            .table("example")
             .build();
 
         assert!(key_missing.is_err());
-        let table_missing = SchemaBuilder::new()
-            .column("field", "INTEGER")
-            .key("field", "INTEGER")
-            .build();
-
-        assert!(table_missing.is_err());
         Ok(())
     }
 }

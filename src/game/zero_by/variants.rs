@@ -3,6 +3,7 @@
 //! This module helps parse the variant string provided to the Zero-By game
 //! into parameters that can help build a game session.
 
+use anyhow::Result;
 use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
@@ -10,29 +11,31 @@ use regex::Regex;
 
 use crate::game::Player;
 use crate::game::error::GameError;
-use crate::game::zero_by::{NAME, Session};
+use crate::game::zero_by::NAME;
+use crate::game::zero_by::Session;
+use crate::solver::db::SchemaBuilder;
 use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
 
 pub const VARIANT_DEFAULT: &str = "2-10-1-2";
 pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
-pub const VARIANT_PROTOCOL: &str = "The variant string should be a dash-separated group of three or more positive \
-integers. For example, '4-232-23-6-3-6' is valid but '598', '-23-1-5', and \
-'fifteen-2-5' are not. The first integer represents the number of players in \
-the game. The second integer represents the number of elements in the set. The \
-rest are choices that the players have when they need to remove a number of \
-pieces on their turn. Note that the numbers can be repeated, but if you repeat \
-the first number it will be a win for the player with the first turn in 1 \
-move. If you repeat any of the rest of the numbers, the only consequence will \
-be a slight decrease in performance.";
+pub const VARIANT_PROTOCOL: &str = "The variant should be a dash-separated \
+group of three or more positive integers. For example, '4-232-23-6-3-6' is \
+valid but '598', '-23-1-5', and 'fifteen-2-5' are not. The first integer \
+represents the number of players in the game. The second integer represents \
+the number of elements in the set. The rest are choices that the players have \
+when they need to remove a number of pieces on their turn. Note that the \
+numbers can be repeated, but if you repeat the first number it will be a win \
+for the player with the first turn in 1 move. If you repeat any of the rest \
+of the numbers, the only consequence will be a slight decrease in performance.";
 
 /* API */
 
 /// Returns a zero-by game session set up using the parameters specified by
 /// `variant`. Returns a `GameError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: String) -> Result<Session, GameError> {
+pub fn parse_variant(variant: String) -> Result<Session<'static>> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -45,12 +48,21 @@ pub fn parse_variant(variant: String) -> Result<Session, GameError> {
     start_state[..player_bits].store_be(Player::default());
     start_state[player_bits..].store_be(start_elems);
 
+    let schema = SchemaBuilder::new(NAME)
+        .players(players)
+        .key("state", "INTEGER")
+        .column("remoteness", "INTEGER")
+        .column("player", "INTEGER")
+        .build()?;
+
     Ok(Session {
         start_state: start_state.data,
+        transaction: None,
         start_elems,
         player_bits,
         players,
         variant,
+        schema,
         by: Vec::from(&params[2..]),
     })
 }
@@ -168,7 +180,7 @@ mod test {
         let v5 = "0-12-234-364";
         let v6 = "-234-256";
 
-        fn wrapper(v: &'static str) -> Result<Session, GameError> {
+        fn wrapper(v: &'static str) -> Result<Session<'static>> {
             parse_variant(v.to_owned())
         }
 
@@ -188,7 +200,7 @@ mod test {
         let v4 = "5-2-8-23";
         let v5 = "1-619-496-1150";
 
-        fn wrapper(v: &'static str) -> Result<Session, GameError> {
+        fn wrapper(v: &'static str) -> Result<Session<'static>> {
             parse_variant(v.to_owned())
         }
 

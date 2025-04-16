@@ -155,7 +155,7 @@ mod test {
         let s6 = "7-".to_owned();
         let s7 = "11-0".to_owned();
 
-        fn f() -> Session {
+        fn f() -> Session<'static> {
             // 2-player 10-to-zero by 1 or 2
             Session::default()
         }
@@ -179,7 +179,7 @@ mod test {
         let s6 = "10-1".to_owned(); // <-- Impossible but well formed
         let s7 = "1-0".to_owned();
 
-        fn f() -> Session {
+        fn f() -> Session<'static> {
             Session::default()
         }
 

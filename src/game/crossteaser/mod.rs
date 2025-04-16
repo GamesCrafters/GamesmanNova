@@ -77,6 +77,14 @@ pub struct Session {
 }
 
 impl Session {
+    pub fn new(variant: Option<Variant>) -> Result<Self> {
+        if let Some(v) = variant {
+            Self::variant(v)
+        } else {
+            Ok(Self::default())
+        }
+    }
+
     pub fn solve(&self, mode: IOMode) -> Result<()> {
         todo!()
     }
