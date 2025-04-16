@@ -3,18 +3,16 @@
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 
-use crate::database::model::SequenceKey;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use sqlx::SqlitePool;
 
-/* INTERFACES */
+use std::collections::HashSet;
+use std::env;
+use std::hash::Hash;
 
-/// Provides a way to loosely identify objects that is not as concrete as a
-/// hash function. The precise semantics of this interface are undefined.
-pub trait Identify {
-    /// Returns an ID that is unique in some degree to the state of this object.
-    /// The semantics of when variations are acceptable are implicit, and should
-    /// be enforced by an API consuming the [`Identify`] trait.
-    fn id(&self) -> SequenceKey;
-}
+use crate::game;
 
 /* BIT FIELDS */
 
@@ -24,113 +22,51 @@ pub const fn min_ubits(val: u64) -> usize {
     (u64::BITS - val.leading_zeros()) as usize
 }
 
-/// Return the minimum number of bits necessary to encode `utility`, which
-/// should be a signed integer in two's complement.
-#[inline(always)]
-pub const fn min_sbits(utility: i64) -> usize {
-    if utility >= 0 {
-        min_ubits(utility as u64) + 1
-    } else {
-        min_ubits(((-utility) - 1) as u64) + 1
+/* DATABASE */
+
+/// Returns handle to the global game solution database.
+pub fn game_db() -> Result<SqlitePool> {
+    let db = game::DB
+        .get()
+        .ok_or(anyhow!("Failed to access database singleton."))?;
+
+    Ok(db.clone())
+}
+
+/// Parses environment variables and establishes an SQLite connection to the
+/// global game solution database.
+pub async fn prepare() -> Result<()> {
+    dotenv::dotenv()
+        .context("Failed to parse settings in environment (.env) file.")?;
+
+    let db_addr = format!(
+        "sqlite://{}",
+        env::var("DATABASE")
+            .context("DATABASE environment variable not set.")?
+    );
+
+    let db_pool = SqlitePool::connect(&db_addr)
+        .await
+        .context("Failed to initialize SQLite connection.")?;
+
+    let _ = game::DB.set(db_pool);
+    Ok(())
+}
+
+/* MISC */
+
+/// Returns the first duplicate found in `vec`.
+pub fn first_duplicate<T: Eq + Hash + Clone>(vec: &[T]) -> Option<T> {
+    let mut seen = HashSet::new();
+    for item in vec {
+        if !seen.insert(item) {
+            return Some(item.clone());
+        }
     }
+    None
 }
 
 /* DECLARATIVE MACROS */
-
-/// Syntax sugar. Implements multiple traits for a single concrete type. The
-/// traits implemented must be marker traits; in other words, they must have no
-/// behavior (no functions).
-///
-/// # Example
-///
-/// ```no_run
-/// implement! { for Game =>
-///     AcyclicGame,
-///     AcyclicallySolvable,
-///     TreeSolvable,
-///     TierSolvable
-/// }
-/// ```
-///
-/// ...which expands to the following:
-///
-/// ```no_run
-/// impl AcyclicallySolvable for Game {}
-///
-/// impl TreeSolvable for Game {}
-///
-/// impl TierSolvable for Game {}
-/// ```
-#[macro_export]
-macro_rules! implement {
-    (for $b:ty => $($t:ty),+) => {
-        $(impl $t for $b { })*
-    }
-}
-
-/// Syntax sugar. Allows a "literal-like" declaration of collections like
-/// `HashSet`s, `HashMap`s, `Vec`s, etc.
-///
-/// # Example
-///
-/// ```no_run
-/// let s: Vec<_> = collection![1, 2, 3];
-/// let s: HashSet<_> = collection! { 1, 2, 3 };
-/// let s: HashMap<_, _> = collection! { 1 => 2, 3 => 4 };
-/// ```
-/// ...which expands to the following:
-///
-/// ```no_run
-/// let s = Vec::from([1, 2, 3]);
-/// let s = HashSet::from([1, 2, 3]);
-/// let s = HashMap::from([(1, 2), (3, 4)]);
-/// ```
-#[macro_export]
-macro_rules! collection {
-    ($($k:expr => $v:expr),* $(,)?) => {{
-        core::convert::From::from([$(($k, $v),)*])
-    }};
-    ($($v:expr),* $(,)?) => {{
-        core::convert::From::from([$($v,)*])
-    }};
-}
-
-/// Syntax sugar. Allows for a declarative way of expressing attribute names,
-/// data types, and bit sizes for constructing database schemas.
-///
-/// # Example
-///
-/// ```no_run
-/// let s1 = schema!("attribute1"; Datatype::CSTR; 16);
-///
-/// let s2 = schema! {
-///     "attribute3"; Datatype::UINT; 20,
-///     "attribute4"; Datatype::SINT; 60
-/// };
-/// ```
-///
-/// ...which expands to the following:
-///
-/// ```no_run
-/// let s1 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute1", Datatype::CSTR, 10))?
-///     .build();
-///
-/// let s2 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute3", Datatype::UINT, 20))?
-///     .add(Attribute::new("attribute4", Datatype::SINT, 60))?
-///     .build();
-/// ```
-#[macro_export]
-macro_rules! schema {
-    {$($key:literal; $dt:expr; $value:expr),*} => {
-        SchemaBuilder::new()
-            $(
-                .add(Attribute::new($key, $dt, $value))?
-            )*
-            .build()
-    };
-}
 
 /// Syntax sugar. Allows for a declarative way of expressing extensive game
 /// state nodes.
@@ -141,19 +77,19 @@ macro_rules! schema {
 /// // A medial node where it is Player 5's turn.
 /// let n1 = node!(5);
 ///
-/// // A terminal node with a 5-entry utility vector.
-/// let n2 = node![-1, -4, 5, 0, 3];
+/// // A terminal node with a 5-entry utility vector, on player 2's turn.
+/// let n2 = node![2; -1, -4, 5, 0, 3];
 ///
-/// // A terminal node with a single utility entry.
-/// let n3 = node![4,];
+/// // A terminal node with a single utility entry, on player 1's turn.
+/// let n3 = node![1; 4];
 /// ```
 #[macro_export]
 macro_rules! node {
     ($val:expr) => {
         Node::Medial($val)
     };
-    ($($u:expr),+ $(,)?) => {
-        Node::Terminal(vec![$($u),*])
+    ($player:expr; $($u:expr),+ $(,)?) => {
+        Node::Terminal($player, vec![$($u),*])
     };
 }
 
@@ -175,20 +111,5 @@ mod tests {
         assert_eq!(min_ubits(0x0000_0000_F00B_1351), 32);
         assert_eq!(min_ubits(0x0000_0000_F020_0DE0), 32);
         assert_eq!(min_ubits(0x0000_0000_0000_FDE0), 16);
-    }
-
-    #[test]
-    fn minimum_bits_for_positive_signed_integer() {
-        assert_eq!(min_sbits(0x0000_8000_2222_0001), 49);
-        assert_eq!(min_sbits(0x0070_DEAD_0380_7DE0), 56);
-        assert_eq!(min_sbits(0x0000_0000_F00B_1351), 33);
-        assert_eq!(min_sbits(0x0000_0000_0000_0700), 12);
-        assert_eq!(min_sbits(0x0000_0000_0000_0001), 2);
-
-        assert_eq!(min_sbits(-10000), 15);
-        assert_eq!(min_sbits(-1000), 11);
-        assert_eq!(min_sbits(-255), 9);
-        assert_eq!(min_sbits(-128), 8);
-        assert_eq!(min_sbits(0), 1);
     }
 }

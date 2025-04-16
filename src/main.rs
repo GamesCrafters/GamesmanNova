@@ -9,34 +9,36 @@
 //! relationship, greater weight is placed on making things fit into this
 //! module as a centralized point.
 
-use std::process;
-
-use anyhow::{Context, Result};
+use anyhow::Context;
+use anyhow::Result;
 use clap::Parser;
 
-use crate::game::model::GameModule;
-use crate::game::{Forward, Information};
-use crate::interface::standard::cli::*;
+use std::process;
+
+use crate::game::Forward;
+use crate::game::GameModule;
+use crate::game::Information;
+use crate::game::zero_by;
+use crate::interface::cli::*;
 
 /* MODULES */
-
-mod interface;
-mod database;
-mod solver;
-mod game;
-mod util;
 
 #[cfg(test)]
 mod test;
 
+mod interface;
+mod solver;
+mod game;
+mod util;
+
 /* PROGRAM ENTRY */
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
     let res = match cli.command {
         Commands::Info(args) => info(args),
-        Commands::Solve(args) => solve(args),
-        Commands::Query(args) => query(args),
+        Commands::Build(args) => build(args).await,
     };
     if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
@@ -46,29 +48,26 @@ fn main() -> Result<()> {
 
 /* SUBCOMMAND EXECUTORS */
 
-fn query(args: QueryArgs) -> Result<()> {
-    todo!()
-}
+async fn build(args: BuildArgs) -> Result<()> {
+    util::prepare()
+        .await
+        .context("Failed to prepare solving infrastructure.")?;
 
-fn solve(args: SolveArgs) -> Result<()> {
-    interface::standard::confirm_potential_overwrite(args.yes, args.mode);
     match args.target {
         GameModule::ZeroBy => {
-            let mut session = game::zero_by::Session::new(args.variant)
-                .context("Failed to initialize zero-by game session.")?;
-
+            let mut session = zero_by::Session::new(args.variant)?;
             if args.forward {
-                let history = interface::standard::stdin_lines()
-                    .context("Failed to read input lines from STDIN.")?;
+                let input = stdin_lines()
+                    .context("Failed to read STDIN history input.")?;
 
                 session
-                    .forward(history)
-                    .context("Failed to forward game state.")?;
+                    .forward(input)
+                    .context("Failed to forward state with history input.")?
             }
 
             session
-                .solve(args.mode, args.solution)
-                .context("Failed to execute solving algorithm.")?
+                .solve(args.mode)
+                .context("Failed solver execution for crossteaser.")?
         },
     }
     Ok(())
@@ -76,9 +75,9 @@ fn solve(args: SolveArgs) -> Result<()> {
 
 fn info(args: InfoArgs) -> Result<()> {
     let data = match args.target {
-        GameModule::ZeroBy => game::zero_by::Session::info(),
+        GameModule::ZeroBy => zero_by::Session::info(),
     };
-    interface::standard::format_and_output_game_attributes(
+    interface::cli::format_and_output_game_attributes(
         data,
         args.attributes,
         args.output,

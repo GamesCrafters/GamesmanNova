@@ -19,3 +19,6 @@ flamegraph.svg
 
 # Development data
 /dev
+
+# Solutions database
+solutions.db

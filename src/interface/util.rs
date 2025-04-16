@@ -13,7 +13,7 @@ use super::{GameAttribute, InfoFormat};
 /* CONSTANTS */
 
 /// All available game attributes uniquely listed.
-const ALL_GAME_ATTRIBUTES: [GameAttribute; 9] = [
+const GAME_ATTRIBUTES: [GameAttribute; 9] = [
     GameAttribute::VariantProtocol,
     GameAttribute::VariantDefault,
     GameAttribute::VariantPattern,
@@ -59,7 +59,7 @@ pub fn aggregate_and_format_all_attributes(
     data: GameData,
     format: InfoFormat,
 ) -> Result<String> {
-    aggregate_and_format_attributes(data, ALL_GAME_ATTRIBUTES.to_vec(), format)
+    aggregate_and_format_attributes(data, GAME_ATTRIBUTES.to_vec(), format)
 }
 
 #[cfg(test)]
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn no_duplicates_in_game_attrs_list() {
-        let mut attrs = ALL_GAME_ATTRIBUTES.to_vec();
+        let mut attrs = GAME_ATTRIBUTES.to_vec();
         let s1 = attrs.len();
         attrs.sort();
         attrs.dedup();

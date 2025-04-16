@@ -1,103 +1,61 @@
 #![forbid(unsafe_code)]
 //! # Game Module
 //!
-//! This module provides interfaces and implementations for sequential games.
-//!
-//! ## Working model
-//!
-//! The Nova project takes an unrestricted approach to the categories of games
-//! it considers, but given its focus on efficient search, it is convenient to
-//! specify some common assumptions and constructs created for ergonomics.
-//!
-//! In particular the following choices orient the project towards discrete
-//! deterministic perfect-information sequential games:
-//!
-//! * [`State<const B: usize>`] is a bit-packed array of bytes used to identify
-//!   game states (or in other words, equivalent game histories). This is backed
-//!   by [`bitvec::array::BitArray`], which allows implementers to easily
-//!   manipulate [`State`] instances.
-//!
-//! * The [`Transition`] interface encodes the rules of a discrete game by
-//!   allowing implementers to specify which transitions between which states
-//!   are legal according to the underlying ruleset.
-//!
-//! ## Provided traits
-//!
-//! The [`Bounded`] interface provides a way to begin and end a traversal. Such
-//! a traversal can be carried out using the methods in [`Transition`]. Families
-//! of games with common logic (e.g., the same board game played on bigger or
-//! smaller boards) can be expressed as "variants" of each other through the
-//! [`Variable`] interface.
-//!
-//! The [`GameData`] struct provides a structured way to communicate information
-//! about a game, which is enabled by the [`Information`] trait. Furthermore, it
-//! is possible to express native concepts like variants and states through
-//! encodings specified by game implementations through the [`Codec`] interface
-//! where necessary.
-//!
-//! For more complex tasks such as end-game analysis in large board games, it
-//! can be desireable to artificially change the starting position of a game
-//! without incurring the algorithmic cost of computation. The [`Forward`]
-//! interface provides a verifiably correct way to do this.
-//!
-//! ## Implementing a new game
-//!
-//! The overarching hope is to make implementing a new game a matter of
-//! selecting which structural interfaces it can satisfy, and of implementing
-//! enough of the other interfaces to give it access to other functionality
-//! (such as a solving algorithm in [`crate::solver::algorithm`]).
-//!
-//! Here are some concrete steps you can take to realize this:
-//!
-//! 1. **Determine the characteristics of your game:** Ascertain whether you are
-//!    dealing with a chance game, a discrete game, a perfect-information game,
-//!    etc. If you are dealing with anything that does not fit into the current
-//!    working model, this is more of an infrastructure question, and you should
-//!    reach out to a maintainer to talk about supporting a new game category.
-//!
-//! 2. **Set up a code skeleton:** Create a new submodule under this one, and
-//!    give it the name of your game. Declare some kind of `Session` struct to
-//!    represent the necessary information to encode an instance of your game.
-//!    You should not need to mutate its state beyond initialization.
-//!
-//! 3. **Declare a set of interfaces:** Take a look at the provided traits, and
-//!    declare the ones that seem to best fit the structure of your game and
-//!    what you want to do with it. Reading documentation should help out a lot
-//!    here.
-//!
-//! 4. **Reference existing implementations:** To actually implement the game,
-//!    it will be very helpful to take a look at existing implementations. In
-//!    particular, take a look at the [`zero_by`] module, which is an simple
-//!    yet full-featured game implementation that we constantly make sure is
-//!    up to standard.
-//!
-//! 5. **Write testing modules where appropriate:** If it happens that you have
-//!    to implement anything that requires non-trivial logic, you should make
-//!    sure to test it. This includes any kind of verification of encodings.
-//!    Taking a look at existing unit tests will help significantly.
+//! Contains definitions and blanket implementations that support sequential
+//! games viewed as implicit grpahs. Special attention is paid to supporting
+//! families of closely related games (variants).
 
-use anyhow::{Context, Result};
-
-use crate::game::model::{State, Variant, DEFAULT_STATE_BYTES};
+use anyhow::Context;
+use anyhow::Result;
+use clap::ValueEnum;
+use once_cell::sync::OnceCell;
+use sqlx::SqlitePool;
 
 /* UTILITY MODULES */
 
 #[cfg(test)]
 mod test;
-mod util;
 
-pub mod model;
+pub mod util;
 pub mod error;
 
-/* MODULES */
+/* GAME MODULES */
 
 #[cfg(test)]
 pub mod mock;
 
-pub mod crossteaser;
 pub mod zero_by;
 
+/* TYPES */
+
+/// The default number of bytes used to encode states.
+pub const DEFAULT_STATE_BYTES: usize = 8;
+
+/// Unique identifier of a particular state in a game.
+pub type State<const B: usize = DEFAULT_STATE_BYTES> = [u8; B];
+
+/// String encoding some specific game's variant.
+pub type Variant = String;
+
+/// Unique identifier for a player in a game.
+pub type Player = usize;
+
+/// Count of the number of players in a game.
+pub type PlayerCount = Player;
+
+/* SINGLETONS */
+
+/// Global handle for SQLite solutions database.
+pub static DB: OnceCell<SqlitePool> = OnceCell::new();
+
 /* DEFINITIONS */
+
+// Specifies the game offerings available through all interfaces.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum GameModule {
+    /// Abstract game played over sets of items.
+    ZeroBy,
+}
 
 /// Contains useful data about a game.
 ///
@@ -108,6 +66,8 @@ pub mod zero_by;
 /// to expose this information.
 ///
 /// # Example
+///
+/// In the case of the sequential game [`zero_by`]:
 ///
 /// ```none
 /// * Name: "zero-by"
@@ -122,23 +82,23 @@ pub mod zero_by;
 /// ```
 pub struct GameData {
     /* GENERAL */
-    /// Known name for the game. This should return a string that can be used as
-    /// a command-line argument to the CLI endpoints which require a game name
-    /// as a target (e.g. `nova solve <TARGET>`).
+    /// Known name for the game. This should return a string that can be used
+    /// in the command-line as an argument to the CLI endpoints which require a
+    /// name as a game (e.g. `nova solve <TARGET>`).
     pub name: &'static str,
 
-    /// The names of the people who implemented the game listed out, optionally
+    /// The names of people who implemented the game listed out, optionally
     /// including their contact. For example: "John Doe <john@rust-lang.org>,
     /// Ricardo L. <ricardo@go-lang.com>, Quin Bligh".
     pub authors: &'static str,
 
-    /// General introduction to the game's rules and setup, including any facts
-    /// that are interesting about it.
+    /// General introduction to the game's rules, setup, etc., including any
+    /// facts that are noteworthy about it.
     pub about: &'static str,
 
     /* VARIANTS */
     /// Explanation of how to use strings to communicate which variant a user
-    /// wishes to play to the game's implementation.
+    /// wishes to provide to the game's implementation.
     pub variant_protocol: &'static str,
 
     /// Regular expression pattern that all variant strings must match.
@@ -148,7 +108,7 @@ pub struct GameData {
     pub variant_default: &'static str,
 
     /* STATES */
-    /// Explanation of how to use a string to encode a game state.
+    /// Explanation of how to use a string to encode an abstract state.
     pub state_protocol: &'static str,
 
     /// Regular expression pattern that all state encodings must match.
@@ -160,70 +120,83 @@ pub struct GameData {
 
 /* INTERFACES */
 
-/// Provides a method to obtain information about a game.
 pub trait Information {
-    /// Provides a way to retrieve useful information about a game for both
-    /// internal and user-facing modules.
-    ///
-    /// The information included here should be broadly applicable to any
-    /// variant of the underlying game type (hence why it is a static method).
-    /// For specifics on the information to provide, see [`GameData`].
-    ///
-    /// # Example
-    ///
-    /// Using the game [`zero_by`] as an example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    /// let game = zero_by::Session::new();
-    /// assert_eq!(game.info().name, "zero-by");
-    /// ```
+    /// Returns useful information about the game family. See [`GameData`].
     fn info() -> GameData;
 }
 
-/// Provides a method of bounding exploration of game states.
-pub trait Bounded<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Returns the starting state of the underlying game.
+pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
+    /// Returns the collection of states adjacent to `state` in this graph.
     ///
-    /// Starting states are usually determined by game variants, but it is
-    /// possible to alter them while remaining in the same game variant through
-    /// the [`Forward`] interface. Such antics are necessary to ensure state
-    /// validity at a variant-specific level. See [`Forward::forward`] for more.
+    /// The graph is assumed to be directed, such that calling this method on
+    /// an element of its own output is not guaranteed to return the original
+    /// state. An empty collection is used to denote a lack of neighbors.
     ///
     /// # Example
     ///
-    /// Using the game [`zero_by`] with default state `"10-0"`:
+    /// Considering the sequential game [`zero_by`], where a player may choose
+    /// remove either 1 or 2 elements from a pile of things:
     ///
     /// ```
     /// use crate::game::zero_by;
-    /// let game = zero_by::Session::new();
-    /// assert_eq!(game.encode(game.start())?, "10-0".into());
+    /// let session = zero_by::Session::new();
+    ///
+    /// // ignoring turn information for illustration only; "5 elements"
+    /// let count = 5;
+    ///
+    /// // neighbors = [4, 3]; "4 elements, 3 elements"
+    /// let neighbors = session.adjacent(count);
     /// ```
-    fn start(&self) -> State<B>;
+    ///
+    /// # Panics
+    ///
+    /// If the implementation fails to decode the provided `state`, there are no
+    /// behavior guarantees (this many or may not panic).
+    fn adjacent(&self, state: State<B>) -> Vec<State<B>>;
 
-    /// Returns true if `state` is a terminal state of the underlying game.
+    /// Returns one node within the implicit graph.  
     ///
-    /// Note that this function could return `true` for an invalid `state`, so
-    /// it is recommended that consumers verify that `state` is reachable in the
-    /// first place through a traversal interface (see [`Transition`]).
+    /// Since this is the first node to be explored when this interface is used,
+    /// this is called the 'source' node. This does not mean it has an indegree
+    /// of zero.
     ///
     /// # Example
     ///
-    /// Using the game [`zero_by`] as an example, which ends at any state with
-    /// zero elements left:
+    /// Considering the sequential game [`zero_by`], which begins with a state
+    /// of 10 by default:
     ///
     /// ```
     /// use crate::game::zero_by;
-    /// let game = zero_by::Session::new();
-    /// assert!(game.end(game.decode("0-0")?));
+    /// let session = zero_by::Session::new();
+    ///
+    /// // ignoring turn information for illustration purposes
+    /// assert_eq!(10, session.source());
     /// ```
-    fn end(&self, state: State<B>) -> bool;
+    fn source(&self) -> State<B>;
+
+    /// Returns true iff `state` has no outgoing edges in this graph.
+    ///
+    /// This is the source of truth for this condition. That is to say, it is
+    /// considered incorrect for there to be a state for which `adjacent(state)`
+    /// provides a non-empty collection, but where `sink(state)` is `false`.
+    ///
+    /// # Example
+    ///
+    /// Considering the sequential game [`zero_by`], which ends when there are
+    /// no items left to play with:
+    ///
+    /// ```
+    /// use crate::game::zero_by;
+    /// let session = zero_by::Session::new();
+    ///
+    /// // ignoring turn information for illustration purposes
+    /// assert!(session.sink(0));
+    /// ```
+    fn sink(&self, state: State<B>) -> bool;
 }
 
-/// Provides methods to encode and decode bit-packed [`State<B>`] instances to
-/// and from [`String`]s to facilitate manual interfaces.
 pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Decodes a game `string` encoding into a bit-packed [`State<B>`].
+    /// Decodes a state [`String`] encoding into a bit-packed [`State<B>`].
     ///
     /// This function (and [`Codec::encode`]) effectively specifies a protocol
     /// for turning a [`String`] into a [`State<B>`]. See [`Information::info`]
@@ -235,10 +208,10 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// ```
     /// use crate::game::zero_by;
-    /// let default_variant = zero_by::Session::new();
+    /// let session = zero_by::Session::new();
     /// assert_eq!(
-    ///     default_variant.decode("10-0".into())?,
-    ///     default_variant.start()
+    ///     session.decode("10-0".into())?,
+    ///     session.start()
     /// );
     /// ```
     ///
@@ -261,9 +234,9 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// ```
     /// use crate::game::zero_by;
-    /// let default_variant = zero_by::Session::new();
+    /// let session = zero_by::Session::new();
     /// assert_eq!(
-    ///     default_variant.encode(default_variant.start())?,
+    ///     session.encode(session.start())?,
     ///     "10-0".into()
     /// );
     /// ```
@@ -275,8 +248,6 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     fn encode(&self, state: State<B>) -> Result<String>;
 }
 
-/// Provides methods to obtain a working instance of a game variant and to
-/// retrieve a [`String`]-encoded specification of the variant.
 pub trait Variable {
     /// Initializes a version of the underlying game as the specified `variant`.
     ///
@@ -292,53 +263,27 @@ pub trait Variable {
     ///
     /// ```
     /// use crate::game::zero_by;
-    ///
+    /// let state = "100-0".into();
     /// let default = zero_by::Session::new();
     /// assert_ne!(default.encode(default.start())?, state);
     ///
-    /// let state = "100-0".into();
     /// let variant = zero_by::Session::variant("3-100-3-4".into())?;
     /// assert_eq!(variant.encode(variant.start())?, state);
     /// ```
     ///
     /// # Errors
     ///
-    /// Fails if `variant` does not conform to the game's protocol for encoding
+    /// Fails if `variant` does not conform to the game's protocol of encoding
     /// variants as strings, or if the game does not support variants in the
     /// first place (but has a placeholder [`Variable`] implementation).
     fn variant(variant: Variant) -> Result<Self>
     where
         Self: Sized;
-
-    /// Returns a string representing the underlying game variant.
-    ///
-    /// This does not provide a certain way of differentiating between the
-    /// starting state of the game (see [`Bounded::start`] for this), but it
-    /// does provide a sufficient identifier of the game's structure.
-    ///
-    /// # Example
-    ///
-    /// Consider the following example on a game of [`zero_by`], which has the
-    /// default variant of `"2-10-1-2"`:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// let variant = "3-100-3-4".into();
-    /// let default_variant = zero_by::Session::new();
-    /// assert_eq!(default_variant.variant(), "2-10-1-2".into());
-    ///
-    /// let custom_variant = session.into_variant(variant.clone())?;
-    /// assert_eq!(custom_variant.variant(), variant);
-    /// ```
-    fn variant_string(&self) -> Variant;
 }
 
-/// Provides methods to safely fast-forward the starting state of a game to
-/// a desired state in the future.
 pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
 where
-    Self: Information + Bounded<B> + Codec<B> + Transition<B> + Sized,
+    Self: Information + Codec<B> + Implicit<B> + Sized,
 {
     /// Sets the game's starting state to a pre-verified `state`.
     ///
@@ -373,7 +318,9 @@ where
     )]
     fn set_verified_start(&mut self, state: State<B>);
 
-    /// Advances the game's starting state to the last state in `history`.
+    /// Advances the game's starting state to the last state in `history`,
+    /// verifying that it is a valid traversal of the induced graph on this
+    /// game variant.
     ///
     /// This can be useful for skipping a significant amount of computation in
     /// the process of performing subgame analysis. Requires an implementation
@@ -401,99 +348,18 @@ where
     ///
     /// # Errors
     ///
-    /// Here are some of the reasons this could fail:
+    /// Some reasons this could fail:
     /// * An invalid transition is made between subsequent states in `history`.
     /// * `history` begins at a state other than the variant's starting state.
-    /// * The provided `history` plays beyond a terminal state.
+    /// * The provided `history` transitions beyond a terminal state.
     /// * A state encoding in `history` is not valid.
     /// * `history` is empty.
     #[allow(deprecated)]
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
         let to = util::verify_state_history(self, history)
             .context("Specified invalid state history.")?;
+
         self.set_verified_start(to);
         Ok(())
     }
-}
-
-/// Provides methods to obtain game state transitions, enabling state search.
-pub trait Transition<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Returns all possible legal states that could follow `state`.
-    ///
-    /// In a discrete game, we represent points in history that have equivalent
-    /// strategic value using a [`State<const B: usize>`] encoding. This is a
-    /// bit-packed representation of the state of the game at a point in time
-    /// (up to whatever attributes we may care about). This function returns the
-    /// collection of all states that could follow `state` according to the
-    /// underlying game's rules.
-    ///
-    /// # Example
-    ///
-    /// Using the game [`zero_by`], whose default variant involves two players
-    /// alternate turns removing items from a pile that starts out with 10 items
-    /// (where Player 0 starts), we can provide the following example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// let mut game = zero_by::Session::new();
-    /// let possible_next_states = vec![
-    ///     "9-1".into(), // 9 items left, player 1's turn
-    ///     "8-1".into(), // 8 items left, player 1's turn
-    /// ];
-    ///
-    /// assert_eq!(game.prograde(game.start()), possible_next_states);
-    /// ```
-    ///
-    /// # Warning
-    ///
-    /// In practice, it is extremely difficult to make it impossible for this
-    /// function to always return an empty collection if `state` is invalid, as
-    /// it is hard to statically verify the validity of a state. Hence, this
-    /// behavior is only guaranteed when `state` is valid. See [`Bounded::end`]
-    /// and [`Bounded::start`] to bound exploration to only valid states.
-    fn prograde(&self, state: State<B>) -> Vec<State<B>>;
-
-    /// Returns all possible legal states that could have come before `state`.
-    ///
-    /// In a discrete game, we represent points in history that have equivalent
-    /// strategic value using a [`State<const B: usize>`] encoding. This is a
-    /// bit-packed representation of the state of the game at a point in time
-    /// (up to whatever attributes we may care about). This function returns the
-    /// collection of all states that could have preceded `state` according to
-    /// the underlying game's rules.
-    ///
-    /// # Example
-    ///
-    /// Using the game [`zero_by`], whose default variant involves two players
-    /// alternate turns removing items from a pile that starts out with 10 items
-    /// (where Player 0 starts), we can provide the following example:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// // Get state with 8 items left and player 1 to move
-    /// let mut game = zero_by::Session::new();
-    /// let state = game.decode("8-1".into())?;
-    ///
-    /// let possible_previous_states = vec![
-    ///     "9-0".into(), // 9 items left, player 0's turn (invalid state)
-    ///     "10-0".into(), // 8 items left, player 0's turn
-    /// ];
-    ///
-    /// assert_eq!(game.retrograde(state), possible_previous_states);
-    /// ```
-    ///
-    /// # Warning
-    ///
-    /// As you can see from the example, this function provides no guarantees
-    /// about the validity of the states that it returns, because in the general
-    /// case, it is impossible to verify whether or not a preceding state is
-    /// actually valid.
-    ///
-    /// This obstacle is usually overcome by keeping track of observed states
-    /// through a prograde exploration (using [`Transition::prograde`] and the
-    /// functions provided by [`Bounded`]), and cross-referencing the outputs of
-    /// this function with those observed states to validate them.
-    fn retrograde(&self, state: State<B>) -> Vec<State<B>>;
 }
