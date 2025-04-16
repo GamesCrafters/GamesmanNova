@@ -261,3 +261,46 @@ impl Column {
         &self.name
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn builder_fails_if_columns_repeat() -> Result<()> {
+        let b1 = SchemaBuilder::new()
+            .column("field", "INTEGER")
+            .column("field", "FLOAT")
+            .key("key", "INTEGER")
+            .table("example")
+            .build();
+
+        assert!(b1.is_err());
+        let b2 = SchemaBuilder::new()
+            .column("field", "INTEGER")
+            .key("field", "INTEGER")
+            .table("example")
+            .build();
+
+        assert!(b2.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn builder_fails_if_elements_missing() -> Result<()> {
+        let key_missing = SchemaBuilder::new()
+            .column("field", "INTEGER")
+            .table("example")
+            .build();
+
+        assert!(key_missing.is_err());
+        let table_missing = SchemaBuilder::new()
+            .column("field", "INTEGER")
+            .key("field", "INTEGER")
+            .build();
+
+        assert!(table_missing.is_err());
+        Ok(())
+    }
+}
