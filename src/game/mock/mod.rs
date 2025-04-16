@@ -24,6 +24,7 @@ use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
 use crate::game::Transpose;
+use crate::interface::IOMode;
 use crate::solver::Game;
 use crate::solver::IUtility;
 use crate::solver::IntegerUtility;
@@ -176,8 +177,9 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
 }
 
 impl<const N: PlayerCount> Persistent<N> for Session<'_> {
-    fn prepare(&mut self) -> Result<()> {
-        let sql = self.schema.create_table_query();
+    fn prepare(&mut self, mode: IOMode) -> Result<()> {
+        let drop_sql = self.schema.drop_table_query();
+        let create_sql = self.schema.create_table_query();
         tokio::task::block_in_place(move || {
             tokio::runtime::Handle::current().block_on(async {
                 let mut tx = test::dev_db()?
@@ -185,7 +187,17 @@ impl<const N: PlayerCount> Persistent<N> for Session<'_> {
                     .await
                     .context("Failed to begin database transaction.")?;
 
-                sqlx::query(&sql)
+                match mode {
+                    IOMode::Constructive | IOMode::Forgetful => (),
+                    IOMode::Overwrite => {
+                        sqlx::query(&drop_sql)
+                            .execute(&mut *tx)
+                            .await
+                            .context("Failed to drop existing table")?;
+                    },
+                }
+
+                sqlx::query(&create_sql)
                     .execute(&mut *tx)
                     .await
                     .context("Failed to create table")?;

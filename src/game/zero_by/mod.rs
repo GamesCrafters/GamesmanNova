@@ -25,6 +25,7 @@ use crate::game::zero_by::states::*;
 use crate::game::zero_by::variants::*;
 use crate::game::{Codec, Forward};
 use crate::game::{GameData, Implicit};
+use crate::interface::IOMode;
 use crate::solver::Game;
 use crate::solver::SUtility;
 use crate::solver::SimpleUtility;
@@ -69,6 +70,12 @@ impl Session {
             Ok(Self::default())
         }
     }
+
+    pub fn solve(&mut self, mode: IOMode) -> Result<()> {
+        todo!()
+    }
+
+    /* UTILITY */
 
     fn encode_state(&self, turn: Player, elements: Elements) -> State {
         let mut state: BitArray<_, Msb0> = BitArray::ZERO;

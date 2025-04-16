@@ -12,6 +12,7 @@ use crate::game::DEFAULT_STATE_BYTES as DBYTES;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
+use crate::interface::IOMode;
 
 /* UTILITY MODULES */
 
@@ -222,7 +223,7 @@ where
 pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     fn insert(&mut self, state: &State<B>, info: &Solution<N>) -> Result<()>;
     fn select(&mut self, state: &State<B>) -> Result<Option<Solution<N>>>;
-    fn prepare(&mut self) -> Result<()>;
+    fn prepare(&mut self, mode: IOMode) -> Result<()>;
     fn commit(&mut self) -> Result<()>;
 }
 

@@ -347,6 +347,7 @@ where
     fn forward(&mut self, history: Vec<String>) -> Result<()> {
         let to = util::verify_state_history(self, history)
             .context("Specified invalid state history.")?;
+
         self.set_verified_start(to);
         Ok(())
     }

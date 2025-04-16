@@ -9,12 +9,14 @@
 //! relationship, greater weight is placed on making things fit into this
 //! module as a centralized point.
 
+use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 use game::Variable;
 
 use std::process;
 
+use crate::game::Forward;
 use crate::game::GameModule;
 use crate::game::Information;
 use crate::game::crossteaser;
@@ -49,21 +51,50 @@ async fn main() -> Result<()> {
 /* SUBCOMMAND EXECUTORS */
 
 async fn build(args: BuildArgs) -> Result<()> {
-    util::prepare().await?;
+    util::prepare()
+        .await
+        .context("Failed to prepare solving infrastructure.")?;
+
     match args.target {
         GameModule::Crossteaser => {
-            let session = if let Some(variant) = args.variant {
-                crossteaser::Session::variant(variant)?;
+            let mut session = if let Some(variant) = args.variant {
+                crossteaser::Session::variant(variant)?
             } else {
-                crossteaser::Session::default();
+                crossteaser::Session::default()
             };
+
+            if args.forward {
+                let input = stdin_lines()
+                    .context("Failed to read STDIN history input.")?;
+
+                session
+                    .forward(input)
+                    .context("Failed to forward state with history input.")?
+            }
+
+            session
+                .solve(args.mode)
+                .context("Failed solver execution for crossteaser.")?
         },
         GameModule::ZeroBy => {
-            let session = if let Some(variant) = args.variant {
-                zero_by::Session::variant(variant)?;
+            let mut session = if let Some(variant) = args.variant {
+                zero_by::Session::variant(variant)?
             } else {
-                zero_by::Session::default();
+                zero_by::Session::default()
             };
+
+            if args.forward {
+                let input = stdin_lines()
+                    .context("Failed to read STDIN history input.")?;
+
+                session
+                    .forward(input)
+                    .context("Failed to forward state with history input.")?
+            }
+
+            session
+                .solve(args.mode)
+                .context("Failed solver execution for crossteaser.")?
         },
     }
     Ok(())

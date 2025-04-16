@@ -6,26 +6,37 @@ use anyhow::{Context, Result};
 
 use crate::game::Implicit;
 use crate::game::PlayerCount;
+use crate::interface::IOMode;
+use crate::solver::Game;
+use crate::solver::IUtility;
+use crate::solver::IntegerUtility;
+use crate::solver::Persistent;
+use crate::solver::Remoteness;
 use crate::solver::Solution;
-use crate::solver::{Game, IUtility, IntegerUtility, Persistent, Remoteness};
 
 /* SOLVERS */
 
 /// TODO
 pub fn solve<const N: PlayerCount, const B: usize, G>(
     game: &mut G,
+    mode: IOMode,
 ) -> Result<()>
 where
     G: Implicit<B> + Game<N, B> + IntegerUtility<N, B> + Persistent<N, B>,
 {
-    game.prepare()
+    game.prepare(mode)
         .context("Failed to prepare persistent solution.")?;
 
     backward_induction(game)
         .context("Backward induction algorithm failed during execution.")?;
 
-    game.commit()
-        .context("Failed to commit transaction.")?;
+    match mode {
+        IOMode::Constructive | IOMode::Overwrite => {
+            game.commit()
+                .context("Failed to commit transaction.")?;
+        },
+        IOMode::Forgetful => (),
+    }
 
     Ok(())
 }
@@ -140,9 +151,8 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&mut g)?;
+        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite)?;
         g.visualize(MODULE_NAME)?;
-
         Ok(())
     }
 
@@ -176,9 +186,8 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&mut g)?;
+        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite)?;
         g.visualize(MODULE_NAME)?;
-
         Ok(())
     }
 }

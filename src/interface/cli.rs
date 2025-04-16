@@ -88,8 +88,9 @@ pub struct InfoArgs {
 /// destructive operations.
 pub fn confirm_potential_overwrite(yes: bool, mode: IOMode) {
     if match mode {
-        IOMode::Overwrite => !yes,
         IOMode::Constructive => false,
+        IOMode::Forgetful => false,
+        IOMode::Overwrite => !yes,
     } {
         println!(
             "This may overwrite an existing solution database. Are you sure? \

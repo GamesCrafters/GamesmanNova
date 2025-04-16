@@ -77,7 +77,7 @@ pub struct Session {
 }
 
 impl Session {
-    fn solve(&self, mode: IOMode) -> Result<()> {
+    pub fn solve(&self, mode: IOMode) -> Result<()> {
         todo!()
     }
 }

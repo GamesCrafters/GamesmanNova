@@ -176,6 +176,12 @@ impl Schema {
         )
     }
 
+    /// Returns an SQL 'DROP TABLE' query that deletes the table that belongs
+    /// to this schema.
+    pub fn drop_table_query(&self) -> String {
+        format!("DROP TABLE IF EXISTS {};", self.table())
+    }
+
     /// Returns the table row index where utility entries start in the schema.
     pub fn utility_index(&self) -> usize {
         self.len() - self.players

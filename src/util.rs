@@ -32,7 +32,8 @@ pub fn game_db() -> Result<SqlitePool> {
 
 /// TODO
 pub async fn prepare() -> Result<()> {
-    dotenv::dotenv().context("Failed to parse environment (.env) file.")?;
+    dotenv::dotenv()
+        .context("Failed to parse settings in environment (.env) file.")?;
 
     let db_addr = format!(
         "sqlite://{}",
