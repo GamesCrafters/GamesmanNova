@@ -28,7 +28,7 @@ const DEV_DIRECTORY: &str = "dev";
 
 /* SINGLETONS */
 
-/// TODO
+/// Global handle on SQLite solutions testing database.
 static DB: OnceCell<SqlitePool> = OnceCell::new();
 
 /* DEFINITIONS */
@@ -51,7 +51,7 @@ pub enum TestSetting {
 
 /* UTILITY FUNCTIONS */
 
-/// TODO
+/// Returns handle to global game solution development database.
 pub fn dev_db() -> Result<SqlitePool> {
     let db = DB
         .get()
@@ -60,9 +60,11 @@ pub fn dev_db() -> Result<SqlitePool> {
     Ok(db.clone())
 }
 
-/// TODO
+/// Parses environment variables and establishes an SQLite connection to the
+/// global game solution development database.
 pub async fn prepare() -> Result<()> {
-    dotenv::dotenv().context("Failed to parse environment (.env) file.")?;
+    dotenv::dotenv()
+        .context("Failed to parse settings in environment (.env) file.")?;
 
     let db_addr = match test_setting()? {
         TestSetting::Correctness => "sqlite::memory:".to_string(),

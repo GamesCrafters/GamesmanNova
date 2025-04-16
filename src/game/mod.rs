@@ -1,9 +1,12 @@
 #![forbid(unsafe_code)]
 //! # Game Module
 //!
-//! TODO
+//! Contains definitions and blanket implementations that support sequential
+//! games viewed as implicit grpahs. Special attention is paid to supporting
+//! families of closely related games (variants).
 
-use anyhow::{Context, Result};
+use anyhow::Context;
+use anyhow::Result;
 use clap::ValueEnum;
 use once_cell::sync::OnceCell;
 use sqlx::SqlitePool;
@@ -42,7 +45,7 @@ pub type PlayerCount = Player;
 
 /* SINGLETONS */
 
-/// TODO
+/// Global handle for SQLite solutions database.
 pub static DB: OnceCell<SqlitePool> = OnceCell::new();
 
 /* DEFINITIONS */
@@ -57,7 +60,7 @@ pub enum GameModule {
 /// Contains useful data about a game.
 ///
 /// The information here is intended to provide users of the program information
-/// they can use to understand the output of feature extractors, in addition to
+/// they can use to understand the output of solving algorithms, in addition to
 /// specifying formats/protocols for communicating with game implementations,
 /// and providing descriptive error outputs. See [`Information::info`] for how
 /// to expose this information.
@@ -115,27 +118,82 @@ pub struct GameData {
     pub state_default: &'static str,
 }
 
-/* EXTRACTION INTERFACES */
+/* INTERFACES */
 
 pub trait Information {
-    /// TODO
+    /// Returns useful information about the game family. See [`GameData`].
     fn info() -> GameData;
 }
 
-/* IMPLICIT GRAPH INTERFACE */
-
 pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
-    /// TODO
+    /// Returns the collection of states adjacent to `state` in this graph.
+    ///
+    /// The graph is assumed to be directed, such that calling this method on
+    /// an element of its own output is not guaranteed to return the original
+    /// state. An empty collection is used to denote a lack of neighbors.
+    ///
+    /// # Example
+    ///
+    /// Considering the sequential game [`zero_by`], where a player may choose
+    /// remove either 1 or 2 elements from a pile of things:
+    ///
+    /// ```
+    /// use crate::game::zero_by;
+    /// let session = zero_by::Session::new();
+    ///
+    /// // ignoring turn information for illustration only; "5 elements"
+    /// let count = 5;
+    ///
+    /// // neighbors = [4, 3]; "4 elements, 3 elements"
+    /// let neighbors = session.adjacent(count);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// If the implementation fails to decode the provided `state`, there are no
+    /// behavior guarantees (this many or may not panic).
     fn adjacent(&self, state: State<B>) -> Vec<State<B>>;
 
-    /// TODO
+    /// Returns one node within the implicit graph.  
+    ///
+    /// Since this is the first node to be explored when this interface is used,
+    /// this is called the 'source' node. This does not mean it has an indegree
+    /// of zero.
+    ///
+    /// # Example
+    ///
+    /// Considering the sequential game [`zero_by`], which begins with a state
+    /// of 10 by default:
+    ///
+    /// ```
+    /// use crate::game::zero_by;
+    /// let session = zero_by::Session::new();
+    ///
+    /// // ignoring turn information for illustration purposes
+    /// assert_eq!(10, session.source());
+    /// ```
     fn source(&self) -> State<B>;
 
-    /// TODO
+    /// Returns true iff `state` has no outgoing edges in this graph.
+    ///
+    /// This is the source of truth for this condition. That is to say, it is
+    /// considered incorrect for there to be a state for which `adjacent(state)`
+    /// provides a non-empty collection, but where `sink(state)` is `false`.
+    ///
+    /// # Example
+    ///
+    /// Considering the sequential game [`zero_by`], which ends when there are
+    /// no items left to play with:
+    ///
+    /// ```
+    /// use crate::game::zero_by;
+    /// let session = zero_by::Session::new();
+    ///
+    /// // ignoring turn information for illustration purposes
+    /// assert!(session.sink(0));
+    /// ```
     fn sink(&self, state: State<B>) -> bool;
 }
-
-/* UTILITY INTEFACES */
 
 pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     /// Decodes a state [`String`] encoding into a bit-packed [`State<B>`].
@@ -150,10 +208,10 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// ```
     /// use crate::game::zero_by;
-    /// let default_variant = zero_by::Session::new();
+    /// let session = zero_by::Session::new();
     /// assert_eq!(
-    ///     default_variant.decode("10-0".into())?,
-    ///     default_variant.start()
+    ///     session.decode("10-0".into())?,
+    ///     session.start()
     /// );
     /// ```
     ///
@@ -176,9 +234,9 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// ```
     /// use crate::game::zero_by;
-    /// let default_variant = zero_by::Session::new();
+    /// let session = zero_by::Session::new();
     /// assert_eq!(
-    ///     default_variant.encode(default_variant.start())?,
+    ///     session.encode(session.start())?,
     ///     "10-0".into()
     /// );
     /// ```
@@ -205,11 +263,10 @@ pub trait Variable {
     ///
     /// ```
     /// use crate::game::zero_by;
-    ///
+    /// let state = "100-0".into();
     /// let default = zero_by::Session::new();
     /// assert_ne!(default.encode(default.start())?, state);
     ///
-    /// let state = "100-0".into();
     /// let variant = zero_by::Session::variant("3-100-3-4".into())?;
     /// assert_eq!(variant.encode(variant.start())?, state);
     /// ```
@@ -265,12 +322,12 @@ where
     /// verifying that it is a valid traversal of the induced graph on this
     /// game variant.
     ///
-    /// # Example
-    ///
     /// This can be useful for skipping a significant amount of computation in
     /// the process of performing subgame analysis. Requires an implementation
     /// of [`Forward::set_verified_start`] to ultimately change the starting
     /// state after `history` is verified.
+    ///
+    /// # Example
     ///
     /// Using the game [`zero_by`] with a default state of `"10-0"`:
     ///
@@ -291,7 +348,7 @@ where
     ///
     /// # Errors
     ///
-    /// Here are some of the reasons this could fail:
+    /// Some reasons this could fail:
     /// * An invalid transition is made between subsequent states in `history`.
     /// * `history` begins at a state other than the variant's starting state.
     /// * The provided `history` transitions beyond a terminal state.

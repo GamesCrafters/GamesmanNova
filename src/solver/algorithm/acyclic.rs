@@ -2,7 +2,8 @@
 //!
 //! This module implements strong acyclic solving routines.
 
-use anyhow::{Context, Result};
+use anyhow::Context;
+use anyhow::Result;
 
 use crate::game::Implicit;
 use crate::game::PlayerCount;
@@ -16,7 +17,8 @@ use crate::solver::Solution;
 
 /* SOLVERS */
 
-/// TODO
+/// Compute the game-theoretic solution to a sequential `game` through backward
+/// induction over its states. Store solution according to `mode`.
 pub fn solve<const N: PlayerCount, const B: usize, G>(
     game: &mut G,
     mode: IOMode,

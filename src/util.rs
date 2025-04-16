@@ -3,11 +3,14 @@
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
 use sqlx::SqlitePool;
 
 use std::collections::HashSet;
 use std::env;
+use std::hash::Hash;
 
 use crate::game;
 
@@ -21,7 +24,7 @@ pub const fn min_ubits(val: u64) -> usize {
 
 /* DATABASE */
 
-/// TODO
+/// Returns handle to the global game solution database.
 pub fn game_db() -> Result<SqlitePool> {
     let db = game::DB
         .get()
@@ -30,7 +33,8 @@ pub fn game_db() -> Result<SqlitePool> {
     Ok(db.clone())
 }
 
-/// TODO
+/// Parses environment variables and establishes an SQLite connection to the
+/// global game solution database.
 pub async fn prepare() -> Result<()> {
     dotenv::dotenv()
         .context("Failed to parse settings in environment (.env) file.")?;
@@ -51,9 +55,8 @@ pub async fn prepare() -> Result<()> {
 
 /* MISC */
 
-pub fn first_duplicate<T: Eq + std::hash::Hash + Clone>(
-    vec: &[T],
-) -> Option<T> {
+/// Returns the first duplicate found in `vec`.
+pub fn first_duplicate<T: Eq + Hash + Clone>(vec: &[T]) -> Option<T> {
     let mut seen = HashSet::new();
     for item in vec {
         if !seen.insert(item) {
@@ -65,102 +68,21 @@ pub fn first_duplicate<T: Eq + std::hash::Hash + Clone>(
 
 /* DECLARATIVE MACROS */
 
-/// Syntax sugar. Implements multiple traits for a single concrete type. The
-/// traits implemented must be marker traits; in other words, they must have no
-/// behavior (no functions).
+/// Syntax sugar. Allows for a declarative way of expressing extensive game
+/// state nodes.
 ///
 /// # Example
 ///
 /// ```no_run
-/// implement! { for Game =>
-///     AcyclicGame,
-///     AcyclicallySolvable,
-///     TreeSolvable,
-///     TierSolvable
-/// }
+/// // A medial node where it is Player 5's turn.
+/// let n1 = node!(5);
+///
+/// // A terminal node with a 5-entry utility vector, on player 2's turn.
+/// let n2 = node![2; -1, -4, 5, 0, 3];
+///
+/// // A terminal node with a single utility entry, on player 1's turn.
+/// let n3 = node![1; 4];
 /// ```
-///
-/// ...which expands to the following:
-///
-/// ```no_run
-/// impl AcyclicallySolvable for Game {}
-///
-/// impl TreeSolvable for Game {}
-///
-/// impl TierSolvable for Game {}
-/// ```
-#[macro_export]
-macro_rules! implement {
-    (for $b:ty => $($t:ty),+) => {
-        $(impl $t for $b { })*
-    }
-}
-
-/// Syntax sugar. Allows a "literal-like" declaration of collections like
-/// `HashSet`s, `HashMap`s, `Vec`s, etc.
-///
-/// # Example
-///
-/// ```no_run
-/// let s: Vec<_> = collection![1, 2, 3];
-/// let s: HashSet<_> = collection! { 1, 2, 3 };
-/// let s: HashMap<_, _> = collection! { 1 => 2, 3 => 4 };
-/// ```
-/// ...which expands to the following:
-///
-/// ```no_run
-/// let s = Vec::from([1, 2, 3]);
-/// let s = HashSet::from([1, 2, 3]);
-/// let s = HashMap::from([(1, 2), (3, 4)]);
-/// ```
-#[macro_export]
-macro_rules! collection {
-    ($($k:expr => $v:expr),* $(,)?) => {{
-        core::convert::From::from([$(($k, $v),)*])
-    }};
-    ($($v:expr),* $(,)?) => {{
-        core::convert::From::from([$($v,)*])
-    }};
-}
-
-/// Syntax sugar. Allows for a declarative way of expressing attribute names,
-/// data types, and bit sizes for constructing database schemas.
-///
-/// # Example
-///
-/// ```no_run
-/// let s1 = schema!("attribute1"; Datatype::CSTR; 16);
-///
-/// let s2 = schema! {
-///     "attribute3"; Datatype::UINT; 20,
-///     "attribute4"; Datatype::SINT; 60
-/// };
-/// ```
-///
-/// ...which expands to the following:
-///
-/// ```no_run
-/// let s1 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute1", Datatype::CSTR, 10))?
-///     .build();
-///
-/// let s2 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute3", Datatype::UINT, 20))?
-///     .add(Attribute::new("attribute4", Datatype::SINT, 60))?
-///     .build();
-/// ```
-#[macro_export]
-macro_rules! schema {
-    {$($key:literal; $dt:expr; $value:expr),*} => {
-        SchemaBuilder::new()
-            $(
-                .add(Attribute::new($key, $dt, $value))?
-            )*
-            .build()
-    };
-}
-
-/// TODO
 #[macro_export]
 macro_rules! node {
     ($val:expr) => {

@@ -68,7 +68,6 @@ pub struct Session<'a> {
     start_state: State,
     player_bits: usize,
     players: PlayerCount,
-    variant: Variant,
     schema: Schema,
     by: Vec<Elements>,
 }

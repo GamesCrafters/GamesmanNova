@@ -61,7 +61,6 @@ pub fn parse_variant(variant: String) -> Result<Session<'static>> {
         start_elems,
         player_bits,
         players,
-        variant,
         schema,
         by: Vec::from(&params[2..]),
     })

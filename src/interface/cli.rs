@@ -21,7 +21,7 @@ use crate::{game::GameData, interface::IOMode};
 
 /* CLI DEFINITIONS */
 
-/// TODO
+/// Nova generates datasets of sequential game states and associated features.
 #[derive(Parser)]
 #[command(author, version, about, long_about = None, propagate_version = true)]
 pub struct Cli {
@@ -31,7 +31,7 @@ pub struct Cli {
     pub command: Commands,
 
     /* DEFAULTS PROVIDED */
-    /// Send no output to STDOUT during successful execution.
+    /// Send no output to STDOUT.
     #[arg(short, long, group = "output")]
     pub quiet: bool,
 }
@@ -39,16 +39,16 @@ pub struct Cli {
 /// Subcommand choices, specified as `nova <subcommand>`.
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Build a dataset associated with an exploration game.
+    /// Build a dataset associated with a sequential game.
     Build(BuildArgs),
 
-    /// Provides information about the system's offerings.
+    /// Print information about the system's offering(s).
     Info(InfoArgs),
 }
 
 /* ARGUMENT AND OPTION DEFINITIONS */
 
-/// TODO
+/// Arguments to the `nova build` subcommand.
 #[derive(Args)]
 pub struct BuildArgs {
     /* REQUIRED ARGUMENTS */
@@ -69,7 +69,7 @@ pub struct BuildArgs {
     pub forward: bool,
 }
 
-/// TODO
+/// Arguments to the `nova info` subcommand.
 #[derive(Args)]
 pub struct InfoArgs {
     /// Specify the game to provide information about.

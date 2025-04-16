@@ -1,10 +1,8 @@
 //! # Solvers Module
 //!
-//! This module provides behavior for the systematic traversal of game trees
-//! via their implementation of different interfaces defining deterministic or
-//! probabilistic behavior, with the objective of computing their strong or weak
-//! solutions, or finding "solutions" under different game-theoretic definitions
-//! of that word.
+//! This module provides behavior for the systematic traversal of game graphs
+//! via their implementation of different interfaces defining their behavior,
+//! with the objective of computing their solutions.
 
 use anyhow::Result;
 
@@ -53,7 +51,7 @@ pub enum SUtility {
 
 /* DEFINITIONS */
 
-/// TODO
+/// Values that solving algorithms calculate for each state within a game.
 #[derive(Debug)]
 pub struct Solution<const N: PlayerCount> {
     pub remoteness: Remoteness,
@@ -199,16 +197,41 @@ where
 /* PERSISTENCE INTERFACES */
 
 pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
-    /// TODO
+    /// Stores `info` under the key `state`, replacing an existing entry.
+    ///
+    /// This is used for persistence purposes. More information than `info` may
+    /// be stored alongside `info` as a side effect. The effects of this may not
+    /// persist unless `commit` is called afterwards.
+    ///
+    /// # Errors
+    ///
+    /// When `prepare` is not called before `insert`.
     fn insert(&mut self, state: &State<B>, info: &Solution<N>) -> Result<()>;
 
-    /// TODO
+    /// Retrieves the entry associated with `state`, or `None`.
+    ///
+    /// Entries are inserted through `insert`. The effects of this may not be
+    /// persistent unless `commit` is called afterwards.
+    ///
+    /// # Errors
+    ///
+    /// When `prepare` is not called before `select`.
     fn select(&mut self, state: &State<B>) -> Result<Option<Solution<N>>>;
 
-    /// TODO
+    /// Prepares the underlying store for a series of calls to `insert` and
+    /// `select`, according to `mode`.
+    ///
+    /// # Errors
+    ///
+    /// On a variety of conditions which depend on the underlying store.
     fn prepare(&mut self, mode: IOMode) -> Result<()>;
 
-    /// TODO
+    /// Ensures that all of the changes made to the underlying store since the
+    /// last call to `prepare` are persistent.
+    ///
+    /// # Errors
+    ///
+    /// When `prepare` is not called before `commit`.
     fn commit(&mut self) -> Result<()>;
 }
 
