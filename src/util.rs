@@ -6,6 +6,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use sqlx::Executor;
 use sqlx::SqlitePool;
 
 use std::collections::HashSet;
@@ -48,6 +49,16 @@ pub async fn prepare() -> Result<()> {
     let db_pool = SqlitePool::connect(&db_addr)
         .await
         .context("Failed to initialize SQLite connection.")?;
+
+    db_pool
+        .execute(
+            "PRAGMA locking_mode = EXCLUSIVE; \
+            PRAGMA synchronous = OFF; \
+            PRAGMA journal_mode = MEMORY; \
+            PRAGMA temp_store = MEMORY;",
+        )
+        .await
+        .context("Failed to tune SQLite database options.")?;
 
     let _ = game::DB.set(db_pool);
     Ok(())
