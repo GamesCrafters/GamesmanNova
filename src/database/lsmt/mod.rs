@@ -1,3 +1,0 @@
-//! # LSM-Tree Database
-//!
-//! ...

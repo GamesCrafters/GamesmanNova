@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+#![warn(missing_docs, deprecated)]
 //! # Execution Module
 //!
 //! The module which aggregates the libraries provided in `core`, `games`, and
@@ -8,68 +8,79 @@
 //! Instead of this project's modules having an emphasized many-to-many
 //! relationship, greater weight is placed on making things fit into this
 //! module as a centralized point.
-//!
-//! #### Authorship
-//!
-//! - Max Fierro, 4/6/2023 (maxfierro@berkeley.edu)
 
+use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 
 use std::process;
 
-use crate::interface::terminal::cli::*;
+use crate::game::Forward;
+use crate::game::GameModule;
+use crate::game::Information;
+use crate::game::zero_by;
+use crate::interface::cli::*;
 
 /* MODULES */
 
+#[cfg(test)]
+mod test;
+
 mod interface;
-mod database;
 mod solver;
-mod model;
 mod game;
 mod util;
 
 /* PROGRAM ENTRY */
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let ret = match &cli.command {
-        Commands::Tui(args) => tui(args),
+    let res = match cli.command {
         Commands::Info(args) => info(args),
-        Commands::Solve(args) => solve(args),
-        Commands::Analyze(args) => analyze(args),
+        Commands::Build(args) => build(args).await,
     };
-    if let Err(e) = ret {
-        if !cli.quiet {
-            eprintln!("{}", e);
-        }
+    if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
     }
-    process::exit(exitcode::OK)
+    res
 }
 
 /* SUBCOMMAND EXECUTORS */
 
-fn tui(args: &TuiArgs) -> Result<()> {
-    todo!()
-}
+async fn build(args: BuildArgs) -> Result<()> {
+    util::prepare()
+        .await
+        .context("Failed to prepare solving infrastructure.")?;
 
-fn analyze(args: &AnalyzeArgs) -> Result<()> {
-    todo!()
-}
+    match args.target {
+        GameModule::ZeroBy => {
+            let mut session = zero_by::Session::new(args.variant)?;
+            if args.forward {
+                let input = stdin_lines()
+                    .context("Failed to read STDIN history input.")?;
 
-fn solve(args: &SolveArgs) -> Result<()> {
-    util::confirm_potential_overwrite(args.yes, args.mode);
-    let game = util::find_game(
-        args.target,
-        args.variant.to_owned(),
-        args.from.to_owned(),
-    )?;
-    game.solve(args.mode, args.solver)?;
+                session
+                    .forward(input)
+                    .context("Failed to forward state with history input.")?
+            }
+
+            session
+                .solve(args.mode)
+                .context("Failed solver execution for crossteaser.")?
+        },
+    }
     Ok(())
 }
 
-fn info(args: &InfoArgs) -> Result<()> {
-    util::print_game_info(args.target, args.output)?;
+fn info(args: InfoArgs) -> Result<()> {
+    let data = match args.target {
+        GameModule::ZeroBy => zero_by::Session::info(),
+    };
+    interface::cli::format_and_output_game_attributes(
+        data,
+        args.attributes,
+        args.output,
+    )?;
     Ok(())
 }

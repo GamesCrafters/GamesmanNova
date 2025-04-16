@@ -1,245 +1,115 @@
-//! # Utilities Module
+//! # General Utilities Module
 //!
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
-//!
-//! #### Authorship
-//!
-//! - Max Fierro, 4/9/2023 (maxfierro@berkeley.edu)
 
-use anyhow::{Context, Result};
-use clap::ValueEnum;
-use serde_json::json;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use sqlx::SqlitePool;
 
-use std::{fmt::Display, process};
+use std::collections::HashSet;
+use std::env;
+use std::hash::Hash;
 
-use crate::{
-    game::{zero_by, Game, GameData},
-    interface::{IOMode, OutputMode},
-};
+use crate::game;
 
-/* DATA STRUCTURES */
+/* BIT FIELDS */
 
-// Specifies the game offerings available through all interfaces.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum GameModule {
-    ZeroBy,
+/// Returns the minimum number of bits required to represent unsigned `val`.
+#[inline(always)]
+pub const fn min_ubits(val: u64) -> usize {
+    (u64::BITS - val.leading_zeros()) as usize
 }
 
-/* SUBROUTINES */
+/* DATABASE */
 
-/// Fetches and initializes the correct game session based on an indicated
-/// `GameModule`, with the provided `variant`.
-pub fn find_game(
-    game: GameModule,
-    variant: Option<String>,
-    from: Option<String>,
-) -> Result<Box<dyn Game>> {
-    match game {
-        GameModule::ZeroBy => {
-            let session = zero_by::Session::initialize(variant)
-                .context("Failed to initialize zero-by game session.")?;
-            if let Some(path) = from {
-                todo!()
-            }
-            Ok(Box::new(session))
-        },
-    }
+/// Returns handle to the global game solution database.
+pub fn game_db() -> Result<SqlitePool> {
+    let db = game::DB
+        .get()
+        .ok_or(anyhow!("Failed to access database singleton."))?;
+
+    Ok(db.clone())
 }
 
-/// Prompts the user to confirm their operation as appropriate according to
-/// the arguments of the solve command. Only asks for confirmation for
-/// potentially destructive operations.
-pub fn confirm_potential_overwrite(yes: bool, mode: IOMode) {
-    if match mode {
-        IOMode::Write => !yes,
-        IOMode::Find => false,
-    } {
-        println!(
-            "This may overwrite an existing solution database. Are you sure? \
-            [y/n]: "
-        );
-        let mut yn: String = "".to_owned();
-        while !["n", "N", "y", "Y"].contains(&&yn[..]) {
-            yn = String::new();
-            std::io::stdin()
-                .read_line(&mut yn)
-                .expect("Failed to read user confirmation.");
-            yn = yn.trim().to_string();
-        }
-        if yn == "n" || yn == "N" {
-            process::exit(exitcode::OK)
-        }
-    }
-}
+/// Parses environment variables and establishes an SQLite connection to the
+/// global game solution database.
+pub async fn prepare() -> Result<()> {
+    dotenv::dotenv()
+        .context("Failed to parse settings in environment (.env) file.")?;
 
-/// Prints the formatted game information according to a specified output
-/// format. Game information is provided by game implementations.
-pub fn print_game_info(game: GameModule, format: OutputMode) -> Result<()> {
-    find_game(game, None, None)
-        .context("Failed to initialize game session.")?
-        .info()
-        .print(format);
+    let db_addr = format!(
+        "sqlite://{}",
+        env::var("DATABASE")
+            .context("DATABASE environment variable not set.")?
+    );
+
+    let db_pool = SqlitePool::connect(&db_addr)
+        .await
+        .context("Failed to initialize SQLite connection.")?;
+
+    let _ = game::DB.set(db_pool);
     Ok(())
 }
 
-/* IMPLEMENTATIONS */
+/* MISC */
 
-impl GameData<'_> {
-    fn print(&self, format: OutputMode) {
-        match format {
-            OutputMode::Extra => {
-                let content = format!(
-                    "\tGame:\n{}\n\n\tAuthor:\n{}\n\n\tDescription:\n{}\n\n\t\
-                    Variant Protocol:\n{}\n\n\tVariant Default:\n{}\n\n\t\
-                    Variant Pattern:\n{}\n\n\tState Protocol:\n{}\n\n\tState \
-                    Default:\n{}\n\n\tState Pattern:\n{}\n",
-                    self.name,
-                    self.authors,
-                    self.about,
-                    self.variant_protocol,
-                    self.variant_default,
-                    self.variant_pattern,
-                    self.state_protocol,
-                    self.state_default,
-                    self.state_pattern
-                );
-                println!("{}", content);
-            },
-            OutputMode::Json => {
-                let content = json!({
-                    "game": self.name,
-                    "author": self.authors,
-                    "about": self.about,
-                    "variant-protocol": self.variant_protocol,
-                    "variant-default": self.variant_default,
-                    "variant-pattern": self.variant_pattern,
-                    "state-protocol": self.state_protocol,
-                    "state-default": self.state_default,
-                    "state-pattern": self.state_pattern,
-                });
-                println!("{}", content);
-            },
-            OutputMode::None => (),
+/// Returns the first duplicate found in `vec`.
+pub fn first_duplicate<T: Eq + Hash + Clone>(vec: &[T]) -> Option<T> {
+    let mut seen = HashSet::new();
+    for item in vec {
+        if !seen.insert(item) {
+            return Some(item.clone());
         }
     }
-}
-
-impl Display for GameData<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "\tGame:\n{}\n\n\tAuthor:\n{}\n\n\tDescription:\n{}\n\n\tVariant \
-            Protocol:\n{}\n\n\tVariant Default:\n{}\n\n\tVariant Pattern:\n{}\
-            \n\n\tState Protocol:\n{}\n\n\tState Default:\n{}\n\n\tState \
-            Pattern:\n{}\n",
-            self.name,
-            self.authors,
-            self.about,
-            self.variant_protocol,
-            self.variant_default,
-            self.variant_pattern,
-            self.state_protocol,
-            self.state_default,
-            self.state_pattern
-        )
-    }
+    None
 }
 
 /* DECLARATIVE MACROS */
 
-/// Syntax sugar. Implements multiple traits for a single concrete type. The
-/// traits implemented must be marker traits; in other words, they must have no
-/// behavior (no functions). You will usually want to use this for implementing
-/// all the solvers for a game ergonomically through their marker traits.
+/// Syntax sugar. Allows for a declarative way of expressing extensive game
+/// state nodes.
 ///
-/// Example usage:
+/// # Example
 ///
 /// ```no_run
-/// implement! { for Game =>
-///     AcyclicGame,
-///     AcyclicallySolvable,
-///     TreeSolvable,
-///     TierSolvable
-/// }
-/// ```
+/// // A medial node where it is Player 5's turn.
+/// let n1 = node!(5);
 ///
-/// ...which expands to the following:
+/// // A terminal node with a 5-entry utility vector, on player 2's turn.
+/// let n2 = node![2; -1, -4, 5, 0, 3];
 ///
-/// ```no_run
-/// impl AcyclicallySolvable for Game {}
-///
-/// impl TreeSolvable for Game {}
-///
-/// impl TierSolvable for Game {}
+/// // A terminal node with a single utility entry, on player 1's turn.
+/// let n3 = node![1; 4];
 /// ```
 #[macro_export]
-macro_rules! implement {
-    (for $b:ty => $($t:ty),+) => {
-        $(impl $t for $b { })*
-    }
-}
-
-/// Syntax sugar. Allows a "literal-like" declaration of collections like
-/// `HashSet`s, `HashMap`s, `Vec`s, etc.
-///
-/// Example usage:
-///
-/// ```no_run
-/// let s: Vec<_> = collection![1, 2, 3];
-/// let s: HashSet<_> = collection! { 1, 2, 3 };
-/// let s: HashMap<_, _> = collection! { 1 => 2, 3 => 4 };
-/// ```
-/// ...which expands to the following:
-///
-/// ```no_run
-/// let s = Vec::from([1, 2, 3]);
-/// let s = HashSet::from([1, 2, 3]);
-/// let s = HashMap::from([(1, 2), (3, 4)]);
-/// ```
-#[macro_export]
-macro_rules! collection {
-    ($($k:expr => $v:expr),* $(,)?) => {{
-        core::convert::From::from([$(($k, $v),)*])
-    }};
-    ($($v:expr),* $(,)?) => {{
-        core::convert::From::from([$($v,)*])
-    }};
-}
-
-/// Syntax sugar. Allows for a declarative way of expressing attribute names,
-/// data types, and bit sizes for constructing database schemas.
-///
-/// Example usage:
-///
-/// ```no_run
-/// let s1 = schema!("attribute1"; Datatype::CSTR; 16);
-///
-/// let s2 = schema! {
-///     "attribute3"; Datatype::UINT; 20,
-///     "attribute4"; Datatype::SINT; 60
-/// };
-/// ```
-///
-/// ...which expands to the following:
-///
-/// ```no_run
-/// let s1 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute1", Datatype::CSTR, 10))?
-///     .build();
-///
-/// let s2 = SchemaBuilder::new()
-///     .add(Attribute::new("attribute3", Datatype::UINT, 20))?
-///     .add(Attribute::new("attribute4", Datatype::SINT, 60))?
-///     .build();
-/// ```
-#[macro_export]
-macro_rules! schema {
-    {$($key:literal; $dt:expr; $value:expr),*} => {
-        SchemaBuilder::new()
-            $(
-                .add(Attribute::new($key, $dt, $value))?
-            )*
-            .build()
+macro_rules! node {
+    ($val:expr) => {
+        Node::Medial($val)
     };
+    ($player:expr; $($u:expr),+ $(,)?) => {
+        Node::Terminal($player, vec![$($u),*])
+    };
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn minimum_bits_for_unsigned_integer() {
+        assert_eq!(min_ubits(0), 0);
+        assert_eq!(min_ubits(0b1111_1111), 8);
+        assert_eq!(min_ubits(0b1001_0010), 8);
+        assert_eq!(min_ubits(0b0010_1001), 6);
+        assert_eq!(min_ubits(0b0000_0110), 3);
+        assert_eq!(min_ubits(0b0000_0001), 1);
+        assert_eq!(min_ubits(0xF000_0A00_0C00_00F5), 64);
+        assert_eq!(min_ubits(0x0000_F100_DEB0_A002), 48);
+        assert_eq!(min_ubits(0x0000_0000_F00B_1351), 32);
+        assert_eq!(min_ubits(0x0000_0000_F020_0DE0), 32);
+        assert_eq!(min_ubits(0x0000_0000_0000_FDE0), 16);
+    }
 }

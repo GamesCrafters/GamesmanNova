@@ -13,3 +13,12 @@
 
 # Profiling output
 flamegraph.svg
+
+# MacOS desktop attributes file
+.DS_Store
+
+# Development data
+/dev
+
+# Solutions database
+solutions.db

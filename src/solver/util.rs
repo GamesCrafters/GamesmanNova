@@ -2,33 +2,101 @@
 //!
 //! This module makes room for common utility routines used throughout the
 //! `crate::solver` module.
-//!
-//! #### Authorship
-//!
-//! - Max Fierro, 2/24/2024 (maxfierro@berkeley.edu)
 
-use crate::model::Utility;
+use anyhow::Result;
 
-/* BIT FIELDS */
+use std::ops::Not;
 
-/// Returns the minimum number of bits required to represent unsigned `val`.
-#[inline(always)]
-pub const fn min_ubits(val: u64) -> usize {
-    let mut x = 0;
-    while (val >> x != 0b1) && (x != u64::BITS) {
-        x += 1;
+use crate::solver::IUtility;
+use crate::solver::SUtility;
+use crate::solver::error::SolverError;
+
+/* UTILITIES */
+
+/// Transform input string into a valid SQL identifier.
+pub fn sqlize(s: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if i == 0 {
+            if ch.is_ascii_alphabetic() || ch == '_' {
+                out.push(ch);
+            } else {
+                out.push('_');
+            }
+        } else if ch.is_ascii_alphanumeric() || ch == '_' {
+            out.push(ch);
+        } else {
+            out.push('_');
+        }
     }
-    (u64::BITS - x) as usize
+
+    out
 }
 
-/// Return the minimum number of bits necessary to encode `utility`.
-#[inline(always)]
-pub const fn min_sbits(utility: Utility) -> usize {
-    let mut res = 0;
-    let mut inter = utility.abs();
-    while inter != 0 {
-        inter >>= 1;
-        res += 1;
+/* CONVERSIONS INTO SIMPLE UTILITY */
+
+impl TryFrom<IUtility> for SUtility {
+    type Error = SolverError;
+
+    fn try_from(v: IUtility) -> Result<Self, Self::Error> {
+        match v {
+            _ if v == SUtility::Lose as i64 => Ok(SUtility::Lose),
+            _ if v == SUtility::Tie as i64 => Ok(SUtility::Tie),
+            _ if v == SUtility::Win as i64 => Ok(SUtility::Win),
+            _ => Err(SolverError::InvalidConversion {
+                input_t: "Integer Utility".into(),
+                output_t: "Simple Utility".into(),
+                hint:
+                    "Down-casting from integer to simple utility values is not \
+                    stable, and relies on the internal representation used for \
+                    simple utility values."
+                        .into(),
+            }),
+        }
     }
-    res + 1
+}
+
+impl TryFrom<i8> for SUtility {
+    type Error = SolverError;
+
+    fn try_from(v: i8) -> Result<Self, Self::Error> {
+        match v {
+            _ if v == SUtility::Lose as i8 => Ok(SUtility::Lose),
+            _ if v == SUtility::Tie as i8 => Ok(SUtility::Tie),
+            _ if v == SUtility::Win as i8 => Ok(SUtility::Win),
+            _ => Err(SolverError::InvalidConversion {
+                input_t: "i8".into(),
+                output_t: "Simple Utility".into(),
+                hint: "Down-casting from integer to simple utility values \
+                    is not stable, and relies on the internal representation \
+                    used for simple utility values."
+                    .into(),
+            }),
+        }
+    }
+}
+
+/* CONVERSIONS FROM SIMPLE UTILITY */
+
+impl From<SUtility> for IUtility {
+    fn from(v: SUtility) -> Self {
+        match v {
+            SUtility::Lose => -1,
+            SUtility::Tie => 0,
+            SUtility::Win => 1,
+        }
+    }
+}
+
+/* SIMPLE UTILITY NEGATION */
+
+impl Not for SUtility {
+    type Output = SUtility;
+    fn not(self) -> Self::Output {
+        match self {
+            SUtility::Lose => SUtility::Win,
+            SUtility::Win => SUtility::Lose,
+            SUtility::Tie => SUtility::Tie,
+        }
+    }
 }
