@@ -28,19 +28,11 @@ pub mod algorithm {
 
 /* TYPES */
 
-/// Indicates the "depth of draw" which a drawing position corresponds to.
-/// For more information, see [this whitepaper](TODO). This value should be
-/// 0 for non-drawing positions.
-pub type DrawDepth = u32;
-
 /// Indicates the number of choices that players have to make to reach a
 /// terminal state in a game under perfect play. For drawing positions,
 /// indicates the number of choices players can make to bring the game to a
 /// state which can transition to a non-drawing state.
 pub type Remoteness = u32;
-
-/// Please refer to [this](https://en.wikipedia.org/wiki/Mex_(mathematics)).
-pub type MinExclusion = u32;
 
 /// A discrete measure of how "good" an outcome is for a given player.
 /// Positive values indicate an overall gain from having played the game,
@@ -60,14 +52,6 @@ pub enum SUtility {
 }
 
 /* DEFINITIONS */
-
-/// Denotes the quantization level of utility values under consideration.
-#[derive(Copy, Clone)]
-pub enum UtilityType {
-    Integer,
-    Simple,
-    Real,
-}
 
 /// TODO
 #[derive(Debug)]
@@ -93,12 +77,6 @@ pub trait Game<const N: PlayerCount, const B: usize = DBYTES> {
     /// result in a program panic at some point. Unfortunately, there are not
     /// many good ways of enforcing this restriction at compilation time.
     fn turn(&self, state: State<B>) -> Player;
-
-    /// Returns the number of players in the underlying game.
-    #[inline(always)]
-    fn players(&self) -> PlayerCount {
-        N
-    }
 }
 
 /* UTILITY MEASURE INTERFACES */

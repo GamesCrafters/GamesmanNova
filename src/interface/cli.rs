@@ -5,10 +5,14 @@
 //! [clap](https://docs.rs/clap/latest/clap/) crate to provide standard
 //! behavior, which is outlined in [this](https://clig.dev/) great guide.
 
-use anyhow::{Context, Result, anyhow};
-use clap::{Args, Parser, Subcommand};
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use clap::Args;
+use clap::Parser;
+use clap::Subcommand;
 
-use std::{io::BufRead, process};
+use std::io::BufRead;
 
 use crate::game::GameModule;
 use crate::interface::util;
@@ -82,33 +86,6 @@ pub struct InfoArgs {
 }
 
 /* STANDARD INPUT API */
-
-/// Prompts the user to confirm their operation as appropriate according to the
-/// arguments of the solve command. Only asks for confirmation for potentially
-/// destructive operations.
-pub fn confirm_potential_overwrite(yes: bool, mode: IOMode) {
-    if match mode {
-        IOMode::Constructive => false,
-        IOMode::Forgetful => false,
-        IOMode::Overwrite => !yes,
-    } {
-        println!(
-            "This may overwrite an existing solution database. Are you sure? \
-            [y/n]: "
-        );
-        let mut yn: String = "".to_owned();
-        while !["n", "N", "y", "Y"].contains(&&yn[..]) {
-            yn = String::new();
-            std::io::stdin()
-                .read_line(&mut yn)
-                .expect("Failed to read user confirmation.");
-            yn = yn.trim().to_string();
-        }
-        if yn == "n" || yn == "N" {
-            process::exit(exitcode::OK)
-        }
-    }
-}
 
 /// Parses STDIN into a line-by-line vector of its contents without any form of
 /// sanitation or formatting.

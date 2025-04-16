@@ -25,7 +25,6 @@ use crate::game::Information;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
-use crate::game::Transpose;
 use crate::game::Variable;
 use crate::game::Variant;
 use crate::game::zero_by::states::*;
@@ -146,10 +145,6 @@ impl Variable for Session<'_> {
     fn variant(variant: Variant) -> Result<Self> {
         parse_variant(variant).context("Malformed game variant.")
     }
-
-    fn variant_string(&self) -> Variant {
-        self.variant.clone()
-    }
 }
 
 impl Implicit for Session<'_> {
@@ -175,29 +170,6 @@ impl Implicit for Session<'_> {
     fn sink(&self, state: State) -> bool {
         let (_, elements) = self.decode_state(state);
         elements == 0
-    }
-}
-
-impl Transpose for Session<'_> {
-    fn adjacent(&self, state: State) -> Vec<State> {
-        let (turn, elements) = self.decode_state(state);
-        let mut next = self
-            .by
-            .iter()
-            .map(|&choice| {
-                if elements + choice <= self.start_elems {
-                    choice
-                } else {
-                    self.start_elems
-                }
-            })
-            .map(|choice| {
-                self.encode_state((turn - 1) % self.players, elements + choice)
-            })
-            .collect::<Vec<State>>();
-        next.sort();
-        next.dedup();
-        next
     }
 }
 

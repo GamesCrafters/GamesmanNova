@@ -22,7 +22,6 @@ pub mod error;
 pub mod mock;
 
 pub mod zero_by;
-pub mod crossteaser;
 
 /* TYPES */
 
@@ -38,12 +37,6 @@ pub type Variant = String;
 /// Unique identifier for a player in a game.
 pub type Player = usize;
 
-/// Unique identifier of a subset of states of a game.
-pub type Partition = u64;
-
-/// Count of the number of states in a game.
-pub type StateCount = u64;
-
 /// Count of the number of players in a game.
 pub type PlayerCount = Player;
 
@@ -57,9 +50,6 @@ pub static DB: OnceCell<SqlitePool> = OnceCell::new();
 // Specifies the game offerings available through all interfaces.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum GameModule {
-    /// Grid-like 3d puzzle with rotating pieces.
-    Crossteaser,
-
     /// Abstract game played over sets of items.
     ZeroBy,
 }
@@ -143,19 +133,6 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
 
     /// TODO
     fn sink(&self, state: State<B>) -> bool;
-}
-
-pub trait Transpose<const B: usize = DEFAULT_STATE_BYTES> {
-    /// TODO
-    fn adjacent(&self, state: State<B>) -> Vec<State<B>>;
-}
-
-pub trait Composite<const B: usize = DEFAULT_STATE_BYTES> {
-    /// TODO
-    fn partition(&self, state: State<B>) -> Partition;
-
-    /// TODO
-    fn size(&self, partition: Partition) -> StateCount;
 }
 
 /* UTILITY INTEFACES */
@@ -245,29 +222,6 @@ pub trait Variable {
     fn variant(variant: Variant) -> Result<Self>
     where
         Self: Sized;
-
-    /// Returns a string representing the underlying game variant.
-    ///
-    /// This does not provide a certain way of differentiating between the
-    /// starting state of the game (see [`Bounded::start`] for this), but it
-    /// does provide a sufficient identifier of the game's structure.
-    ///
-    /// # Example
-    ///
-    /// Consider the following example on a game of [`zero_by`], which has the
-    /// default variant of `"2-10-1-2"`:
-    ///
-    /// ```
-    /// use crate::game::zero_by;
-    ///
-    /// let variant = "3-100-3-4".into();
-    /// let default_variant = zero_by::Session::new();
-    /// assert_eq!(default_variant.variant(), "2-10-1-2".into());
-    ///
-    /// let custom_variant = session.into_variant(variant.clone())?;
-    /// assert_eq!(custom_variant.variant(), variant);
-    /// ```
-    fn variant_string(&self) -> Variant;
 }
 
 pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>

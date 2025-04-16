@@ -23,7 +23,6 @@ use crate::game::Implicit;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
-use crate::game::Transpose;
 use crate::interface::IOMode;
 use crate::solver::Game;
 use crate::solver::IUtility;
@@ -141,12 +140,6 @@ impl Implicit for Session<'_> {
             Node::Terminal(_, _) => true,
             Node::Medial(_) => false,
         }
-    }
-}
-
-impl Transpose for Session<'_> {
-    fn adjacent(&self, state: State) -> Vec<State> {
-        self.adjacent(state, Direction::Incoming)
     }
 }
 

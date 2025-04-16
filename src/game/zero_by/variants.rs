@@ -48,7 +48,7 @@ pub fn parse_variant(variant: String) -> Result<Session<'static>> {
     start_state[..player_bits].store_be(Player::default());
     start_state[player_bits..].store_be(start_elems);
 
-    let schema = SchemaBuilder::new(NAME)
+    let schema = SchemaBuilder::new(&variant)
         .players(players)
         .key("state", "INTEGER")
         .column("remoteness", "INTEGER")

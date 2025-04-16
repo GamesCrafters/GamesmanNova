@@ -12,14 +12,12 @@
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use game::Variable;
 
 use std::process;
 
 use crate::game::Forward;
 use crate::game::GameModule;
 use crate::game::Information;
-use crate::game::crossteaser;
 use crate::game::zero_by;
 use crate::interface::cli::*;
 
@@ -56,21 +54,6 @@ async fn build(args: BuildArgs) -> Result<()> {
         .context("Failed to prepare solving infrastructure.")?;
 
     match args.target {
-        GameModule::Crossteaser => {
-            let mut session = crossteaser::Session::new(args.variant)?;
-            if args.forward {
-                let input = stdin_lines()
-                    .context("Failed to read STDIN history input.")?;
-
-                session
-                    .forward(input)
-                    .context("Failed to forward state with history input.")?
-            }
-
-            session
-                .solve(args.mode)
-                .context("Failed solver execution for crossteaser.")?
-        },
         GameModule::ZeroBy => {
             let mut session = zero_by::Session::new(args.variant)?;
             if args.forward {
@@ -92,7 +75,6 @@ async fn build(args: BuildArgs) -> Result<()> {
 
 fn info(args: InfoArgs) -> Result<()> {
     let data = match args.target {
-        GameModule::Crossteaser => crossteaser::Session::info(),
         GameModule::ZeroBy => zero_by::Session::info(),
     };
     interface::cli::format_and_output_game_attributes(
