@@ -5,6 +5,7 @@
 //! with the objective of computing their solutions.
 
 use anyhow::Result;
+use rusqlite::Transaction;
 
 use crate::game::DEFAULT_STATE_BYTES as DBYTES;
 use crate::game::Player;
@@ -207,8 +208,9 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// When `prepare` is not called before `insert`.
-    async fn insert(
+    fn insert(
         &mut self,
+        tx: &mut Transaction,
         state: &State<B>,
         info: &Solution<N>,
     ) -> Result<()>;
@@ -221,8 +223,11 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// When `prepare` is not called before `select`.
-    async fn select(&mut self, state: &State<B>)
-    -> Result<Option<Solution<N>>>;
+    fn select(
+        &mut self,
+        tx: &mut Transaction,
+        state: &State<B>,
+    ) -> Result<Option<Solution<N>>>;
 
     /// Prepares the underlying store for a series of calls to `insert` and
     /// `select`, according to `mode`.
@@ -230,15 +235,7 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// On a variety of conditions which depend on the underlying store.
-    async fn prepare(&mut self, mode: IOMode) -> Result<()>;
-
-    /// Ensures that all of the changes made to the underlying store since the
-    /// last call to `prepare` are persistent.
-    ///
-    /// # Errors
-    ///
-    /// When `prepare` is not called before `commit`.
-    async fn commit(&mut self) -> Result<()>;
+    fn prepare(&mut self, tx: &mut Transaction, mode: IOMode) -> Result<()>;
 }
 
 /* BLANKET IMPLEMENTATIONS */

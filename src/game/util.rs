@@ -4,15 +4,12 @@
 
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
-use sqlx::Executor;
-use sqlx::SqlitePool;
+use rusqlite::Connection;
 
 use std::env;
 use std::fmt::Display;
 
-use crate::game;
 use crate::game::GameData;
 use crate::game::Information;
 use crate::game::State;
@@ -23,38 +20,24 @@ use crate::interface::GameAttribute;
 
 /// Parses environment variables and establishes an SQLite connection to the
 /// global game solution database.
-pub async fn prepare() -> Result<()> {
+pub fn database() -> Result<Connection> {
     let path = env::var("DATABASE")
         .context("DATABASE environment variable not set.")?;
 
-    let db_addr = format!("sqlite://{}", path);
-    let db_pool = SqlitePool::connect(&db_addr)
-        .await
-        .context(format!(
-            "Failed to initialize SQLite connection to {}",
-            db_addr
-        ))?;
+    let db = Connection::open(&path).context(format!(
+        "Failed to initialize SQLite connection to {}",
+        path
+    ))?;
 
-    db_pool
-        .execute(
-            "PRAGMA synchronous = OFF; \
+    db.execute(
+        "PRAGMA synchronous = OFF; \
             PRAGMA journal_mode = MEMORY; \
             PRAGMA temp_store = MEMORY;",
-        )
-        .await
-        .context("Failed to tune SQLite database options.")?;
+        [],
+    )
+    .context("Failed to tune SQLite database options.")?;
 
-    let _ = game::DB.set(db_pool);
-    Ok(())
-}
-
-/// Returns handle to the global game solution database.
-pub fn database() -> Result<SqlitePool> {
-    let db = game::DB
-        .get()
-        .ok_or(anyhow!("Failed to access database singleton."))?;
-
-    Ok(db.clone())
+    Ok(db)
 }
 
 /* STATE HISTORY VERIFICATION */

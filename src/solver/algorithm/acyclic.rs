@@ -4,7 +4,9 @@
 
 use anyhow::Context;
 use anyhow::Result;
+use rusqlite::Transaction;
 
+use crate::game;
 use crate::game::Implicit;
 use crate::game::PlayerCount;
 use crate::interface::IOMode;
@@ -19,25 +21,29 @@ use crate::solver::Solution;
 
 /// Compute the game-theoretic solution to a sequential `game` through backward
 /// induction over its states. Store solution according to `mode`.
-pub async fn solve<const N: PlayerCount, const B: usize, G>(
+pub fn solve<const N: PlayerCount, const B: usize, G>(
     game: &mut G,
     mode: IOMode,
 ) -> Result<()>
 where
     G: Implicit<B> + Game<N, B> + IntegerUtility<N, B> + Persistent<N, B>,
 {
-    game.prepare(mode)
-        .await
+    let mut conn = game::util::database()
+        .context("Failed to obtain connection to game database.")?;
+
+    let mut tx = conn
+        .transaction()
+        .context("Failed to start transaction.")?;
+
+    game.prepare(&mut tx, mode)
         .context("Failed to prepare persistent solution.")?;
 
-    backward_induction(game)
-        .await
+    backward_induction(&mut tx, game)
         .context("Backward induction algorithm failed during execution.")?;
 
     match mode {
         IOMode::Constructive | IOMode::Overwrite => {
-            game.commit()
-                .await
+            tx.commit()
                 .context("Failed to commit transaction.")?;
         },
         IOMode::Forgetful => (),
@@ -46,7 +52,8 @@ where
     Ok(())
 }
 
-async fn backward_induction<const N: PlayerCount, const B: usize, G>(
+fn backward_induction<const N: PlayerCount, const B: usize, G>(
+    tx: &mut Transaction,
     game: &mut G,
 ) -> Result<()>
 where
@@ -56,9 +63,8 @@ where
     stack.push(game.source());
     while let Some(curr) = stack.pop() {
         let children = game.adjacent(curr);
-        if game.select(&curr).await?.is_none() {
-            game.insert(&curr, &Solution::default())
-                .await?;
+        if game.select(tx, &curr)?.is_none() {
+            game.insert(tx, &curr, &Solution::default())?;
 
             if game.sink(curr) {
                 let solution = Solution {
@@ -67,13 +73,12 @@ where
                     player: game.turn(curr),
                 };
 
-                game.insert(&curr, &solution)
-                    .await
+                game.insert(tx, &curr, &solution)
                     .context("Failed to persist solution of terminal state.")?;
             } else {
                 stack.push(curr);
                 for x in children.iter() {
-                    if game.select(x).await?.is_none() {
+                    if game.select(tx, x)?.is_none() {
                         stack.push(*x);
                     }
                 }
@@ -84,8 +89,7 @@ where
             let mut min_rem = Remoteness::MAX;
             for state in children {
                 let solved = game
-                    .select(&state)
-                    .await?
+                    .select(tx, &state)?
                     .expect("Algorithmic guarantee breached.");
 
                 let rem = solved.remoteness;
@@ -103,8 +107,7 @@ where
                 player: game.turn(curr),
             };
 
-            game.insert(&curr, &solution)
-                .await
+            game.insert(tx, &curr, &solution)
                 .context("Failed to persist solution of medial state")?;
         }
     }
@@ -129,7 +132,6 @@ mod test {
     use anyhow::Result;
     use serial_test::serial;
 
-    use crate::game::mock;
     use crate::game::mock::Node;
     use crate::game::mock::SessionBuilder;
     use crate::node;
@@ -141,11 +143,34 @@ mod test {
     /// for testing purposes in this module under their own subdirectory.
     const MODULE_NAME: &str = "acyclic-solver-tests";
 
-    #[serial]
-    #[tokio::test(flavor = "multi_thread")]
-    async fn acyclic_solver_on_sample1() -> Result<()> {
-        test::prepare().await?;
+    fn test_solve<const N: PlayerCount, const B: usize, G>(
+        game: &mut G,
+    ) -> Result<()>
+    where
+        G: Implicit<B> + Game<N, B> + IntegerUtility<N, B> + Persistent<N, B>,
+    {
+        let mut conn = test::database()
+            .context("Failed to obtain connection to test database.")?;
 
+        let mut tx = conn
+            .transaction()
+            .context("Failed to start transaction.")?;
+
+        game.prepare(&mut tx, IOMode::Overwrite)
+            .context("Failed to prepare persistent solution.")?;
+
+        backward_induction(&mut tx, game)
+            .context("Backward induction algorithm failed during execution.")?;
+
+        tx.commit()
+            .context("Failed to commit transaction.")?;
+
+        Ok(())
+    }
+
+    #[serial]
+    #[test]
+    fn acyclic_solver_on_sample1() -> Result<()> {
         let s1 = node!(0);
         let s2 = node!(1);
         let s3 = node!(2);
@@ -161,16 +186,14 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite).await?;
+        test_solve::<3, 8, _>(&mut g)?;
         g.visualize(MODULE_NAME)?;
         Ok(())
     }
 
     #[serial]
-    #[tokio::test(flavor = "multi_thread")]
-    async fn acyclic_solver_on_sample2() -> Result<()> {
-        test::prepare().await?;
-
+    #[test]
+    fn acyclic_solver_on_sample2() -> Result<()> {
         let s1 = node!(0);
         let s2 = node!(1);
         let s3 = node!(2);
@@ -196,7 +219,7 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite).await?;
+        test_solve::<3, 8, _>(&mut g)?;
         g.visualize(MODULE_NAME)?;
         Ok(())
     }

@@ -8,8 +8,6 @@
 use anyhow::Context;
 use anyhow::Result;
 use clap::ValueEnum;
-use once_cell::sync::OnceCell;
-use sqlx::SqlitePool;
 
 /* UTILITY MODULES */
 
@@ -42,11 +40,6 @@ pub type Player = usize;
 
 /// Count of the number of players in a game.
 pub type PlayerCount = Player;
-
-/* SINGLETONS */
-
-/// Global handle for SQLite solutions database.
-pub static DB: OnceCell<SqlitePool> = OnceCell::new();
 
 /* DEFINITIONS */
 

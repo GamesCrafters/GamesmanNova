@@ -35,7 +35,7 @@ of the numbers, the only consequence will be a slight decrease in performance.";
 /// Returns a zero-by game session set up using the parameters specified by
 /// `variant`. Returns a `GameError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: String) -> Result<Session<'static>> {
+pub fn parse_variant(variant: String) -> Result<Session> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -58,7 +58,6 @@ pub fn parse_variant(variant: String) -> Result<Session<'static>> {
 
     Ok(Session {
         start_state: start_state.data,
-        transaction: None,
         start_elems,
         player_bits,
         players,
@@ -179,7 +178,7 @@ mod test {
         let v5 = "0-12-234-364";
         let v6 = "-234-256";
 
-        fn wrapper(v: &'static str) -> Result<Session<'static>> {
+        fn wrapper(v: &'static str) -> Result<Session> {
             parse_variant(v.to_owned())
         }
 
@@ -199,7 +198,7 @@ mod test {
         let v4 = "5-2-8-23";
         let v5 = "1-619-496-1150";
 
-        fn wrapper(v: &'static str) -> Result<Session<'static>> {
+        fn wrapper(v: &'static str) -> Result<Session> {
             parse_variant(v.to_owned())
         }
 

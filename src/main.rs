@@ -33,12 +33,11 @@ mod util;
 
 /* PROGRAM ENTRY */
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
     let res = match cli.command {
         Commands::Info(args) => info(args),
-        Commands::Build(args) => build(args).await,
+        Commands::Build(args) => build(args),
     };
     if res.is_err() && cli.quiet {
         process::exit(exitcode::USAGE)
@@ -48,11 +47,7 @@ async fn main() -> Result<()> {
 
 /* SUBCOMMAND EXECUTORS */
 
-async fn build(args: BuildArgs) -> Result<()> {
-    game::util::prepare()
-        .await
-        .context("Failed to prepare solving infrastructure.")?;
-
+fn build(args: BuildArgs) -> Result<()> {
     match args.target {
         GameModule::ZeroBy => {
             let mut session = zero_by::Session::new(args.variant)?;
@@ -67,7 +62,6 @@ async fn build(args: BuildArgs) -> Result<()> {
 
             session
                 .solve(args.mode)
-                .await
                 .context("Failed solver execution for crossteaser.")?
         },
     }

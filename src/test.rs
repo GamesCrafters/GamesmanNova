@@ -6,11 +6,8 @@
 
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
-use once_cell::sync::OnceCell;
-use sqlx::Executor;
-use sqlx::SqlitePool;
+use rusqlite::Connection;
 use strum_macros::Display;
 
 use std::env;
@@ -29,11 +26,6 @@ pub static DIRECTORY_LOCK: RwLock<()> = RwLock::new(());
 /// The name of the global directory at the project root used for generated
 /// development data. This directory is not shipped with release builds.
 const DEV_DIRECTORY: &str = "dev";
-
-/* SINGLETONS */
-
-/// Global handle on SQLite solutions testing database.
-static DB: OnceCell<SqlitePool> = OnceCell::new();
 
 /* DEFINITIONS */
 
@@ -56,43 +48,29 @@ pub enum TestSetting {
 
 /// Parses environment variables and establishes an SQLite connection to the
 /// appropriate solution database.
-pub async fn prepare() -> Result<()> {
-    let db_addr = match test_setting()? {
-        TestSetting::Correctness => "sqlite::memory:".to_string(),
+pub fn database() -> Result<Connection> {
+    let db = match test_setting()? {
+        TestSetting::Correctness => Connection::open_in_memory()
+            .context("Failed to establish connection to in-memory database.")?,
         TestSetting::Development => {
             let path = env::var("TEST_DATABASE")
                 .context("DATABASE environment variable not set.")?;
-            format!("sqlite://{}", path)
+
+            Connection::open(&path).context(format!(
+                "Failed to initialize SQLite connection to {}",
+                path
+            ))?
         },
     };
 
-    let db_pool = SqlitePool::connect(&db_addr)
-        .await
-        .context(format!(
-            "Failed to initialize SQLite connection to {}",
-            db_addr
-        ))?;
-
-    db_pool
-        .execute(
-            "PRAGMA synchronous = OFF; \
+    db.execute(
+        "PRAGMA synchronous = OFF; \
             PRAGMA journal_mode = MEMORY; \
             PRAGMA temp_store = MEMORY;",
-        )
-        .await
-        .context("Failed to tune SQLite database options.")?;
-
-    let _ = DB.set(db_pool);
-    Ok(())
-}
-
-/// Returns handle to the global game solution testing database.
-pub fn database() -> Result<SqlitePool> {
-    let db = DB
-        .get()
-        .ok_or(anyhow!("Failed to access database singleton."))?;
-
-    Ok(db.clone())
+        [],
+    )
+    .context("Failed to tune SQLite database options.")?;
+    Ok(db)
 }
 
 /// Returns the testing side effects setting as obtained from the `TEST_SETTING`
