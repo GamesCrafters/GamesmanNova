@@ -7,7 +7,7 @@
 
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::bail;
+use anyhow::anyhow;
 use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
@@ -15,7 +15,10 @@ use petgraph::Direction;
 use petgraph::Graph;
 use petgraph::csr::DefaultIx;
 use petgraph::graph::NodeIndex;
-use sqlx::Row;
+use rusqlite::Error::QueryReturnedNoRows;
+use rusqlite::Statement;
+use rusqlite::Transaction;
+use rusqlite::params_from_iter;
 
 use std::collections::HashMap;
 
@@ -28,9 +31,9 @@ use crate::solver::Game;
 use crate::solver::IUtility;
 use crate::solver::IntegerUtility;
 use crate::solver::Persistent;
+use crate::solver::Queries;
 use crate::solver::Solution;
 use crate::solver::db::Schema;
-use crate::test;
 
 /* RE-EXPORTS */
 
@@ -42,12 +45,9 @@ mod builder;
 
 /* DEFINITIONS */
 
-type Transaction<'a> = sqlx::Transaction<'a, sqlx::Sqlite>;
-
 /// Represents an initialized session of an abstract graph game. This can be
 /// constructed using `SessionBuilder`.
 pub struct Session<'a> {
-    transaction: Option<Transaction<'a>>,
     inserted: HashMap<*const Node, NodeIndex>,
     players: PlayerCount,
     source: NodeIndex<DefaultIx>,
@@ -170,106 +170,72 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
 }
 
 impl<const N: PlayerCount> Persistent<N> for Session<'_> {
-    fn prepare(&mut self, mode: IOMode) -> Result<()> {
+    fn prepare(
+        &mut self,
+        tx: &mut Transaction,
+        mode: IOMode,
+    ) -> Result<Queries> {
         let drop_sql = self.schema.drop_table_query();
         let create_sql = self.schema.create_table_query();
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async {
-                let mut tx = test::dev_db()?
-                    .begin()
-                    .await
-                    .context("Failed to begin database transaction.")?;
-
-                match mode {
-                    IOMode::Constructive | IOMode::Forgetful => (),
-                    IOMode::Overwrite => {
-                        sqlx::query(&drop_sql)
-                            .execute(&mut *tx)
-                            .await
-                            .context("Failed to drop existing table")?;
-                    },
-                }
-
-                sqlx::query(&create_sql)
-                    .execute(&mut *tx)
-                    .await
-                    .context("Failed to create table")?;
-
-                self.transaction = Some(tx);
-                Ok(())
-            })
-        })
-    }
-
-    fn insert(&mut self, state: &State, info: &Solution<N>) -> Result<()> {
-        let tx = if let Some(tx) = &mut self.transaction {
-            tx
-        } else {
-            bail!("Attempted to run INSERT query with no transaction.")
-        };
-
-        let sql = self.schema.insert_query();
-        let mut query = sqlx::query(&sql)
-            .bind(i64::from_be_bytes(*state))
-            .bind(info.remoteness as i32)
-            .bind(info.player as i32);
-
-        for val in info.utility.iter() {
-            query = query.bind(*val);
+        match mode {
+            IOMode::Constructive | IOMode::Forgetful => (),
+            IOMode::Overwrite => {
+                tx.execute(&drop_sql, [])
+                    .context("Failed to drop existing table")?;
+            },
         }
 
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                query.execute(&mut **tx).await?;
-                Ok(())
-            })
-        })
+        tx.execute(&create_sql, [])
+            .context("Failed to create table")?;
+
+        let insert = self.schema.insert_query();
+        let select = self.schema.select_query();
+        let queries = Queries { insert, select };
+
+        Ok(queries)
     }
 
-    fn select(&mut self, state: &State) -> Result<Option<Solution<N>>> {
-        let tx = if let Some(tx) = &mut self.transaction {
-            tx
-        } else {
-            bail!("Attempted to run SELECT query with no transaction.")
-        };
+    fn insert(
+        &mut self,
+        stmt: &mut Statement,
+        state: &State,
+        info: &Solution<N>,
+    ) -> Result<()> {
+        stmt.execute(params_from_iter(
+            [
+                i64::from_be_bytes(*state),
+                info.remoteness as i64,
+                info.player as i64,
+            ]
+            .iter()
+            .chain(info.utility.iter()),
+        ))?;
+        Ok(())
+    }
 
-        let sql = self.schema.select_query();
+    fn select(
+        &mut self,
+        stmt: &mut Statement,
+        state: &State,
+    ) -> Result<Option<Solution<N>>> {
         let start = self.schema.utility_index();
-        let query = sqlx::query(&sql).bind(i64::from_be_bytes(*state));
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                let row_opt = query
-                    .fetch_optional(&mut **tx)
-                    .await?;
-                if let Some(row) = row_opt {
-                    let mut utility: [i64; N] = [0; N];
-                    let player: i32 = row.try_get("player")?;
-                    let remoteness: i64 = row.try_get("remoteness")?;
-                    for (i, item) in utility.iter_mut().enumerate() {
-                        *item = row.try_get(start + i)?;
-                    }
-                    Ok(Some(Solution {
-                        remoteness: remoteness as u32,
-                        utility,
-                        player: player as usize,
-                    }))
-                } else {
-                    Ok(None)
-                }
-            })
-        })
-    }
+        let row = stmt.query_row([i64::from_be_bytes(*state)], |row| {
+            let mut utility: [i64; N] = [0; N];
+            for (i, item) in utility.iter_mut().enumerate() {
+                *item = row.get(start + i)?;
+            }
 
-    fn commit(&mut self) -> Result<()> {
-        if let Some(tx) = self.transaction.take() {
-            tokio::task::block_in_place(move || {
-                tokio::runtime::Handle::current().block_on(async move {
-                    tx.commit().await?;
-                    Ok(())
-                })
+            Ok(Solution {
+                remoteness: row.get(1)?,
+                utility,
+                player: row.get(2)?,
             })
-        } else {
-            bail!("Attempted to commit without a transaction.")
+        });
+
+        match row {
+            Err(QueryReturnedNoRows) => Ok(None),
+            Ok(data) => Ok(Some(data)),
+            Err(e) => Err(anyhow!(e)),
         }
     }
 }

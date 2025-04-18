@@ -5,6 +5,8 @@
 //! with the objective of computing their solutions.
 
 use anyhow::Result;
+use rusqlite::Statement;
+use rusqlite::Transaction;
 
 use crate::game::DEFAULT_STATE_BYTES as DBYTES;
 use crate::game::Player;
@@ -59,6 +61,12 @@ pub struct Solution<const N: PlayerCount> {
     pub player: Player,
 }
 
+/// SQL query strings to be prepared into pre-compiled statements.
+pub struct Queries {
+    pub insert: String,
+    pub select: String,
+}
+
 /* STRUCTURAL INTERFACES */
 
 pub trait Game<const N: PlayerCount, const B: usize = DBYTES> {
@@ -111,7 +119,6 @@ where
     /// terminal. This assumes that utility players' utility values can only
     /// be within the following categories:
     /// * [`SUtility::Lose`]
-    /// * [`SUtility::Draw`]
     /// * [`SUtility::Tie`]
     /// * [`SUtility::Win`]
     ///
@@ -135,7 +142,6 @@ where
     /// This assumes that `state` is terminal, that the underlying game is
     /// two-player and zero-sum. In other words, the only attainable pairs of
     /// utility values should be the following:
-    /// * [`SUtility::Draw`] and [`SUtility::Draw`]
     /// * [`SUtility::Lose`] and [`SUtility::Win`]
     /// * [`SUtility::Win`] and [`SUtility::Lose`]
     /// * [`SUtility::Tie`] and [`SUtility::Tie`]
@@ -147,10 +153,6 @@ where
     /// is recognized to be the taking of the opponent's king, where this also
     /// implies that the player who lost it is assigned [`SUtility::Lose`], and
     /// where any other ending is classified as a [`SUtility::Tie`].
-    ///
-    /// In other games where it is possible to play forever, both players can
-    /// achieve a [`SUtility::Draw`] by constantly avoiding reaching a terminal
-    /// state (perhaps motivated by avoiding realizing imminent losses).
     ///
     /// # Warning
     ///
@@ -170,7 +172,6 @@ where
     /// that the game is 1-player, and that the only utility values attainable
     /// for the player are:
     /// * [`SUtility::Lose`]
-    /// * [`SUtility::Draw`]
     /// * [`SUtility::Tie`]
     /// * [`SUtility::Win`]
     ///
@@ -184,10 +185,6 @@ where
     /// be possible for the player to achieve a [`SUtility::Lose`] by filling
     /// out incorrect words and having no possible words left to write.
     ///
-    /// For a [`SUtility::Draw`], we can consider a puzzle where it is possible
-    /// for a loss to be the only material option, but for there to also be the
-    /// option to continue playing forever (as to not realize this outcome).
-    ///
     /// Finally, a [`SUtility::Tie`] can be interpreted as reaching an outcome
     /// of the puzzle where it is impossible to back out of, but that presents
     /// no positive or negative impact on the player.
@@ -196,6 +193,7 @@ where
 
 /* PERSISTENCE INTERFACES */
 
+#[allow(async_fn_in_trait)]
 pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// Stores `info` under the key `state`, replacing an existing entry.
     ///
@@ -206,7 +204,12 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// When `prepare` is not called before `insert`.
-    fn insert(&mut self, state: &State<B>, info: &Solution<N>) -> Result<()>;
+    fn insert(
+        &mut self,
+        stmt: &mut Statement,
+        state: &State<B>,
+        info: &Solution<N>,
+    ) -> Result<()>;
 
     /// Retrieves the entry associated with `state`, or `None`.
     ///
@@ -216,7 +219,11 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// When `prepare` is not called before `select`.
-    fn select(&mut self, state: &State<B>) -> Result<Option<Solution<N>>>;
+    fn select(
+        &mut self,
+        stmt: &mut Statement,
+        state: &State<B>,
+    ) -> Result<Option<Solution<N>>>;
 
     /// Prepares the underlying store for a series of calls to `insert` and
     /// `select`, according to `mode`.
@@ -224,15 +231,11 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// On a variety of conditions which depend on the underlying store.
-    fn prepare(&mut self, mode: IOMode) -> Result<()>;
-
-    /// Ensures that all of the changes made to the underlying store since the
-    /// last call to `prepare` are persistent.
-    ///
-    /// # Errors
-    ///
-    /// When `prepare` is not called before `commit`.
-    fn commit(&mut self) -> Result<()>;
+    fn prepare(
+        &mut self,
+        tx: &mut Transaction,
+        mode: IOMode,
+    ) -> Result<Queries>;
 }
 
 /* BLANKET IMPLEMENTATIONS */
