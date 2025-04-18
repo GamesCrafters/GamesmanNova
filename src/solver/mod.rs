@@ -112,7 +112,6 @@ where
     /// terminal. This assumes that utility players' utility values can only
     /// be within the following categories:
     /// * [`SUtility::Lose`]
-    /// * [`SUtility::Draw`]
     /// * [`SUtility::Tie`]
     /// * [`SUtility::Win`]
     ///
@@ -136,7 +135,6 @@ where
     /// This assumes that `state` is terminal, that the underlying game is
     /// two-player and zero-sum. In other words, the only attainable pairs of
     /// utility values should be the following:
-    /// * [`SUtility::Draw`] and [`SUtility::Draw`]
     /// * [`SUtility::Lose`] and [`SUtility::Win`]
     /// * [`SUtility::Win`] and [`SUtility::Lose`]
     /// * [`SUtility::Tie`] and [`SUtility::Tie`]
@@ -148,10 +146,6 @@ where
     /// is recognized to be the taking of the opponent's king, where this also
     /// implies that the player who lost it is assigned [`SUtility::Lose`], and
     /// where any other ending is classified as a [`SUtility::Tie`].
-    ///
-    /// In other games where it is possible to play forever, both players can
-    /// achieve a [`SUtility::Draw`] by constantly avoiding reaching a terminal
-    /// state (perhaps motivated by avoiding realizing imminent losses).
     ///
     /// # Warning
     ///
@@ -171,7 +165,6 @@ where
     /// that the game is 1-player, and that the only utility values attainable
     /// for the player are:
     /// * [`SUtility::Lose`]
-    /// * [`SUtility::Draw`]
     /// * [`SUtility::Tie`]
     /// * [`SUtility::Win`]
     ///
@@ -184,10 +177,6 @@ where
     /// Now consider a crossword puzzle where you cannot erase words. It would
     /// be possible for the player to achieve a [`SUtility::Lose`] by filling
     /// out incorrect words and having no possible words left to write.
-    ///
-    /// For a [`SUtility::Draw`], we can consider a puzzle where it is possible
-    /// for a loss to be the only material option, but for there to also be the
-    /// option to continue playing forever (as to not realize this outcome).
     ///
     /// Finally, a [`SUtility::Tie`] can be interpreted as reaching an outcome
     /// of the puzzle where it is impossible to back out of, but that presents
