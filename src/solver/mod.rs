@@ -61,6 +61,7 @@ pub struct Solution<const N: PlayerCount> {
     pub player: Player,
 }
 
+/// SQL query strings to be prepared into pre-compiled statements.
 pub struct Queries {
     pub insert: String,
     pub select: String,
