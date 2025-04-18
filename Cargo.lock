@@ -284,7 +284,7 @@ dependencies = [
 
 [[package]]
 name = "gamesman-nova"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "anyhow",
  "bitvec",

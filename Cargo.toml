@@ -1,6 +1,6 @@
 [package]
 name = "gamesman-nova"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Max Fierro <maxfierro@berkeley.edu>"]
 license = "GPL-3.0"
 repository = "https://github.com/GamesCrafters/GamesmanNova"
