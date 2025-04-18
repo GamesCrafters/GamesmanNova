@@ -98,6 +98,7 @@ variants = [
 
 db = os.environ.get("DATABASE", "solutions.db")
 os.environ["DATABASE"] = "bench.db"
+init_bench_database()
 
 # FLAMEGRAPH
 
