@@ -15,10 +15,16 @@
 flamegraph.svg
 
 # MacOS desktop attributes file
-.DS_Store
+**/.DS_Store
 
 # Development data
 /dev
 
 # Solutions database
-solutions.db
+/solutions.db
+
+# Environment setup
+/env.sh
+
+# Benchmarking database
+/bench.db

@@ -3,17 +3,8 @@
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
-use sqlx::Executor;
-use sqlx::SqlitePool;
-
 use std::collections::HashSet;
-use std::env;
 use std::hash::Hash;
-
-use crate::game;
 
 /* BIT FIELDS */
 
@@ -21,47 +12,6 @@ use crate::game;
 #[inline(always)]
 pub const fn min_ubits(val: u64) -> usize {
     (u64::BITS - val.leading_zeros()) as usize
-}
-
-/* DATABASE */
-
-/// Returns handle to the global game solution database.
-pub fn game_db() -> Result<SqlitePool> {
-    let db = game::DB
-        .get()
-        .ok_or(anyhow!("Failed to access database singleton."))?;
-
-    Ok(db.clone())
-}
-
-/// Parses environment variables and establishes an SQLite connection to the
-/// global game solution database.
-pub async fn prepare() -> Result<()> {
-    dotenv::dotenv()
-        .context("Failed to parse settings in environment (.env) file.")?;
-
-    let db_addr = format!(
-        "sqlite://{}",
-        env::var("DATABASE")
-            .context("DATABASE environment variable not set.")?
-    );
-
-    let db_pool = SqlitePool::connect(&db_addr)
-        .await
-        .context("Failed to initialize SQLite connection.")?;
-
-    db_pool
-        .execute(
-            "PRAGMA locking_mode = EXCLUSIVE; \
-            PRAGMA synchronous = OFF; \
-            PRAGMA journal_mode = MEMORY; \
-            PRAGMA temp_store = MEMORY;",
-        )
-        .await
-        .context("Failed to tune SQLite database options.")?;
-
-    let _ = game::DB.set(db_pool);
-    Ok(())
 }
 
 /* MISC */
@@ -84,7 +34,7 @@ pub fn first_duplicate<T: Eq + Hash + Clone>(vec: &[T]) -> Option<T> {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```ignore
 /// // A medial node where it is Player 5's turn.
 /// let n1 = node!(5);
 ///

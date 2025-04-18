@@ -138,7 +138,6 @@ impl<'a> SessionBuilder<'a> {
         let (players, _) = self.players;
         let schema = self.schema(players, self.name)?;
         Ok(Session {
-            transaction: None,
             inserted: self.inserted,
             players,
             schema,

@@ -2,9 +2,12 @@
 //!
 //! This module defines utilities used game implementations.
 
+use anyhow::Context;
+use anyhow::Result;
 use anyhow::bail;
-use anyhow::{Context, Result};
+use rusqlite::Connection;
 
+use std::env;
 use std::fmt::Display;
 
 use crate::game::GameData;
@@ -12,6 +15,30 @@ use crate::game::Information;
 use crate::game::State;
 use crate::game::{Codec, Implicit, error::GameError};
 use crate::interface::GameAttribute;
+
+/* DATABASE */
+
+/// Parses environment variables and establishes an SQLite connection to the
+/// global game solution database.
+pub fn database() -> Result<Connection> {
+    let path = env::var("DATABASE")
+        .context("DATABASE environment variable not set.")?;
+
+    let db = Connection::open(&path).context(format!(
+        "Failed to initialize SQLite connection to {}",
+        path
+    ))?;
+
+    db.execute(
+        "PRAGMA synchronous = OFF; \
+            PRAGMA journal_mode = MEMORY; \
+            PRAGMA temp_store = MEMORY;",
+        [],
+    )
+    .context("Failed to tune SQLite database options.")?;
+
+    Ok(db)
+}
 
 /* STATE HISTORY VERIFICATION */
 
@@ -29,12 +56,14 @@ where
         let mut prev = target
             .decode(s.clone())
             .context(format!("Failed to parse line #{l}."))?;
+
         if prev == target.source() {
             for h in history.iter().skip(1) {
                 let (l, s) = h.clone();
                 let next = target
                     .decode(s)
                     .context(format!("Failed to parse line #{l}."))?;
+
                 if target.sink(prev) {
                     bail!(
                         terminal_history_error(target, prev, next)?.context(
@@ -44,6 +73,7 @@ where
                         )
                     )
                 }
+
                 let transitions = target.adjacent(prev);
                 if !transitions.contains(&next) {
                     bail!(
