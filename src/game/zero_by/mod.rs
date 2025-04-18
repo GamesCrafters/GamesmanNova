@@ -17,6 +17,7 @@ use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use rusqlite::Error::QueryReturnedNoRows;
+use rusqlite::Statement;
 use rusqlite::Transaction;
 use rusqlite::params_from_iter;
 
@@ -35,6 +36,7 @@ use crate::game::zero_by::variants::*;
 use crate::interface::IOMode;
 use crate::solver::Game;
 use crate::solver::Persistent;
+use crate::solver::Queries;
 use crate::solver::SUtility;
 use crate::solver::SimpleUtility;
 use crate::solver::Solution;
@@ -206,7 +208,11 @@ impl<const N: PlayerCount> SimpleUtility<N> for Session {
 }
 
 impl<const N: PlayerCount> Persistent<N> for Session {
-    fn prepare(&mut self, tx: &mut Transaction, mode: IOMode) -> Result<()> {
+    fn prepare(
+        &mut self,
+        tx: &mut Transaction,
+        mode: IOMode,
+    ) -> Result<Queries> {
         let drop_sql = self.schema.drop_table_query();
         let create_sql = self.schema.create_table_query();
         match mode {
@@ -220,17 +226,19 @@ impl<const N: PlayerCount> Persistent<N> for Session {
         tx.execute(&create_sql, [])
             .context("Failed to create table")?;
 
-        Ok(())
+        let insert = self.schema.insert_query();
+        let select = self.schema.select_query();
+        let queries = Queries { insert, select };
+
+        Ok(queries)
     }
 
     fn insert(
         &mut self,
-        tx: &mut Transaction,
+        stmt: &mut Statement,
         state: &State,
         info: &Solution<N>,
     ) -> Result<()> {
-        let sql = self.schema.insert_query();
-        let mut stmt = tx.prepare(&sql)?;
         stmt.execute(params_from_iter(
             [
                 i64::from_be_bytes(*state),
@@ -245,11 +253,9 @@ impl<const N: PlayerCount> Persistent<N> for Session {
 
     fn select(
         &mut self,
-        tx: &mut Transaction,
+        stmt: &mut Statement,
         state: &State,
     ) -> Result<Option<Solution<N>>> {
-        let sql = self.schema.select_query();
-        let mut stmt = tx.prepare(&sql)?;
         let start = self.schema.utility_index();
         let row = stmt.query_row([i64::from_be_bytes(*state)], |row| {
             let mut utility: [i64; N] = [0; N];

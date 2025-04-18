@@ -5,6 +5,7 @@
 //! with the objective of computing their solutions.
 
 use anyhow::Result;
+use rusqlite::Statement;
 use rusqlite::Transaction;
 
 use crate::game::DEFAULT_STATE_BYTES as DBYTES;
@@ -58,6 +59,11 @@ pub struct Solution<const N: PlayerCount> {
     pub remoteness: Remoteness,
     pub utility: [IUtility; N],
     pub player: Player,
+}
+
+pub struct Queries {
+    pub insert: String,
+    pub select: String,
 }
 
 /* STRUCTURAL INTERFACES */
@@ -199,7 +205,7 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// When `prepare` is not called before `insert`.
     fn insert(
         &mut self,
-        tx: &mut Transaction,
+        stmt: &mut Statement,
         state: &State<B>,
         info: &Solution<N>,
     ) -> Result<()>;
@@ -214,7 +220,7 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// When `prepare` is not called before `select`.
     fn select(
         &mut self,
-        tx: &mut Transaction,
+        stmt: &mut Statement,
         state: &State<B>,
     ) -> Result<Option<Solution<N>>>;
 
@@ -224,7 +230,11 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// On a variety of conditions which depend on the underlying store.
-    fn prepare(&mut self, tx: &mut Transaction, mode: IOMode) -> Result<()>;
+    fn prepare(
+        &mut self,
+        tx: &mut Transaction,
+        mode: IOMode,
+    ) -> Result<Queries>;
 }
 
 /* BLANKET IMPLEMENTATIONS */

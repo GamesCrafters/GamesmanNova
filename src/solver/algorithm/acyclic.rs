@@ -4,7 +4,7 @@
 
 use anyhow::Context;
 use anyhow::Result;
-use rusqlite::Transaction;
+use rusqlite::Statement;
 
 use crate::game;
 use crate::game::Implicit;
@@ -35,11 +35,17 @@ where
         .transaction()
         .context("Failed to start transaction.")?;
 
-    game.prepare(&mut tx, mode)
-        .context("Failed to prepare persistent solution.")?;
+    {
+        let queries = game
+            .prepare(&mut tx, mode)
+            .context("Failed to prepare persistent solution.")?;
 
-    backward_induction(&mut tx, game)
-        .context("Backward induction algorithm failed during execution.")?;
+        let mut insert_stmt = tx.prepare(&queries.insert)?;
+        let mut select_stmt = tx.prepare(&queries.select)?;
+
+        backward_induction(&mut insert_stmt, &mut select_stmt, game)
+            .context("Backward induction algorithm failed during execution.")?;
+    }
 
     match mode {
         IOMode::Constructive | IOMode::Overwrite => {
@@ -53,7 +59,8 @@ where
 }
 
 fn backward_induction<const N: PlayerCount, const B: usize, G>(
-    tx: &mut Transaction,
+    insert_stmt: &mut Statement,
+    select_stmt: &mut Statement,
     game: &mut G,
 ) -> Result<()>
 where
@@ -63,8 +70,11 @@ where
     stack.push(game.source());
     while let Some(curr) = stack.pop() {
         let children = game.adjacent(curr);
-        if game.select(tx, &curr)?.is_none() {
-            game.insert(tx, &curr, &Solution::default())?;
+        if game
+            .select(select_stmt, &curr)?
+            .is_none()
+        {
+            game.insert(insert_stmt, &curr, &Solution::default())?;
 
             if game.sink(curr) {
                 let solution = Solution {
@@ -73,12 +83,15 @@ where
                     player: game.turn(curr),
                 };
 
-                game.insert(tx, &curr, &solution)
+                game.insert(insert_stmt, &curr, &solution)
                     .context("Failed to persist solution of terminal state.")?;
             } else {
                 stack.push(curr);
                 for x in children.iter() {
-                    if game.select(tx, x)?.is_none() {
+                    if game
+                        .select(select_stmt, x)?
+                        .is_none()
+                    {
                         stack.push(*x);
                     }
                 }
@@ -89,7 +102,7 @@ where
             let mut min_rem = Remoteness::MAX;
             for state in children {
                 let solved = game
-                    .select(tx, &state)?
+                    .select(select_stmt, &state)?
                     .expect("Algorithmic guarantee breached.");
 
                 let rem = solved.remoteness;
@@ -107,7 +120,7 @@ where
                 player: game.turn(curr),
             };
 
-            game.insert(tx, &curr, &solution)
+            game.insert(insert_stmt, &curr, &solution)
                 .context("Failed to persist solution of medial state")?;
         }
     }
@@ -156,11 +169,18 @@ mod test {
             .transaction()
             .context("Failed to start transaction.")?;
 
-        game.prepare(&mut tx, IOMode::Overwrite)
-            .context("Failed to prepare persistent solution.")?;
+        {
+            let queries = game
+                .prepare(&mut tx, IOMode::Overwrite)
+                .context("Failed to prepare persistent solution.")?;
 
-        backward_induction(&mut tx, game)
-            .context("Backward induction algorithm failed during execution.")?;
+            let mut insert = tx.prepare(&queries.insert)?;
+            let mut select = tx.prepare(&queries.select)?;
+
+            backward_induction(&mut insert, &mut select, game).context(
+                "Backward induction algorithm failed during execution.",
+            )?;
+        }
 
         tx.commit()
             .context("Failed to commit transaction.")?;
