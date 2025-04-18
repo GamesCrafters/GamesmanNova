@@ -196,6 +196,7 @@ where
 
 /* PERSISTENCE INTERFACES */
 
+#[allow(async_fn_in_trait)]
 pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// Stores `info` under the key `state`, replacing an existing entry.
     ///
@@ -206,7 +207,11 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// When `prepare` is not called before `insert`.
-    fn insert(&mut self, state: &State<B>, info: &Solution<N>) -> Result<()>;
+    async fn insert(
+        &mut self,
+        state: &State<B>,
+        info: &Solution<N>,
+    ) -> Result<()>;
 
     /// Retrieves the entry associated with `state`, or `None`.
     ///
@@ -216,7 +221,8 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// When `prepare` is not called before `select`.
-    fn select(&mut self, state: &State<B>) -> Result<Option<Solution<N>>>;
+    async fn select(&mut self, state: &State<B>)
+    -> Result<Option<Solution<N>>>;
 
     /// Prepares the underlying store for a series of calls to `insert` and
     /// `select`, according to `mode`.
@@ -224,7 +230,7 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// On a variety of conditions which depend on the underlying store.
-    fn prepare(&mut self, mode: IOMode) -> Result<()>;
+    async fn prepare(&mut self, mode: IOMode) -> Result<()>;
 
     /// Ensures that all of the changes made to the underlying store since the
     /// last call to `prepare` are persistent.
@@ -232,7 +238,7 @@ pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
     /// # Errors
     ///
     /// When `prepare` is not called before `commit`.
-    fn commit(&mut self) -> Result<()>;
+    async fn commit(&mut self) -> Result<()>;
 }
 
 /* BLANKET IMPLEMENTATIONS */

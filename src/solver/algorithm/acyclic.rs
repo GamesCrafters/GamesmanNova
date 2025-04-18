@@ -19,7 +19,7 @@ use crate::solver::Solution;
 
 /// Compute the game-theoretic solution to a sequential `game` through backward
 /// induction over its states. Store solution according to `mode`.
-pub fn solve<const N: PlayerCount, const B: usize, G>(
+pub async fn solve<const N: PlayerCount, const B: usize, G>(
     game: &mut G,
     mode: IOMode,
 ) -> Result<()>
@@ -27,14 +27,17 @@ where
     G: Implicit<B> + Game<N, B> + IntegerUtility<N, B> + Persistent<N, B>,
 {
     game.prepare(mode)
+        .await
         .context("Failed to prepare persistent solution.")?;
 
     backward_induction(game)
+        .await
         .context("Backward induction algorithm failed during execution.")?;
 
     match mode {
         IOMode::Constructive | IOMode::Overwrite => {
             game.commit()
+                .await
                 .context("Failed to commit transaction.")?;
         },
         IOMode::Forgetful => (),
@@ -43,7 +46,7 @@ where
     Ok(())
 }
 
-fn backward_induction<const N: PlayerCount, const B: usize, G>(
+async fn backward_induction<const N: PlayerCount, const B: usize, G>(
     game: &mut G,
 ) -> Result<()>
 where
@@ -53,8 +56,10 @@ where
     stack.push(game.source());
     while let Some(curr) = stack.pop() {
         let children = game.adjacent(curr);
-        if game.select(&curr)?.is_none() {
-            game.insert(&curr, &Solution::default())?;
+        if game.select(&curr).await?.is_none() {
+            game.insert(&curr, &Solution::default())
+                .await?;
+
             if game.sink(curr) {
                 let solution = Solution {
                     remoteness: 0,
@@ -63,14 +68,15 @@ where
                 };
 
                 game.insert(&curr, &solution)
+                    .await
                     .context("Failed to persist solution of terminal state.")?;
             } else {
                 stack.push(curr);
-                stack.extend(children.iter().filter(|x| {
-                    game.select(x)
-                        .expect("Database retireval error.")
-                        .is_none()
-                }));
+                for x in children.iter() {
+                    if game.select(x).await?.is_none() {
+                        stack.push(*x);
+                    }
+                }
             }
         } else {
             let mut next = Solution::default();
@@ -78,7 +84,8 @@ where
             let mut min_rem = Remoteness::MAX;
             for state in children {
                 let solved = game
-                    .select(&state)?
+                    .select(&state)
+                    .await?
                     .expect("Algorithmic guarantee breached.");
 
                 let rem = solved.remoteness;
@@ -97,6 +104,7 @@ where
             };
 
             game.insert(&curr, &solution)
+                .await
                 .context("Failed to persist solution of medial state")?;
         }
     }
@@ -153,7 +161,7 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite)?;
+        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite).await?;
         g.visualize(MODULE_NAME)?;
         Ok(())
     }
@@ -188,7 +196,7 @@ mod test {
             .source(&s1)?
             .build()?;
 
-        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite)?;
+        solve::<3, 8, mock::Session<'_>>(&mut g, IOMode::Overwrite).await?;
         g.visualize(MODULE_NAME)?;
         Ok(())
     }

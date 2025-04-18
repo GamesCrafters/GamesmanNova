@@ -17,6 +17,7 @@ use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use sqlx::Row;
 
+use crate::game;
 use crate::game::Codec;
 use crate::game::Forward;
 use crate::game::GameData;
@@ -37,7 +38,6 @@ use crate::solver::SimpleUtility;
 use crate::solver::Solution;
 use crate::solver::algorithm::acyclic;
 use crate::solver::db::Schema;
-use crate::util;
 
 /* SUBMODULES */
 
@@ -81,17 +81,17 @@ impl Session<'_> {
         }
     }
 
-    pub fn solve(&mut self, mode: IOMode) -> Result<()> {
+    pub async fn solve(&mut self, mode: IOMode) -> Result<()> {
         match self.players {
-            1 => acyclic::solve::<1, 8, _>(self, mode),
-            2 => acyclic::solve::<2, 8, _>(self, mode),
-            3 => acyclic::solve::<3, 8, _>(self, mode),
-            4 => acyclic::solve::<4, 8, _>(self, mode),
-            5 => acyclic::solve::<5, 8, _>(self, mode),
-            6 => acyclic::solve::<6, 8, _>(self, mode),
-            7 => acyclic::solve::<7, 8, _>(self, mode),
-            8 => acyclic::solve::<8, 8, _>(self, mode),
-            9 => acyclic::solve::<9, 8, _>(self, mode),
+            1 => acyclic::solve::<1, 8, _>(self, mode).await,
+            2 => acyclic::solve::<2, 8, _>(self, mode).await,
+            3 => acyclic::solve::<3, 8, _>(self, mode).await,
+            4 => acyclic::solve::<4, 8, _>(self, mode).await,
+            5 => acyclic::solve::<5, 8, _>(self, mode).await,
+            6 => acyclic::solve::<6, 8, _>(self, mode).await,
+            7 => acyclic::solve::<7, 8, _>(self, mode).await,
+            8 => acyclic::solve::<8, 8, _>(self, mode).await,
+            9 => acyclic::solve::<9, 8, _>(self, mode).await,
             _ => bail!("Provided player count is not implemented for zero-by."),
         }
     }
@@ -206,38 +206,38 @@ impl<const N: PlayerCount> SimpleUtility<N> for Session<'_> {
 }
 
 impl<const N: PlayerCount> Persistent<N> for Session<'_> {
-    fn prepare(&mut self, mode: IOMode) -> Result<()> {
+    async fn prepare(&mut self, mode: IOMode) -> Result<()> {
         let drop_sql = self.schema.drop_table_query();
         let create_sql = self.schema.create_table_query();
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async {
-                let mut tx = util::game_db()?
-                    .begin()
-                    .await
-                    .context("Failed to begin database transaction.")?;
+        let mut tx = game::util::database()?
+            .begin()
+            .await
+            .context("Failed to begin database transaction.")?;
 
-                match mode {
-                    IOMode::Constructive | IOMode::Forgetful => (),
-                    IOMode::Overwrite => {
-                        sqlx::query(&drop_sql)
-                            .execute(&mut *tx)
-                            .await
-                            .context("Failed to drop existing table")?;
-                    },
-                }
-
-                sqlx::query(&create_sql)
+        match mode {
+            IOMode::Constructive | IOMode::Forgetful => (),
+            IOMode::Overwrite => {
+                sqlx::query(&drop_sql)
                     .execute(&mut *tx)
                     .await
-                    .context("Failed to create table")?;
+                    .context("Failed to drop existing table")?;
+            },
+        }
 
-                self.transaction = Some(tx);
-                Ok(())
-            })
-        })
+        sqlx::query(&create_sql)
+            .execute(&mut *tx)
+            .await
+            .context("Failed to create table")?;
+
+        self.transaction = Some(tx);
+        Ok(())
     }
 
-    fn insert(&mut self, state: &State, info: &Solution<N>) -> Result<()> {
+    async fn insert(
+        &mut self,
+        state: &State,
+        info: &Solution<N>,
+    ) -> Result<()> {
         let tx = if let Some(tx) = &mut self.transaction {
             tx
         } else {
@@ -254,15 +254,11 @@ impl<const N: PlayerCount> Persistent<N> for Session<'_> {
             query = query.bind(*val);
         }
 
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                query.execute(&mut **tx).await?;
-                Ok(())
-            })
-        })
+        query.execute(&mut **tx).await?;
+        Ok(())
     }
 
-    fn select(&mut self, state: &State) -> Result<Option<Solution<N>>> {
+    async fn select(&mut self, state: &State) -> Result<Option<Solution<N>>> {
         let tx = if let Some(tx) = &mut self.transaction {
             tx
         } else {
@@ -272,38 +268,31 @@ impl<const N: PlayerCount> Persistent<N> for Session<'_> {
         let sql = self.schema.select_query();
         let start = self.schema.utility_index();
         let query = sqlx::query(&sql).bind(i64::from_be_bytes(*state));
-        tokio::task::block_in_place(move || {
-            tokio::runtime::Handle::current().block_on(async move {
-                let row_opt = query
-                    .fetch_optional(&mut **tx)
-                    .await?;
-                if let Some(row) = row_opt {
-                    let mut utility: [i64; N] = [0; N];
-                    let player: i32 = row.try_get("player")?;
-                    let remoteness: i64 = row.try_get("remoteness")?;
-                    for (i, item) in utility.iter_mut().enumerate() {
-                        *item = row.try_get(start + i)?;
-                    }
-                    Ok(Some(Solution {
-                        remoteness: remoteness as u32,
-                        utility,
-                        player: player as usize,
-                    }))
-                } else {
-                    Ok(None)
-                }
-            })
-        })
+        let row_opt = query
+            .fetch_optional(&mut **tx)
+            .await?;
+
+        if let Some(row) = row_opt {
+            let mut utility: [i64; N] = [0; N];
+            let player: i32 = row.try_get("player")?;
+            let remoteness: i64 = row.try_get("remoteness")?;
+            for (i, item) in utility.iter_mut().enumerate() {
+                *item = row.try_get(start + i)?;
+            }
+            Ok(Some(Solution {
+                remoteness: remoteness as u32,
+                utility,
+                player: player as usize,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn commit(&mut self) -> Result<()> {
+    async fn commit(&mut self) -> Result<()> {
         if let Some(tx) = self.transaction.take() {
-            tokio::task::block_in_place(move || {
-                tokio::runtime::Handle::current().block_on(async move {
-                    tx.commit().await?;
-                    Ok(())
-                })
-            })
+            tx.commit().await?;
+            Ok(())
         } else {
             bail!("Attempted to commit without a transaction.")
         }

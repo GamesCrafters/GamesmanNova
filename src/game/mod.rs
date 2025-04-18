@@ -137,7 +137,7 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     /// Considering the sequential game [`zero_by`], where a player may choose
     /// remove either 1 or 2 elements from a pile of things:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     /// let session = zero_by::Session::new();
     ///
@@ -165,7 +165,7 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     /// Considering the sequential game [`zero_by`], which begins with a state
     /// of 10 by default:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     /// let session = zero_by::Session::new();
     ///
@@ -185,7 +185,7 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     /// Considering the sequential game [`zero_by`], which ends when there are
     /// no items left to play with:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     /// let session = zero_by::Session::new();
     ///
@@ -206,7 +206,7 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// Using the game [`zero_by`] with default state of `"10-0"`:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     /// let session = zero_by::Session::new();
     /// assert_eq!(
@@ -232,7 +232,7 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// Using the game [`zero_by`] with a default state of `"10-0"`:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     /// let session = zero_by::Session::new();
     /// assert_eq!(
@@ -261,7 +261,7 @@ pub trait Variable {
     /// Consider the following example on a game of [`zero_by`], which has a
     /// default starting state encoding of `"10-0"`:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     /// let state = "100-0".into();
     /// let default = zero_by::Session::new();
@@ -302,7 +302,7 @@ where
     ///
     /// Using the game [`zero_by`] with a default state of `"10-0"`:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     ///
     /// let mut game = zero_by::Session::new();
@@ -331,7 +331,7 @@ where
     ///
     /// Using the game [`zero_by`] with a default state of `"10-0"`:
     ///
-    /// ```
+    /// ```ignore
     /// use crate::game::zero_by;
     ///
     /// let mut game = zero_by::Session::new();

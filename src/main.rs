@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
 /* SUBCOMMAND EXECUTORS */
 
 async fn build(args: BuildArgs) -> Result<()> {
-    util::prepare()
+    game::util::prepare()
         .await
         .context("Failed to prepare solving infrastructure.")?;
 
@@ -67,6 +67,7 @@ async fn build(args: BuildArgs) -> Result<()> {
 
             session
                 .solve(args.mode)
+                .await
                 .context("Failed solver execution for crossteaser.")?
         },
     }
