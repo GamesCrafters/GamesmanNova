@@ -30,7 +30,8 @@ pub fn database() -> Result<Connection> {
     ))?;
 
     db.execute(
-        "PRAGMA synchronous = OFF; \
+        "PRAGMA cache_size = 10000; \
+            PRAGMA synchronous = OFF; \
             PRAGMA journal_mode = MEMORY; \
             PRAGMA temp_store = MEMORY;",
         [],

@@ -143,7 +143,6 @@ impl<const N: PlayerCount> Default for Solution<N> {
 mod test {
 
     use anyhow::Result;
-    use serial_test::serial;
 
     use crate::game::mock::Node;
     use crate::game::mock::SessionBuilder;
@@ -188,7 +187,6 @@ mod test {
         Ok(())
     }
 
-    #[serial]
     #[test]
     fn acyclic_solver_on_sample1() -> Result<()> {
         let s1 = node!(0);
@@ -211,7 +209,6 @@ mod test {
         Ok(())
     }
 
-    #[serial]
     #[test]
     fn acyclic_solver_on_sample2() -> Result<()> {
         let s1 = node!(0);
