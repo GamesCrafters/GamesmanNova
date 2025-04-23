@@ -15,6 +15,10 @@ pub enum SolverError {
     /// detectably violated during execution.
     SolverViolation { name: String, hint: String },
 
+    /// An error to indicate that the limitations of a record implementation
+    /// were exceeded during the execution of a solving algorithm.
+    RecordViolation { name: &'static str, hint: String },
+
     /// An error to indicate that there was an attempt to translate one measure
     /// into another incompatible measure. Provides hints about the input type,
     /// output type, and the reason behind the incompatibility.
@@ -35,6 +39,13 @@ impl fmt::Display for SolverError {
                     f,
                     "An assumption set by the solver '{name}' was violated at \
                     runtime: {hint}",
+                )
+            },
+            Self::RecordViolation { name, hint } => {
+                write!(
+                    f,
+                    "A limitation set by the record implementation '{name}' \
+                    was violated at runtime: {hint}",
                 )
             },
             Self::InvalidConversion {

@@ -21,6 +21,9 @@ use rusqlite::Statement;
 use rusqlite::Transaction;
 use rusqlite::params_from_iter;
 
+use crate::db::sqlite::Persistent;
+use crate::db::sqlite::Queries;
+use crate::db::sqlite::Schema;
 use crate::game::Codec;
 use crate::game::Forward;
 use crate::game::GameData;
@@ -34,14 +37,10 @@ use crate::game::Variant;
 use crate::game::zero_by::states::*;
 use crate::game::zero_by::variants::*;
 use crate::interface::IOMode;
-use crate::solver::Game;
-use crate::solver::Persistent;
-use crate::solver::Queries;
 use crate::solver::SUtility;
+use crate::solver::Sequential;
 use crate::solver::SimpleUtility;
 use crate::solver::Solution;
-use crate::solver::algorithm::acyclic;
-use crate::solver::db::Schema;
 
 /* SUBMODULES */
 
@@ -71,6 +70,7 @@ pub struct Session {
     player_bits: usize,
     players: PlayerCount,
     schema: Schema,
+    name: String,
     by: Vec<Elements>,
 }
 
@@ -85,15 +85,6 @@ impl Session {
 
     pub fn solve(&mut self, mode: IOMode) -> Result<()> {
         match self.players {
-            1 => acyclic::solve::<1, 8, _>(self, mode),
-            2 => acyclic::solve::<2, 8, _>(self, mode),
-            3 => acyclic::solve::<3, 8, _>(self, mode),
-            4 => acyclic::solve::<4, 8, _>(self, mode),
-            5 => acyclic::solve::<5, 8, _>(self, mode),
-            6 => acyclic::solve::<6, 8, _>(self, mode),
-            7 => acyclic::solve::<7, 8, _>(self, mode),
-            8 => acyclic::solve::<8, 8, _>(self, mode),
-            9 => acyclic::solve::<9, 8, _>(self, mode),
             _ => bail!("Provided player count is not implemented for zero-by."),
         }
     }
@@ -146,11 +137,15 @@ impl Variable for Session {
     fn variant(variant: Variant) -> Result<Self> {
         parse_variant(variant).context("Malformed game variant.")
     }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 impl Implicit for Session {
-    fn adjacent(&self, state: State) -> Vec<State> {
-        let (turn, elements) = self.decode_state(state);
+    fn adjacent(&self, state: &State) -> Vec<State> {
+        let (turn, elements) = self.decode_state(*state);
         let mut next = self
             .by
             .iter()
@@ -168,8 +163,8 @@ impl Implicit for Session {
         self.start_state
     }
 
-    fn sink(&self, state: State) -> bool {
-        let (_, elements) = self.decode_state(state);
+    fn sink(&self, state: &State) -> bool {
+        let (_, elements) = self.decode_state(*state);
         elements == 0
     }
 }
@@ -179,28 +174,28 @@ impl Codec for Session {
         Ok(parse_state(self, string)?)
     }
 
-    fn encode(&self, state: State) -> Result<String> {
-        let (turn, elements) = self.decode_state(state);
+    fn encode(&self, state: &State) -> Result<String> {
+        let (turn, elements) = self.decode_state(*state);
         Ok(format!("{elements}-{turn}"))
     }
 }
 
 impl Forward for Session {
-    fn set_verified_start(&mut self, state: State) {
-        self.start_state = state;
+    fn set_verified_start(&mut self, state: &State) {
+        self.start_state = *state;
     }
 }
 
-impl<const N: PlayerCount> Game<N> for Session {
-    fn turn(&self, state: State) -> Player {
-        let (turn, _) = self.decode_state(state);
+impl<const N: PlayerCount> Sequential<N> for Session {
+    fn turn(&self, state: &State) -> Player {
+        let (turn, _) = self.decode_state(*state);
         turn
     }
 }
 
 impl<const N: PlayerCount> SimpleUtility<N> for Session {
-    fn utility(&self, state: State) -> [SUtility; N] {
-        let (turn, _) = self.decode_state(state);
+    fn utility(&self, state: &State) -> [SUtility; N] {
+        let (turn, _) = self.decode_state(*state);
         let mut payoffs = [SUtility::Lose; N];
         payoffs[turn] = SUtility::Win;
         payoffs
@@ -208,6 +203,8 @@ impl<const N: PlayerCount> SimpleUtility<N> for Session {
 }
 
 impl<const N: PlayerCount> Persistent<N> for Session {
+    type Queries = Queries;
+
     fn prepare(
         &mut self,
         tx: &mut Transaction,

@@ -145,7 +145,7 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// If the implementation fails to decode the provided `state`, there are no
     /// behavior guarantees (this many or may not panic).
-    fn adjacent(&self, state: State<B>) -> Vec<State<B>>;
+    fn adjacent(&self, state: &State<B>) -> Vec<State<B>>;
 
     /// Returns one node within the implicit graph.  
     ///
@@ -185,7 +185,12 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     /// // ignoring turn information for illustration purposes
     /// assert!(session.sink(0));
     /// ```
-    fn sink(&self, state: State<B>) -> bool;
+    fn sink(&self, state: &State<B>) -> bool;
+}
+
+pub trait Transpose<const B: usize = DEFAULT_STATE_BYTES> {
+    /// TODO
+    fn adjacent(&self, state: &State<B>) -> Vec<State<B>>;
 }
 
 pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
@@ -238,7 +243,7 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// Fails if `state` is detectably invalid or unreachable in the underlying
     /// game variant.
-    fn encode(&self, state: State<B>) -> Result<String>;
+    fn encode(&self, state: &State<B>) -> Result<String>;
 }
 
 pub trait Variable {
@@ -272,6 +277,9 @@ pub trait Variable {
     fn variant(variant: Variant) -> Result<Self>
     where
         Self: Sized;
+
+    /// TODO
+    fn name(&self) -> &str;
 }
 
 pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
@@ -309,7 +317,7 @@ where
         initial states should be done through [`Forward::forward`], which is \
         fallible and provides verification for game states."
     )]
-    fn set_verified_start(&mut self, state: State<B>);
+    fn set_verified_start(&mut self, state: &State<B>);
 
     /// Advances the game's starting state to the last state in `history`,
     /// verifying that it is a valid traversal of the induced graph on this
@@ -352,7 +360,7 @@ where
         let to = util::verify_state_history(self, history)
             .context("Specified invalid state history.")?;
 
-        self.set_verified_start(to);
+        self.set_verified_start(&to);
         Ok(())
     }
 }

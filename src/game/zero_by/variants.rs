@@ -9,11 +9,11 @@ use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use regex::Regex;
 
+use crate::db::sqlite::SchemaBuilder;
 use crate::game::Player;
 use crate::game::error::GameError;
 use crate::game::zero_by::NAME;
 use crate::game::zero_by::Session;
-use crate::solver::db::SchemaBuilder;
 use crate::util::min_ubits;
 
 /* ZERO-BY VARIANT ENCODING */
@@ -62,6 +62,7 @@ pub fn parse_variant(variant: String) -> Result<Session> {
         player_bits,
         players,
         schema,
+        name: variant,
         by: Vec::from(&params[2..]),
     })
 }

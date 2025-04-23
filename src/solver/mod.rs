@@ -4,15 +4,10 @@
 //! via their implementation of different interfaces defining their behavior,
 //! with the objective of computing their solutions.
 
-use anyhow::Result;
-use rusqlite::Statement;
-use rusqlite::Transaction;
-
 use crate::game::DEFAULT_STATE_BYTES as DBYTES;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
-use crate::interface::IOMode;
 
 /* UTILITY MODULES */
 
@@ -21,18 +16,22 @@ pub mod error;
 
 /* MODULES */
 
-pub mod db;
-pub mod algorithm {
-    pub mod acyclic;
-}
+mod backend;
 
 /* TYPES */
+
+/// Indicates the number of outoing edges that exist from a given game state.
+pub type Degree = u64;
+
+/// An element of a partition of a game graph, where the partition elements are
+/// structured as a DAG as seen through the graph cuts they induce.
+pub type Component = u64;
 
 /// Indicates the number of choices that players have to make to reach a
 /// terminal state in a game under perfect play. For drawing positions,
 /// indicates the number of choices players can make to bring the game to a
 /// state which can transition to a non-drawing state.
-pub type Remoteness = u32;
+pub type Remoteness = u64;
 
 /// A discrete measure of how "good" an outcome is for a given player.
 /// Positive values indicate an overall gain from having played the game,
@@ -44,14 +43,21 @@ pub type IUtility = i64;
 /// game. The specific meaning of each variant can change based on the game
 /// in consideration, but this is ultimately an intuitive notion.
 #[derive(Clone, Copy)]
-#[repr(i8)]
+#[repr(u8)]
 pub enum SUtility {
-    Lose = -1,
-    Tie = 0,
-    Win = 1,
+    Lose = 0,
+    Tie = 1,
+    Win = 2,
 }
 
 /* DEFINITIONS */
+
+/// TODO
+#[derive(Clone, Copy)]
+pub enum UtilityType {
+    Integer,
+    Simple,
+}
 
 /// Values that solving algorithms calculate for each state within a game.
 #[derive(Debug)]
@@ -61,15 +67,9 @@ pub struct Solution<const N: PlayerCount> {
     pub player: Player,
 }
 
-/// SQL query strings to be prepared into pre-compiled statements.
-pub struct Queries {
-    pub insert: String,
-    pub select: String,
-}
-
 /* STRUCTURAL INTERFACES */
 
-pub trait Game<const N: PlayerCount, const B: usize = DBYTES> {
+pub trait Sequential<const N: PlayerCount, const B: usize = DBYTES> {
     /// Returns the player `i` whose turn it is at the given `state`.
     ///
     /// In general, it can be assumed that the player whose turn it is at there
@@ -82,14 +82,19 @@ pub trait Game<const N: PlayerCount, const B: usize = DBYTES> {
     /// `N` is the number of players in the game. Violating this will definitely
     /// result in a program panic at some point. Unfortunately, there are not
     /// many good ways of enforcing this restriction at compilation time.
-    fn turn(&self, state: State<B>) -> Player;
+    fn turn(&self, state: &State<B>) -> Player;
+}
+
+pub trait Partition<const B: usize = DBYTES> {
+    /// TODO
+    fn component(&self, state: &State<B>) -> Component;
 }
 
 /* UTILITY MEASURE INTERFACES */
 
 pub trait IntegerUtility<const N: PlayerCount, const B: usize = DBYTES>
 where
-    Self: Game<N, B>,
+    Self: Sequential<N, B>,
 {
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
@@ -105,12 +110,12 @@ where
     /// each other's coins. Since the coins are discrete, it is only possible
     /// to gain utility in specific increments. We can model this hypothetical
     /// game through this interface.
-    fn utility(&self, state: State<B>) -> [IUtility; N];
+    fn utility(&self, state: &State<B>) -> [IUtility; N];
 }
 
 pub trait SimpleUtility<const N: PlayerCount, const B: usize = DBYTES>
 where
-    Self: Game<N, B>,
+    Self: Sequential<N, B>,
 {
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
@@ -128,14 +133,14 @@ where
     /// to obtain a [`SUtility::Win`] by finishing first (in the event where
     /// utility is defined without 2nd through 6th places), and everyone else
     /// would be assigned a [`SUtility::Lose`].
-    fn utility(&self, state: State<B>) -> [SUtility; N];
+    fn utility(&self, state: &State<B>) -> [SUtility; N];
 }
 
 /* UTILITY STRUCTURE INTERFACES */
 
 pub trait ClassicGame<const B: usize = DBYTES>
 where
-    Self: Game<2, B>,
+    Self: Sequential<2, B>,
 {
     /// Returns the utility of the only player whose turn it is at `state`.
     ///
@@ -159,12 +164,12 @@ where
     /// While the games that implement this interface should be zero-sum, the
     /// type system is not sufficiently rich to enforce such a constraint at
     /// compilation time, so sum specifications are generally left to semantics.
-    fn utility(&self, state: State<B>) -> SUtility;
+    fn utility(&self, state: &State<B>) -> SUtility;
 }
 
 pub trait ClassicPuzzle<const B: usize = DBYTES>
 where
-    Self: Game<1, B>,
+    Self: Sequential<1, B>,
 {
     /// Returns the utility of the only player in the puzzle at `state`.
     ///
@@ -191,53 +196,6 @@ where
     fn utility(&self, state: State<B>) -> SUtility;
 }
 
-/* PERSISTENCE INTERFACES */
-
-#[allow(async_fn_in_trait)]
-pub trait Persistent<const N: PlayerCount, const B: usize = DBYTES> {
-    /// Stores `info` under the key `state`, replacing an existing entry.
-    ///
-    /// This is used for persistence purposes. More information than `info` may
-    /// be stored alongside `info` as a side effect. The effects of this may not
-    /// persist unless `commit` is called afterwards.
-    ///
-    /// # Errors
-    ///
-    /// When `prepare` is not called before `insert`.
-    fn insert(
-        &mut self,
-        stmt: &mut Statement,
-        state: &State<B>,
-        info: &Solution<N>,
-    ) -> Result<()>;
-
-    /// Retrieves the entry associated with `state`, or `None`.
-    ///
-    /// Entries are inserted through `insert`. The effects of this may not be
-    /// persistent unless `commit` is called afterwards.
-    ///
-    /// # Errors
-    ///
-    /// When `prepare` is not called before `select`.
-    fn select(
-        &mut self,
-        stmt: &mut Statement,
-        state: &State<B>,
-    ) -> Result<Option<Solution<N>>>;
-
-    /// Prepares the underlying store for a series of calls to `insert` and
-    /// `select`, according to `mode`.
-    ///
-    /// # Errors
-    ///
-    /// On a variety of conditions which depend on the underlying store.
-    fn prepare(
-        &mut self,
-        tx: &mut Transaction,
-        mode: IOMode,
-    ) -> Result<Queries>;
-}
-
 /* BLANKET IMPLEMENTATIONS */
 
 // All N-player simple-utility games are also N-player integer-utility games.
@@ -245,13 +203,14 @@ impl<const N: PlayerCount, const B: usize, G> IntegerUtility<N, B> for G
 where
     G: SimpleUtility<N, B>,
 {
-    fn utility(&self, state: State<B>) -> [IUtility; N] {
+    fn utility(&self, state: &State<B>) -> [IUtility; N] {
         let sutility = self.utility(state);
         let mut iutility = [0; N];
         iutility
             .iter_mut()
             .enumerate()
-            .for_each(|(i, u)| *u = sutility[i].into());
+            .for_each(|(i, u)| *u = IUtility::from(sutility[i]) - 1);
+
         iutility
     }
 }
@@ -261,7 +220,7 @@ impl<const B: usize, G> SimpleUtility<2, B> for G
 where
     G: ClassicGame<B>,
 {
-    fn utility(&self, state: State<B>) -> [SUtility; 2] {
+    fn utility(&self, state: &State<B>) -> [SUtility; 2] {
         let mut sutility = [SUtility::Tie; 2];
         let utility = self.utility(state);
         let turn = self.turn(state);
@@ -277,7 +236,7 @@ impl<const B: usize, G> SimpleUtility<1, B> for G
 where
     G: ClassicPuzzle<B>,
 {
-    fn utility(&self, state: State<B>) -> [SUtility; 1] {
-        [self.utility(state)]
+    fn utility(&self, state: &State<B>) -> [SUtility; 1] {
+        [self.utility(*state)]
     }
 }

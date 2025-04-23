@@ -5,9 +5,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
-use rusqlite::Connection;
 
-use std::env;
 use std::fmt::Display;
 
 use crate::game::GameData;
@@ -15,31 +13,6 @@ use crate::game::Information;
 use crate::game::State;
 use crate::game::{Codec, Implicit, error::GameError};
 use crate::interface::GameAttribute;
-
-/* DATABASE */
-
-/// Parses environment variables and establishes an SQLite connection to the
-/// global game solution database.
-pub fn database() -> Result<Connection> {
-    let path = env::var("DATABASE")
-        .context("DATABASE environment variable not set.")?;
-
-    let db = Connection::open(&path).context(format!(
-        "Failed to initialize SQLite connection to {}",
-        path
-    ))?;
-
-    db.execute(
-        "PRAGMA cache_size = 10000; \
-            PRAGMA synchronous = OFF; \
-            PRAGMA journal_mode = MEMORY; \
-            PRAGMA temp_store = MEMORY;",
-        [],
-    )
-    .context("Failed to tune SQLite database options.")?;
-
-    Ok(db)
-}
 
 /* STATE HISTORY VERIFICATION */
 
@@ -65,7 +38,7 @@ where
                     .decode(s)
                     .context(format!("Failed to parse line #{l}."))?;
 
-                if target.sink(prev) {
+                if target.sink(&prev) {
                     bail!(
                         terminal_history_error(target, prev, next)?.context(
                             format!(
@@ -75,7 +48,7 @@ where
                     )
                 }
 
-                let transitions = target.adjacent(prev);
+                let transitions = target.adjacent(&prev);
                 if !transitions.contains(&next) {
                     bail!(
                         transition_history_error(target, prev, next)?.context(
@@ -94,7 +67,7 @@ where
                 hint: format!(
                     "The state history must begin with the starting state for \
                     the provided game variant, which is {}.",
-                    target.encode(target.source())?
+                    target.encode(&target.source())?
                 ),
             })
         }
@@ -131,8 +104,8 @@ where
         hint: format!(
             "Transitioning from the state '{}' to the sate '{}' is illegal in \
             the provided target variant.",
-            target.encode(prev)?,
-            target.encode(next)?,
+            target.encode(&prev)?,
+            target.encode(&next)?,
         ),
     })
 }
@@ -150,9 +123,9 @@ where
         hint: format!(
             "Transitioning from the state '{}' to the sate '{}' is illegal in \
             the provided target variant, because '{}' is a terminal state.",
-            target.encode(prev)?,
-            target.encode(next)?,
-            target.encode(prev)?,
+            target.encode(&prev)?,
+            target.encode(&next)?,
+            target.encode(&prev)?,
         ),
     })
 }

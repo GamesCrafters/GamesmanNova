@@ -27,11 +27,11 @@ use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::State;
 use crate::interface::IOMode;
-use crate::solver::Game;
 use crate::solver::IUtility;
 use crate::solver::IntegerUtility;
 use crate::solver::Persistent;
 use crate::solver::Queries;
+use crate::solver::Sequential;
 use crate::solver::Solution;
 use crate::solver::db::Schema;
 
@@ -145,7 +145,7 @@ impl Implicit for Session<'_> {
 
 /* SOLVING IMPLEMENTATIONS */
 
-impl<const N: PlayerCount> Game<N> for Session<'_> {
+impl<const N: PlayerCount> Sequential<N> for Session<'_> {
     fn turn(&self, state: State) -> Player {
         match self.node(state) {
             Node::Terminal(player, _) => *player,

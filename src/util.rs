@@ -3,9 +3,6 @@
 //! This module makes room for verbose or repeated routines used in the
 //! top-level module of this crate.
 
-use std::collections::HashSet;
-use std::hash::Hash;
-
 /* BIT FIELDS */
 
 /// Returns the minimum number of bits required to represent unsigned `val`.
@@ -14,18 +11,17 @@ pub const fn min_ubits(val: u64) -> usize {
     (u64::BITS - val.leading_zeros()) as usize
 }
 
-/* MISC */
-
-/// Returns the first duplicate found in `vec`.
-pub fn first_duplicate<T: Eq + Hash + Clone>(vec: &[T]) -> Option<T> {
-    let mut seen = HashSet::new();
-    for item in vec {
-        if !seen.insert(item) {
-            return Some(item.clone());
-        }
+/// Returns the minimum number of bits required to represent signed `val`.
+#[inline(always)]
+pub const fn min_sbits(val: i64) -> usize {
+    if val >= 0 {
+        min_ubits(val as u64) + 1
+    } else {
+        min_ubits(((-val) - 1) as u64) + 1
     }
-    None
 }
+
+/* MISC */
 
 /* DECLARATIVE MACROS */
 

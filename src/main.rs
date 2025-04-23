@@ -30,6 +30,7 @@ mod interface;
 mod solver;
 mod game;
 mod util;
+mod db;
 
 /* PROGRAM ENTRY */
 

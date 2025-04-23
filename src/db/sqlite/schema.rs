@@ -1,14 +1,13 @@
-//! # Solver Database Module
+//! # SQLite Database Module
 //!
 //! Contains abstractions for handling database logic, including schema
-//! definitions and constructors.
+//! definitions and constructors for SQLite constructs.
 
 use anyhow::Result;
 use anyhow::bail;
 
+use crate::db::sqlite::util;
 use crate::game::PlayerCount;
-use crate::solver::util::sqlize;
-use crate::util;
 
 /* DEFINITIONS */
 
@@ -38,13 +37,13 @@ pub struct Schema {
     key: Column,
 }
 
-/* QUERY UTILITIES */
+/* UTILITY IMPLEMENTATIONS */
 
 impl SchemaBuilder {
     /// Initialize a schema builder for a table with the provided `name`.
     pub fn new(table: &str) -> Self {
         Self {
-            table: sqlize(table),
+            table: util::sqlize(table),
             columns: Vec::new(),
             players: None,
             key: None,
@@ -176,7 +175,7 @@ impl Schema {
         self.len() - self.players
     }
 
-    /* UTILS */
+    /* UTILITY */
 
     fn len(&self) -> usize {
         self.columns.len() + 1
@@ -237,8 +236,8 @@ impl Schema {
 impl Column {
     fn new(name: &str, data: &str) -> Self {
         Self {
-            name: sqlize(name),
-            data: sqlize(data),
+            name: util::sqlize(name),
+            data: util::sqlize(data),
         }
     }
 
