@@ -23,6 +23,7 @@ pub mod error;
 pub mod mock;
 
 pub mod zero_by;
+pub mod mnk;
 
 /* TYPES */
 
@@ -48,6 +49,9 @@ pub type PlayerCount = Player;
 pub enum GameModule {
     /// Abstract game played over sets of items.
     ZeroBy,
+
+    /// Generalized version of Tic-Tac-Toe.
+    Mnk,
 }
 
 /// Contains useful data about a game.

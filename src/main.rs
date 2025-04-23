@@ -18,6 +18,7 @@ use std::process;
 use crate::game::Forward;
 use crate::game::GameModule;
 use crate::game::Information;
+use crate::game::mnk;
 use crate::game::zero_by;
 use crate::interface::cli::*;
 
@@ -64,6 +65,21 @@ fn build(args: BuildArgs) -> Result<()> {
                 .solve(args.mode)
                 .context("Failed solver execution for crossteaser.")?
         },
+        GameModule::Mnk => {
+            let mut session = zero_by::Session::new(args.variant)?;
+            if args.forward {
+                let input = stdin_lines()
+                    .context("Failed to read STDIN history input.")?;
+
+                session
+                    .forward(input)
+                    .context("Failed to forward state with history input.")?
+            }
+
+            session
+                .solve(args.mode)
+                .context("Failed solver execution for crossteaser.")?
+        },
     }
     Ok(())
 }
@@ -71,6 +87,7 @@ fn build(args: BuildArgs) -> Result<()> {
 fn info(args: InfoArgs) -> Result<()> {
     let data = match args.target {
         GameModule::ZeroBy => zero_by::Session::info(),
+        GameModule::Mnk => mnk::Session::info(),
     };
     interface::cli::format_and_output_game_attributes(
         data,
