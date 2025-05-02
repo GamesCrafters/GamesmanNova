@@ -120,7 +120,7 @@ impl Session {
 impl Default for Session {
     fn default() -> Self {
         parse_variant(VARIANT_DEFAULT.to_owned())
-            .expect("Failed to parse default state.")
+            .expect("Failed to parse default variant.")
     }
 }
 
