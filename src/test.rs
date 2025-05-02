@@ -52,9 +52,10 @@ pub fn database() -> Result<Connection> {
     let db = match test_setting()? {
         TestSetting::Correctness => Connection::open_in_memory()
             .context("Failed to establish connection to in-memory database.")?,
+
         TestSetting::Development => {
             let path = env::var("TEST_DATABASE")
-                .context("DATABASE environment variable not set.")?;
+                .context("TEST_DATABASE environment variable not set.")?;
 
             Connection::open(&path).context(format!(
                 "Failed to initialize SQLite connection to {}",

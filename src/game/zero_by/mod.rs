@@ -176,7 +176,7 @@ impl Implicit for Session {
 
 impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
-        Ok(parse_state(self, string)?)
+        decode_state_string(self, string)
     }
 
     fn encode(&self, state: State) -> Result<String> {

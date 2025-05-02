@@ -1,6 +1,8 @@
 //! # MNK Game Module
 //!
-//! TODO
+//! The m,n,k game is a generalization of Tic-Tac-Toe that is also acyclic. It
+//! allows for play on an m-by-n board, where k symbols in a row belonging to
+//! either of the two players results in an immediate win for that player.
 
 use anyhow::Context;
 use anyhow::Result;
@@ -40,6 +42,19 @@ use crate::solver::db::Schema;
 mod states;
 mod variants;
 
+/* DEFINITIONS */
+
+type Board = [[Symbol; MAX_BOARD_SIDE]; MAX_BOARD_SIDE];
+
+const MAX_BOARD_SIDE: usize = 10;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Symbol {
+    B = 0,
+    X = 1,
+    O = 2,
+}
+
 /* GAME DATA */
 
 const NAME: &str = "mnk";
@@ -50,17 +65,6 @@ row, which may be diagonally, horizontally, or vertically, wins the game. \
 Skipping moves is not allwed; players must place a symbol on their turn.";
 
 /* GAME IMPLEMENTATION */
-
-type Board = [[Symbol; MAX_SIZE]; MAX_SIZE];
-
-const MAX_SIZE: usize = 10;
-
-#[derive(Clone, Copy, PartialEq)]
-enum Symbol {
-    B = 0,
-    X = 1,
-    O = 2,
-}
 
 pub struct Session {
     schema: Schema,
@@ -102,7 +106,7 @@ impl Session {
     fn decode_state(&self, state: State) -> (Player, Board) {
         let state = BitArray::<[u8; 8], Msb0>::from(state);
         let turn = state[..1].load_be::<Player>();
-        let mut board = [[Symbol::B; MAX_SIZE]; MAX_SIZE];
+        let mut board = [[Symbol::B; MAX_BOARD_SIDE]; MAX_BOARD_SIDE];
         (0..self.m).for_each(|i| {
             for j in 0..self.n {
                 let start = 1 + 2 * (i * self.n + j);
@@ -187,7 +191,7 @@ impl Implicit for Session {
     }
 
     fn source(&self) -> State {
-        let board = [[Symbol::B; MAX_SIZE]; MAX_SIZE];
+        let board = [[Symbol::B; MAX_BOARD_SIDE]; MAX_BOARD_SIDE];
         self.encode_state(1, &board)
     }
 
@@ -201,11 +205,12 @@ impl Implicit for Session {
 
 impl Codec for Session {
     fn decode(&self, string: String) -> Result<State> {
-        todo!()
+        decode_state_string(self, string)
     }
 
     fn encode(&self, state: State) -> Result<String> {
-        todo!()
+        let (_turn, board) = self.decode_state(state);
+        encode_state_string(self, &board)
     }
 }
 

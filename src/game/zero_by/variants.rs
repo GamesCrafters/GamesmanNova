@@ -33,8 +33,7 @@ of the numbers, the only consequence will be a slight decrease in performance.";
 /* API */
 
 /// Returns a zero-by game session set up using the parameters specified by
-/// `variant`. Returns a `GameError::VariantMalformed` if the variant string
-/// does not conform to the variant protocol.
+/// `variant`.
 pub fn parse_variant(variant: String) -> Result<Session> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
