@@ -53,7 +53,7 @@ Skipping moves is not allwed; players must place a symbol on their turn.";
 
 type Board = [[Symbol; MAX_SIZE]; MAX_SIZE];
 
-const MAX_SIZE: usize = 8;
+const MAX_SIZE: usize = 10;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Symbol {
@@ -192,9 +192,10 @@ impl Implicit for Session {
     }
 
     fn sink(&self, state: State) -> bool {
-        let (turn, board) = self.decode_state(state);
-        let sym = if turn == 1 { Symbol::X } else { Symbol::O };
-        self.win(&board, sym) || self.draw(&board)
+        let (_, board) = self.decode_state(state);
+        self.win(&board, Symbol::O)
+            || self.win(&board, Symbol::X)
+            || self.draw(&board)
     }
 }
 

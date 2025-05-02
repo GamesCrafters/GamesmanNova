@@ -63,7 +63,10 @@ fn build(args: BuildArgs) -> Result<()> {
 
             session
                 .solve(args.mode)
-                .context("Failed solver execution for crossteaser.")?
+                .context(format!(
+                    "Failed solver execution for {}.",
+                    zero_by::Session::info().name
+                ))?
         },
         GameModule::Mnk => {
             let mut session = mnk::Session::new(args.variant)?;
@@ -78,7 +81,10 @@ fn build(args: BuildArgs) -> Result<()> {
 
             session
                 .solve(args.mode)
-                .context("Failed solver execution for crossteaser.")?
+                .context(format!(
+                    "Failed solver execution for {}.",
+                    mnk::Session::info().name
+                ))?
         },
     }
     Ok(())
