@@ -66,7 +66,7 @@ fn build(args: BuildArgs) -> Result<()> {
                 .context("Failed solver execution for crossteaser.")?
         },
         GameModule::Mnk => {
-            let mut session = zero_by::Session::new(args.variant)?;
+            let mut session = mnk::Session::new(args.variant)?;
             if args.forward {
                 let input = stdin_lines()
                     .context("Failed to read STDIN history input.")?;
