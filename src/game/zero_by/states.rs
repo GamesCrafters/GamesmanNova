@@ -4,6 +4,7 @@
 //! a more efficient binary representation, performing a series of checks which
 //! partially ensure compatibility with a game variant.
 
+use anyhow::Result;
 use regex::Regex;
 
 use crate::game::Player;
@@ -17,12 +18,13 @@ use crate::game::zero_by::Session;
 
 pub const STATE_DEFAULT: &str = "10-0";
 pub const STATE_PATTERN: &str = r"^\d+-\d+$";
-pub const STATE_PROTOCOL: &str = "The state string should be two dash-separated positive integers without any \
-decimal points. The first integer will indicate the amount of elements left to \
-remove from the set, and the second indicates whose turn it is to remove an \
-element. The first integer must be less than or equal to the number of initial \
-elements specified by the game variant. Likewise, the second integer must be \
-strictly less than the number of players in the game.";
+pub const STATE_PROTOCOL: &str = "A state string should be two dash-separated \
+positive integers without any decimal points. The first integer will indicate \
+the amount of elements left to remove from the set, and the second indicates \
+whose turn it is to remove an element. The first integer must be less than or \
+equal to the number of initial elements specified by the game variant. \
+Likewise, the second integer must be strictly less than the number of players \
+in the game.";
 
 /* API */
 
@@ -30,10 +32,7 @@ strictly less than the number of players in the game.";
 /// pre-verified game variant combined with the state update provided by the
 /// state encoded in `from`. This does not verify that the provided `from` is
 /// reachable in `session`'s game variant.
-pub fn parse_state(
-    session: &Session,
-    from: String,
-) -> Result<State, GameError> {
+pub fn decode_state_string(session: &Session, from: String) -> Result<State> {
     check_state_pattern(&from)?;
     let params = parse_parameters(&from)?;
     let (elements, turn) = check_param_count(&params)?;
@@ -141,7 +140,8 @@ mod test {
 
         assert_eq!(
             with_none.start_state,
-            parse_state(&with_default, STATE_DEFAULT.to_string()).unwrap()
+            decode_state_string(&with_default, STATE_DEFAULT.to_string())
+                .unwrap()
         );
     }
 
@@ -160,13 +160,13 @@ mod test {
             Session::default()
         }
 
-        assert!(parse_state(&f(), s1).is_err());
-        assert!(parse_state(&f(), s2).is_err());
-        assert!(parse_state(&f(), s3).is_err());
-        assert!(parse_state(&f(), s4).is_err());
-        assert!(parse_state(&f(), s5).is_err());
-        assert!(parse_state(&f(), s6).is_err());
-        assert!(parse_state(&f(), s7).is_err());
+        assert!(decode_state_string(&f(), s1).is_err());
+        assert!(decode_state_string(&f(), s2).is_err());
+        assert!(decode_state_string(&f(), s3).is_err());
+        assert!(decode_state_string(&f(), s4).is_err());
+        assert!(decode_state_string(&f(), s5).is_err());
+        assert!(decode_state_string(&f(), s6).is_err());
+        assert!(decode_state_string(&f(), s7).is_err());
     }
 
     #[test]
@@ -183,13 +183,13 @@ mod test {
             Session::default()
         }
 
-        assert!(parse_state(&f(), s1).is_ok());
-        assert!(parse_state(&f(), s2).is_ok());
-        assert!(parse_state(&f(), s3).is_ok());
-        assert!(parse_state(&f(), s4).is_ok());
-        assert!(parse_state(&f(), s5).is_ok());
-        assert!(parse_state(&f(), s6).is_ok());
-        assert!(parse_state(&f(), s7).is_ok());
+        assert!(decode_state_string(&f(), s1).is_ok());
+        assert!(decode_state_string(&f(), s2).is_ok());
+        assert!(decode_state_string(&f(), s3).is_ok());
+        assert!(decode_state_string(&f(), s4).is_ok());
+        assert!(decode_state_string(&f(), s5).is_ok());
+        assert!(decode_state_string(&f(), s6).is_ok());
+        assert!(decode_state_string(&f(), s7).is_ok());
     }
 
     #[test]
@@ -202,24 +202,24 @@ mod test {
         let s2 = "150-9".to_owned();
         let s3 = "200-0".to_owned();
 
-        assert!(parse_state(&variant(v1)?, s1.clone()).is_ok());
-        assert!(parse_state(&variant(v1)?, s2.clone()).is_err());
-        assert!(parse_state(&variant(v1)?, s3.clone()).is_err());
+        assert!(decode_state_string(&variant(v1)?, s1.clone()).is_ok());
+        assert!(decode_state_string(&variant(v1)?, s2.clone()).is_err());
+        assert!(decode_state_string(&variant(v1)?, s3.clone()).is_err());
 
-        assert!(parse_state(&variant(v2)?, s1.clone()).is_ok());
-        assert!(parse_state(&variant(v2)?, s2.clone()).is_err());
-        assert!(parse_state(&variant(v2)?, s3.clone()).is_err());
+        assert!(decode_state_string(&variant(v2)?, s1.clone()).is_ok());
+        assert!(decode_state_string(&variant(v2)?, s2.clone()).is_err());
+        assert!(decode_state_string(&variant(v2)?, s3.clone()).is_err());
 
-        assert!(parse_state(&variant(v3)?, s1.clone()).is_ok());
-        assert!(parse_state(&variant(v3)?, s2.clone()).is_ok());
-        assert!(parse_state(&variant(v3)?, s3.clone()).is_ok());
+        assert!(decode_state_string(&variant(v3)?, s1.clone()).is_ok());
+        assert!(decode_state_string(&variant(v3)?, s2.clone()).is_ok());
+        assert!(decode_state_string(&variant(v3)?, s3.clone()).is_ok());
         Ok(())
     }
 
     /* GAME HISTORY VERIFICATION */
 
     #[test]
-    fn verify_incorrect_default_zero_by_history_fails() {
+    fn verify_incorrect_default_history_fails() {
         let i1 = vec!["10-0", "9-1", "8-0", "5-1"]; // Illegal move
         let i2 = vec!["10-0", "8-0", "7-0", "5-1"]; // Turns don't switch
         let i3 = vec!["10-1", "8-0", "7-1", "5-0"]; // Starting turn wrong
@@ -272,7 +272,7 @@ mod test {
     }
 
     #[test]
-    fn verify_correct_default_zero_by_history_passes() {
+    fn verify_correct_default_history_passes() {
         let c1 = vec!["10-0", "8-1", " ", "6-0", "4-1", "2-0", "0-1"];
         let c2 = vec!["", "10-0", "8-1", "6-0", "4-1", "2-0"];
         let c3 = vec!["10-0", "9-1", "", "", "7-0", "6-1"];
@@ -318,7 +318,7 @@ mod test {
     }
 
     #[test]
-    fn verify_zero_by_history_compatibility() -> Result<()> {
+    fn verify_history_compatibility() -> Result<()> {
         let v = "8-200-30-70-15-1";
 
         let c1 = vec![

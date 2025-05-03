@@ -1,6 +1,6 @@
-//! # Zero-By Variant Handling Module
+//! # MNK Variant Handling Module
 //!
-//! This module helps parse the variant string provided to the Zero-By game
+//! This module helps parse the variant string provided to the m,n,k game
 //! into parameters that can help build a game session.
 
 use anyhow::Result;
@@ -9,70 +9,61 @@ use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use regex::Regex;
 
-use crate::game::Player;
 use crate::game::error::GameError;
-use crate::game::zero_by::NAME;
-use crate::game::zero_by::Session;
+use crate::game::mnk::MAX_BOARD_SIDE;
+use crate::game::mnk::NAME;
+use crate::game::mnk::Session;
 use crate::solver::db::SchemaBuilder;
-use crate::util::min_ubits;
 
-/* ZERO-BY VARIANT ENCODING */
+/* MNK VARIANT ENCODING */
 
-pub const VARIANT_DEFAULT: &str = "2-10-1-2";
-pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
-pub const VARIANT_PROTOCOL: &str = "The variant should be a dash-separated \
-group of three or more positive integers. For example, '4-232-23-6-3-6' is \
-valid but '598', '-23-1-5', and 'fifteen-2-5' are not. The first integer \
-represents the number of players in the game. The second integer represents \
-the number of elements in the set. The rest are choices that the players have \
-when they need to remove a number of pieces on their turn. Note that the \
-numbers can be repeated, but if you repeat the first number it will be a win \
-for the player with the first turn in 1 move. If you repeat any of the rest \
-of the numbers, the only consequence will be a slight decrease in performance.";
+pub const VARIANT_DEFAULT: &str = "3-3-3";
+pub const VARIANT_PATTERN: &str =
+    r"^([1-9][0-9]*)-([1-9][0-9]*)-([1-9][0-9]*)$";
+
+pub const VARIANT_PROTOCOL: &str = "Three nonzero positive integers separated \
+by dashes, in the form M-N-K. Here, M and N are the dimensions of the board, \
+and K is the number of symbols which, when placed in a row, result in a win.";
 
 /* API */
 
-/// Returns a zero-by game session set up using the parameters specified by
+/// Returns an m,n,k-game session set up using the parameters specified by
 /// `variant`.
 pub fn parse_variant(variant: String) -> Result<Session> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
     check_params_are_positive(&params)?;
-    let players = parse_player_count(&params)?;
-
-    let start_elems = params[1];
-    let mut start_state: BitArray<_, Msb0> = BitArray::ZERO;
-    let player_bits = min_ubits(players as u64);
-    start_state[..player_bits].store_be(Player::default());
-    start_state[player_bits..].store_be(start_elems);
+    check_dimensionality(&params)?;
 
     let table = format!("{}_{}", NAME, variant);
     let schema = SchemaBuilder::new(&table)
-        .players(players)
+        .players(2)
         .key("state", "INTEGER")
         .column("remoteness", "INTEGER")
         .column("player", "INTEGER")
         .build()?;
 
+    let mut state = BitArray::<_, Msb0>::ZERO;
+    state[..1].store_be(1);
+
     Ok(Session {
-        start_state: start_state.data,
-        start_elems,
-        player_bits,
-        players,
         schema,
-        by: Vec::from(&params[2..]),
+        start: state.data,
+        m: params[0],
+        n: params[1],
+        k: params[2],
     })
 }
 
-/* VARIANT STRING VERIFICATION */
+/* HELPERS */
 
-fn parse_parameters(variant: &str) -> Result<Vec<u64>, GameError> {
-    let params: Result<Vec<u64>, _> = variant
+fn parse_parameters(variant: &str) -> Result<Vec<usize>, GameError> {
+    let params: Result<Vec<usize>, _> = variant
         .split('-')
         .map(|int_string| {
             int_string
-                .parse::<u64>()
+                .parse::<usize>()
                 .map_err(|e| GameError::VariantMalformed {
                     game: NAME,
                     hint: e.to_string(),
@@ -96,11 +87,11 @@ fn check_variant_pattern(variant: &str) -> Result<(), GameError> {
     }
 }
 
-fn check_param_count(params: &[u64]) -> Result<(), GameError> {
-    if params.len() < 3 {
+fn check_param_count(params: &[usize]) -> Result<(), GameError> {
+    if params.len() != 3 {
         Err(GameError::VariantMalformed {
             game: NAME,
-            hint: "String needs to have at least 3 dash-separated integers."
+            hint: "String needs to have exactly 3 dash-separated integers."
                 .to_string(),
         })
     } else {
@@ -108,7 +99,7 @@ fn check_param_count(params: &[u64]) -> Result<(), GameError> {
     }
 }
 
-fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
+fn check_params_are_positive(params: &[usize]) -> Result<(), GameError> {
     if params.iter().any(|&x| x == 0) {
         Err(GameError::VariantMalformed {
             game: NAME,
@@ -119,18 +110,42 @@ fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
     }
 }
 
-fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
-    if params[0] > (Player::MAX as u64) {
-        Err(GameError::VariantMalformed {
+fn check_dimensionality(params: &[usize]) -> Result<(), GameError> {
+    if params[0] > MAX_BOARD_SIDE {
+        return Err(GameError::VariantMalformed {
             game: NAME,
             hint: format!(
-                "The number of players in the game must be lower than {}.",
-                Player::MAX
+                "Dimension 'm = {}' is too large. Maximum is {}.",
+                params[0], MAX_BOARD_SIDE,
             ),
-        })
-    } else {
-        Ok(Player::try_from(params[0]).unwrap())
+        });
     }
+
+    if params[1] > MAX_BOARD_SIDE {
+        return Err(GameError::VariantMalformed {
+            game: NAME,
+            hint: format!(
+                "Dimension 'n = {}' is too large. Maximum is {}.",
+                params[1], MAX_BOARD_SIDE,
+            ),
+        });
+    }
+
+    // State encodings are 64 bits. One bit is used to store turns efficiently.
+    // The remaining 63 bits are used to store board slots. Each slot needs 2
+    // bits. So, 2 * m * n cannot be  greater than 63.
+    if 2 * params[0] * params[1] > 63 {
+        return Err(GameError::VariantMalformed {
+            game: NAME,
+            hint: format!(
+                "Dimensions are too large for state encoding scheme. Ensure \
+                that (m * n * 2) < 63. Currently, it is {}.",
+                params[0] * params[1],
+            ),
+        });
+    }
+
+    Ok(())
 }
 
 /* TESTS */
@@ -163,18 +178,20 @@ mod test {
     fn no_variant_equals_default_variant() -> Result<()> {
         let with_none = Session::default();
         let with_default = Session::variant(VARIANT_DEFAULT.to_owned())?;
-        assert_eq!(with_none.start_state, with_default.start_state);
-        assert_eq!(with_none.by, with_default.by);
+        assert_eq!(with_none.start, with_default.start);
+        assert_eq!(with_none.m, with_default.m);
+        assert_eq!(with_none.n, with_default.n);
+        assert_eq!(with_none.k, with_default.k);
         Ok(())
     }
 
     #[test]
     fn invalid_variants_fail_checks() {
-        let v1 = "23-34-0-23";
+        let v1 = "23-34-0-";
         let v2 = "two-three-five";
         let v3 = "234572342-2345";
-        let v4 = "34-236--8-6-3";
-        let v5 = "0-12-234-364";
+        let v4 = "34--236-3";
+        let v5 = "364";
         let v6 = "-234-256";
 
         fn wrapper(v: &'static str) -> Result<Session> {
@@ -191,11 +208,10 @@ mod test {
 
     #[test]
     fn valid_variants_pass_checks() {
-        let v1 = "5-1000-8-23-63-7";
-        let v2 = "1-1-1";
-        let v3 = "34-23623-8-6-3";
-        let v4 = "5-2-8-23";
-        let v5 = "1-619-496-1150";
+        let v1 = "4-4-4";
+        let v2 = "3-3-3";
+        let v3 = "2-4-2";
+        let v4 = "3-2-3";
 
         fn wrapper(v: &'static str) -> Result<Session> {
             parse_variant(v.to_owned())
@@ -205,6 +221,22 @@ mod test {
         assert!(wrapper(v2).is_ok());
         assert!(wrapper(v3).is_ok());
         assert!(wrapper(v4).is_ok());
-        assert!(wrapper(v5).is_ok());
+    }
+
+    #[test]
+    fn too_high_dimensional_variant_fails_checks() {
+        let v1 = "8-4-4";
+        let v2 = "7-9-3";
+        let v3 = "7-5-5";
+        let v4 = "4-10-2";
+
+        fn wrapper(v: &'static str) -> Result<Session> {
+            parse_variant(v.to_owned())
+        }
+
+        assert!(wrapper(v1).is_err());
+        assert!(wrapper(v2).is_err());
+        assert!(wrapper(v3).is_err());
+        assert!(wrapper(v4).is_err());
     }
 }
