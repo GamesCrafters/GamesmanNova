@@ -219,7 +219,7 @@ mod test {
     /* GAME HISTORY VERIFICATION */
 
     #[test]
-    fn verify_incorrect_default_zero_by_history_fails() {
+    fn verify_incorrect_default_history_fails() {
         let i1 = vec!["10-0", "9-1", "8-0", "5-1"]; // Illegal move
         let i2 = vec!["10-0", "8-0", "7-0", "5-1"]; // Turns don't switch
         let i3 = vec!["10-1", "8-0", "7-1", "5-0"]; // Starting turn wrong
@@ -272,7 +272,7 @@ mod test {
     }
 
     #[test]
-    fn verify_correct_default_zero_by_history_passes() {
+    fn verify_correct_default_history_passes() {
         let c1 = vec!["10-0", "8-1", " ", "6-0", "4-1", "2-0", "0-1"];
         let c2 = vec!["", "10-0", "8-1", "6-0", "4-1", "2-0"];
         let c3 = vec!["10-0", "9-1", "", "", "7-0", "6-1"];
@@ -318,7 +318,7 @@ mod test {
     }
 
     #[test]
-    fn verify_zero_by_history_compatibility() -> Result<()> {
+    fn verify_history_compatibility() -> Result<()> {
         let v = "8-200-30-70-15-1";
 
         let c1 = vec![
