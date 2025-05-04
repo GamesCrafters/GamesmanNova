@@ -4,6 +4,9 @@
 //! allows for play on an m-by-n board, where k symbols in a row belonging to
 //! either of the two players results in an immediate win for that player.
 
+use std::collections::HashSet;
+use std::collections::VecDeque;
+
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -41,6 +44,7 @@ use crate::solver::db::Schema;
 
 mod states;
 mod variants;
+mod features;
 
 /* DEFINITIONS */
 
@@ -48,7 +52,7 @@ type Board = [[Symbol; MAX_BOARD_SIDE]; MAX_BOARD_SIDE];
 
 const MAX_BOARD_SIDE: usize = 10;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Symbol {
     B = 0,
     X = 1,
@@ -136,6 +140,64 @@ impl Session {
 
     fn draw(&self, board: &Board) -> bool {
         (0..self.m).all(|i| (0..self.n).all(|j| board[i][j] != Symbol::B))
+    }
+
+    fn canonical(&self, state: State) -> State {
+        *self
+            .orbit(state)
+            .iter()
+            .min_by_key(|&s| {
+                BitArray::<[u8; 8], Msb0>::from(*s).load_be::<u64>()
+            })
+            .unwrap()
+    }
+
+    fn orbit(&self, state: State) -> Vec<State> {
+        let (turn, board0) = self.decode_state(state);
+        let m = self.m;
+        let n = self.n;
+
+        fn rotate(b: &Board, m: usize, n: usize) -> (Board, usize, usize) {
+            let mut nb = [[Symbol::B; MAX_BOARD_SIDE]; MAX_BOARD_SIDE];
+            (0..m).for_each(|i| {
+                (0..n).for_each(|j| {
+                    nb[j][m - 1 - i] = b[i][j];
+                });
+            });
+            (nb, n, m)
+        }
+
+        fn reflect(b: &Board, m: usize, n: usize) -> (Board, usize, usize) {
+            let mut nb = [[Symbol::B; MAX_BOARD_SIDE]; MAX_BOARD_SIDE];
+            (0..m).for_each(|i| {
+                (0..n).for_each(|j| {
+                    nb[i][n - 1 - j] = b[i][j];
+                })
+            });
+            (nb, m, n)
+        }
+
+        let mut seen = HashSet::new();
+        let mut queue = VecDeque::new();
+
+        seen.insert((board0, m, n));
+        queue.push_back((board0, m, n));
+        while let Some((b, p, q)) = queue.pop_front() {
+            for (nb, np, nq) in [rotate(&b, p, q), reflect(&b, p, q)] {
+                if np == m && nq == n && seen.insert((nb, np, nq)) {
+                    queue.push_back((nb, np, nq));
+                }
+            }
+        }
+
+        let mut res: Vec<State> = seen
+            .into_iter()
+            .map(|(b, _, _)| self.encode_state(turn, &b))
+            .collect();
+
+        res.sort();
+        res.dedup();
+        res
     }
 }
 
@@ -286,6 +348,7 @@ impl<const N: PlayerCount> Persistent<N> for Session {
                 i64::from_be_bytes(*state),
                 info.remoteness as i64,
                 info.player as i64,
+                i64::from_be_bytes(self.canonical(*state)),
             ]
             .iter()
             .chain(info.utility.iter()),

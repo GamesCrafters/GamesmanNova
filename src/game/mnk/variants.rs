@@ -42,6 +42,7 @@ pub fn parse_variant(variant: String) -> Result<Session> {
         .key("state", "INTEGER")
         .column("remoteness", "INTEGER")
         .column("player", "INTEGER")
+        .column("orbit_rep", "INTEGER")
         .build()?;
 
     let mut state = BitArray::<_, Msb0>::ZERO;
