@@ -349,6 +349,11 @@ impl<const N: PlayerCount> Persistent<N> for Session {
                 info.remoteness as i64,
                 info.player as i64,
                 i64::from_be_bytes(self.canonical(*state)),
+                self.fork_exists(*state),
+                self.ply(*state),
+                self.center_control(*state),
+                self.corner_count(*state),
+                self.edge_count(*state),
             ]
             .iter()
             .chain(info.utility.iter()),
