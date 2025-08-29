@@ -8,15 +8,7 @@ import os
 
 
 def init_bench_database():
-    subprocess.run(
-        [
-            "sqlite3",
-            "bench.db",
-            "\"VACUUM;\""
-        ],
-        capture_output=True,
-        text=True
-    )
+    subprocess.run(["sqlite3", "bench.db", '"VACUUM;"'], capture_output=True, text=True)
 
 
 def solve_zero_by(variant):
@@ -28,10 +20,10 @@ def solve_zero_by(variant):
             "build",
             "zero-by",
             f"--variant={variant}",
-            "--mode=overwrite"
+            "--mode=overwrite",
         ],
         capture_output=True,
-        text=True
+        text=True,
     )
 
 
@@ -47,44 +39,37 @@ def flamegraph(variant):
             "build",
             "zero-by",
             f"--variant={variant}",
-            "--mode=overwrite"
+            "--mode=overwrite",
         ],
     )
 
 
 # COMMAND LINE PARSING
 
-parser = argparse.ArgumentParser(
-    description="Benchmarks for 'nova'"
-)
+parser = argparse.ArgumentParser(description="Benchmarks for 'nova'")
 
 parser.add_argument(
     "--note",
     type=str,
     help="A note for identifying the benchmark run.",
-    default="No note."
+    default="No note.",
 )
 
 parser.add_argument(
-    "--samples",
-    type=int,
-    help="Number of runs whose runtime to average.",
-    default=3
+    "--samples", type=int, help="Number of runs whose runtime to average.", default=3
 )
 
 parser.add_argument(
-    "--profile",
-    type=bool,
-    help="Generate a flamegraph.",
-    default=False
+    "--profile", type=bool, help="Generate a flamegraph.", default=False
 )
 
 args = parser.parse_args()
-print(f"Acknowledged.\n \
+print(
+    f"Acknowledged.\n \
         \nnote={args.note} \
         \nsamples={args.samples} \
         \nprofile={args.profile}\n"
-      )
+)
 
 # DECLARATIONS
 
