@@ -6,8 +6,9 @@ use clap::ValueEnum;
 
 /* SUBMODULES */
 
-pub mod zero_by;
+#[cfg(test)]
 pub mod mock;
+pub mod zero_by;
 
 /* TYPE ALIASES */
 

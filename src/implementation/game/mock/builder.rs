@@ -58,7 +58,8 @@ impl<'a> SessionBuilder<'a> {
             .entry(to as *const Node)
             .or_insert_with(|| self.game.add_node(to));
 
-        self.game.update_edge(i, j, ());
+        self.game
+            .update_edge(i.into(), j.into(), ());
         Ok(self)
     }
 

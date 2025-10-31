@@ -2,7 +2,8 @@
 //!
 //! TODO
 
-use petgraph::{Graph, adj::NodeIndex, csr::DefaultIx};
+use petgraph::Graph;
+use petgraph::prelude::NodeIndex;
 
 use std::collections::HashMap;
 
@@ -34,7 +35,7 @@ pub enum Node {
 pub struct Session<'a> {
     pub inserted: HashMap<*const Node, NodeIndex>,
     pub players: PlayerCount,
-    pub source: NodeIndex<DefaultIx>,
+    pub source: NodeIndex,
     pub schema: Schema,
     pub game: Graph<&'a Node, ()>,
     pub name: &'static str,

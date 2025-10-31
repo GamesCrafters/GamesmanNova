@@ -7,6 +7,7 @@
 
 use std::fmt::Display;
 use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
@@ -20,6 +21,7 @@ use bitvec::order::Msb0;
 use petgraph::Direction;
 use petgraph::Graph;
 use petgraph::csr::DefaultIx;
+use petgraph::csr::IndexType;
 use petgraph::dot::Config;
 use petgraph::dot::Dot;
 use petgraph::graph::NodeIndex;
@@ -83,11 +85,11 @@ impl<'a> Session<'a> {
 /* PRIVATE IMPLEMENTATION */
 
 impl Session<'_> {
-    fn adjacent(&self, state: State, dir: Direction) -> Vec<State> {
+    fn adjacent(&self, state: &State, dir: Direction) -> Vec<State> {
         self.game
             .neighbors_directed(
                 NodeIndex::from(
-                    BitArray::<_, Msb0>::from(state).load_be::<DefaultIx>(),
+                    BitArray::<_, Msb0>::from(*state).load_be::<DefaultIx>(),
                 ),
                 dir,
             )
@@ -99,9 +101,9 @@ impl Session<'_> {
             .collect()
     }
 
-    fn node(&self, state: State) -> &Node {
+    fn node(&self, state: &State) -> &Node {
         self.game[NodeIndex::from(
-            BitArray::<_, Msb0>::from(state).load_be::<DefaultIx>(),
+            BitArray::<_, Msb0>::from(*state).load_be::<DefaultIx>(),
         )]
     }
 }
@@ -154,6 +156,8 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
 }
 
 impl<const N: PlayerCount> Persistent<N> for Session<'_> {
+    type QueryOptions = Queries;
+
     fn prepare(
         &mut self,
         tx: &mut Transaction,
@@ -376,8 +380,8 @@ mod tests {
         let sink2 = g.state(&t2).unwrap();
 
         assert_eq!(g.source(), source);
-        assert!(g.sink(sink1));
-        assert!(g.sink(sink2));
+        assert!(g.sink(&sink1));
+        assert!(g.sink(&sink2));
         Ok(())
     }
 
@@ -406,9 +410,9 @@ mod tests {
         let t1_state = g.state(&t1).unwrap();
         let t2_state = g.state(&t2).unwrap();
 
-        let s1_pro = g.adjacent(s1_state, Direction::Outgoing);
-        let s2_pro = g.adjacent(s2_state, Direction::Outgoing);
-        let t2_ret = g.adjacent(t2_state, Direction::Incoming);
+        let s1_pro = g.adjacent(&s1_state, Direction::Outgoing);
+        let s2_pro = g.adjacent(&s2_state, Direction::Outgoing);
+        let t2_ret = g.adjacent(&t2_state, Direction::Incoming);
 
         assert!(s1_pro.len() == 2);
         assert!(s2_pro.len() == 1);

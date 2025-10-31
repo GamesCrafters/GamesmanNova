@@ -18,13 +18,14 @@ flamegraph.svg
 **/.DS_Store
 
 # Development data
-/dev
+/dev/*
 
 # Solutions database
 /solutions.db
 
+# Benchmarking database
+/bench.db
+
 # Environment setup
 /env.sh
 
-# Benchmarking database
-/bench.db

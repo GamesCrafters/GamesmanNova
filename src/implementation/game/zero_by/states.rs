@@ -108,6 +108,10 @@ mod test {
 
     use anyhow::Result;
 
+    use crate::interface::game::Forward;
+    use crate::interface::game::Variable;
+    use crate::model::game::zero_by::STATE_DEFAULT;
+
     use super::*;
 
     /* STATE STRING PARSING */

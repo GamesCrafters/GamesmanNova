@@ -97,7 +97,7 @@ fn check_param_count(params: &[u64]) -> Result<(), GameError> {
 }
 
 fn check_params_are_positive(params: &[u64]) -> Result<(), GameError> {
-    if params.iter().any(|&x| x == 0) {
+    if params.contains(&0) {
         Err(GameError::VariantMalformed {
             game: NAME,
             hint: "All integers in the string must be positive.".to_string(),
@@ -126,8 +126,10 @@ fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
 #[cfg(test)]
 mod test {
 
-    use super::*;
+    use crate::interface::game::Variable;
     use crate::model::game::zero_by::VARIANT_DEFAULT;
+
+    use super::*;
 
     #[test]
     fn variant_pattern_is_valid_regex() {
