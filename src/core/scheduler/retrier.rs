@@ -84,7 +84,9 @@ mod tests {
             .unwrap();
 
         let mut state = SchedulerState::default();
-        state.registry.insert(1, task_ctx(Progress::Error));
+        state
+            .registry
+            .insert(1, task_ctx(Progress::Error));
 
         assert_eq!(retrier.retry(&state), None);
         assert_eq!(retrier.counts.get(&1), None);
