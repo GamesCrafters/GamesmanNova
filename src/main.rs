@@ -9,52 +9,37 @@ use clap::Parser;
 
 use std::process;
 
-use crate::application::frontend::cli;
-use crate::interface::game::Forward;
-use crate::interface::game::Information;
-use crate::model::game::GameModule;
-use crate::model::game::zero_by;
+use crate::core::frontend::cli;
+use crate::traits::game::Forward;
+use crate::traits::game::Information;
+use crate::types::game::GameModule;
+use crate::types::game::zero_by;
 
 /* MODULES */
 
-mod application {
+mod core {
     #[cfg(test)]
     pub mod developer;
-    pub mod frontend {
-        pub mod cli;
-    }
-
-    pub mod database {
-        pub mod sqlite;
-        pub mod sled;
-    }
-
-    pub mod solver {
-        pub mod scheduler;
-        pub mod routines;
-    }
-}
-
-mod implementation {
+    pub mod scheduler;
     pub mod frontend;
     pub mod database;
-    pub mod record;
     pub mod solver;
     pub mod error;
     pub mod game;
 }
 
-mod interface {
+mod traits {
+    pub mod scheduler;
     pub mod database;
     pub mod game;
 }
 
-mod model {
+mod types {
     #[cfg(test)]
     pub mod developer;
+    pub mod scheduler;
     pub mod frontend;
     pub mod database;
-    pub mod record;
     pub mod solver;
     pub mod error;
     pub mod game;
