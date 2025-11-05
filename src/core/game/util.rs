@@ -6,11 +6,11 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 
+use crate::core::error::GameError;
+use crate::core::game::State;
 use crate::traits::game::Codec;
 use crate::traits::game::Implicit;
 use crate::traits::game::Information;
-use crate::types::error::GameError;
-use crate::types::game::State;
 
 /* FORWARD VERIFICATION */
 

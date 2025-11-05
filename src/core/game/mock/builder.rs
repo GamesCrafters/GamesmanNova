@@ -11,12 +11,12 @@ use petgraph::graph::NodeIndex;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::types::database::Schema;
-use crate::types::database::SchemaBuilder;
-use crate::types::game::PlayerCount;
-use crate::types::game::mock::Node;
-use crate::types::game::mock::Session;
-use crate::types::game::mock::SessionBuilder;
+use crate::core::database::Schema;
+use crate::core::database::SchemaBuilder;
+use crate::core::game::PlayerCount;
+use crate::core::game::mock::Node;
+use crate::core::game::mock::Session;
+use crate::core::game::mock::SessionBuilder;
 
 impl<'a> SessionBuilder<'a> {
     /// Initialize a builder struct for a graph game with an empty graph, no

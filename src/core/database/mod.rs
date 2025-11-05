@@ -8,85 +8,57 @@ use anyhow::bail;
 use std::collections::HashSet;
 use std::hash::Hash;
 
+use crate::core::game::IUtility;
+use crate::core::game::PlayerCount;
+use crate::core::game::SUtility;
 use crate::traits::database::ClassicUtilityRecord;
 use crate::traits::database::IntegerUtilityRecord;
 use crate::traits::database::PlayerRecord;
 use crate::traits::database::PuzzleUtilityRecord;
 use crate::traits::database::SimpleUtilityRecord;
-use crate::types::database::Column;
-use crate::types::database::Schema;
-use crate::types::database::SchemaBuilder;
-use crate::types::game::IUtility;
-use crate::types::game::PlayerCount;
-use crate::types::game::SUtility;
 
 /* SUBMODULES */
 
 pub mod sqlite;
 pub mod sled;
 
-/* SLED IMPLEMENTATIONS */
+/* TYPE ALIASES */
 
-impl<R, const N: PlayerCount> IntegerUtilityRecord<N> for R
-where
-    R: SimpleUtilityRecord<N>,
-{
-    fn set_utility(&mut self, iutility: [IUtility; N]) -> Result<&mut Self> {
-        let mut sutility = [SUtility::Lose; N];
-        for (i, u) in sutility.iter_mut().enumerate() {
-            *u = iutility[i].try_into()?;
-        }
+/// SQL string for an INSERT query.
+pub type InsertQuery = String;
 
-        self.set_utility(sutility)
-    }
+/// SQL string for a SELECT query.
+pub type SelectQuery = String;
 
-    fn utility(&self) -> [IUtility; N] {
-        let sutility = self.utility();
-        let mut iutility = [0; N];
-        iutility
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, u)| *u = IUtility::from(sutility[i]) - 1);
+/* STRUCTURES */
 
-        iutility
-    }
+/// A database column within a table schema, corresponding to one attribute.
+#[derive(Default, Clone)]
+pub struct Column {
+    pub name: String,
+    pub data: String,
 }
 
-impl<R> SimpleUtilityRecord<2> for R
-where
-    R: ClassicUtilityRecord,
-    R: PlayerRecord,
-{
-    fn set_utility(&mut self, value: [SUtility; 2]) -> Result<&mut Self> {
-        let turn = self.player();
-        self.set_utility(value[turn])
-    }
-
-    fn utility(&self) -> [SUtility; 2] {
-        let mut sutility = [SUtility::Tie; 2];
-        let utility = self.utility();
-        let turn = self.player();
-        let them = (turn + 1) % 2;
-        sutility[them] = !utility;
-        sutility[turn] = utility;
-        sutility
-    }
+/// A database table schema containing a collection of columns (with a set
+/// amount of utility entries), a table name, and a primary key specification.
+pub struct Schema {
+    pub columns: Vec<Column>,
+    pub players: PlayerCount,
+    pub table: String,
+    pub key: Column,
 }
 
-impl<R> SimpleUtilityRecord<1> for R
-where
-    R: PuzzleUtilityRecord,
-{
-    fn set_utility(&mut self, value: [SUtility; 1]) -> Result<&mut Self> {
-        self.set_utility(value[0])
-    }
-
-    fn utility(&self) -> [SUtility; 1] {
-        [self.utility()]
-    }
+/// Builder pattern for a database table schema, specifying and guaranteeing a
+/// collection of different columns, a primary key, table name, and the correct
+/// number of utility attributes.
+pub struct SchemaBuilder {
+    pub columns: Vec<Column>,
+    pub players: Option<PlayerCount>,
+    pub key: Option<Column>,
+    pub table: String,
 }
 
-/* SQLITE IMPLEMENTATIONS */
+/* IMPLEMENTATIONS */
 
 impl Column {
     fn new(name: &str, data: &str) -> Self {
@@ -299,6 +271,67 @@ impl SchemaBuilder {
     }
 }
 
+/* IMPL TRAIT FOR TYPE */
+
+impl<R, const N: PlayerCount> IntegerUtilityRecord<N> for R
+where
+    R: SimpleUtilityRecord<N>,
+{
+    fn set_utility(&mut self, iutility: [IUtility; N]) -> Result<&mut Self> {
+        let mut sutility = [SUtility::Lose; N];
+        for (i, u) in sutility.iter_mut().enumerate() {
+            *u = iutility[i].try_into()?;
+        }
+
+        self.set_utility(sutility)
+    }
+
+    fn utility(&self) -> [IUtility; N] {
+        let sutility = self.utility();
+        let mut iutility = [0; N];
+        iutility
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, u)| *u = IUtility::from(sutility[i]) - 1);
+
+        iutility
+    }
+}
+
+impl<R> SimpleUtilityRecord<2> for R
+where
+    R: ClassicUtilityRecord,
+    R: PlayerRecord,
+{
+    fn set_utility(&mut self, value: [SUtility; 2]) -> Result<&mut Self> {
+        let turn = self.player();
+        self.set_utility(value[turn])
+    }
+
+    fn utility(&self) -> [SUtility; 2] {
+        let mut sutility = [SUtility::Tie; 2];
+        let utility = self.utility();
+        let turn = self.player();
+        let them = (turn + 1) % 2;
+        sutility[them] = !utility;
+        sutility[turn] = utility;
+        sutility
+    }
+}
+
+impl<R> SimpleUtilityRecord<1> for R
+where
+    R: PuzzleUtilityRecord,
+{
+    fn set_utility(&mut self, value: [SUtility; 1]) -> Result<&mut Self> {
+        self.set_utility(value[0])
+    }
+
+    fn utility(&self) -> [SUtility; 1] {
+        [self.utility()]
+    }
+}
+
 /* HELPER FUNCTIONS */
 
 /// Transform input string into a valid SQL identifier.
@@ -331,6 +364,8 @@ pub fn first_duplicate<T: Eq + Hash + Clone>(vec: &[T]) -> Option<T> {
     }
     None
 }
+
+/* TESTS */
 
 #[cfg(test)]
 mod tests {

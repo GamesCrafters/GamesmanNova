@@ -5,15 +5,15 @@
 use anyhow::Context;
 use anyhow::Result;
 
-use crate::types::game::Component;
-use crate::types::game::DEFAULT_STATE_BYTES;
-use crate::types::game::GameData;
-use crate::types::game::IUtility;
-use crate::types::game::Player;
-use crate::types::game::PlayerCount;
-use crate::types::game::SUtility;
-use crate::types::game::State;
-use crate::types::game::Variant;
+use crate::core::game::Component;
+use crate::core::game::DEFAULT_STATE_BYTES;
+use crate::core::game::GameData;
+use crate::core::game::IUtility;
+use crate::core::game::Player;
+use crate::core::game::PlayerCount;
+use crate::core::game::SUtility;
+use crate::core::game::State;
+use crate::core::game::Variant;
 
 /* METADATA INTERFACES */
 

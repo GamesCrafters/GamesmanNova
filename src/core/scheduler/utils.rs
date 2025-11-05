@@ -6,15 +6,15 @@ use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use crate::types::scheduler::Dependencies;
-use crate::types::scheduler::SchedulerState;
-use crate::types::scheduler::TaskContext;
-use crate::types::scheduler::TaskID;
-use crate::types::scheduler::TaskOutcome;
-use crate::types::scheduler::TaskRegistry;
-use crate::types::scheduler::TaskState;
-use crate::types::scheduler::YieldIntention;
-use crate::types::scheduler::YieldUpdate;
+use crate::core::scheduler::Dependencies;
+use crate::core::scheduler::SchedulerState;
+use crate::core::scheduler::TaskContext;
+use crate::core::scheduler::TaskID;
+use crate::core::scheduler::TaskOutcome;
+use crate::core::scheduler::TaskRegistry;
+use crate::core::scheduler::TaskState;
+use crate::core::scheduler::YieldIntention;
+use crate::core::scheduler::YieldUpdate;
 
 /* UTILITY IMPLEMENTATIONS */
 
@@ -229,7 +229,7 @@ fn find_cycle(
 #[cfg(test)]
 pub mod test_utils {
     use super::*;
-    use crate::types::scheduler::TaskContextBuilder;
+    use crate::core::scheduler::TaskContextBuilder;
 
     /// Create a simple task context for testing with minimal boilerplate.
     pub fn task_ctx(progress: TaskState) -> TaskContext {

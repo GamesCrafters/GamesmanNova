@@ -8,13 +8,13 @@ use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use regex::Regex;
 
+use crate::core::database::SchemaBuilder;
+use crate::core::error::GameError;
+use crate::core::game::Player;
 use crate::core::game::util::min_ubits;
-use crate::types::database::SchemaBuilder;
-use crate::types::error::GameError;
-use crate::types::game::Player;
-use crate::types::game::zero_by::NAME;
-use crate::types::game::zero_by::Session;
-use crate::types::game::zero_by::VARIANT_PATTERN;
+use crate::core::game::zero_by::NAME;
+use crate::core::game::zero_by::Session;
+use crate::core::game::zero_by::VARIANT_PATTERN;
 
 /* API */
 
@@ -126,8 +126,8 @@ fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
 #[cfg(test)]
 mod test {
 
+    use crate::core::game::zero_by::VARIANT_DEFAULT;
     use crate::traits::game::Variable;
-    use crate::types::game::zero_by::VARIANT_DEFAULT;
 
     use super::*;
 

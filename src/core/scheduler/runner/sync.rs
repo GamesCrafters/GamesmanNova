@@ -2,18 +2,29 @@
 //!
 //! TODO
 
+use std::collections::HashMap;
+
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 
+use crate::core::scheduler::PollStatus;
+use crate::core::scheduler::TaskID;
+use crate::core::scheduler::TaskOutcomes;
+use crate::core::scheduler::YieldUpdate;
 use crate::traits::scheduler::Executable;
 use crate::traits::scheduler::Runner;
-use crate::types::scheduler::PollStatus;
-use crate::types::scheduler::TaskID;
-use crate::types::scheduler::TaskOutcomes;
-use crate::types::scheduler::runner::sync::SyncRunner;
 
-/* IMPLEMENTATION */
+/* STRUCTURES */
+
+/// Synchronous runner that just blocks on task spawns.
+#[derive(Default)]
+pub struct SyncRunner {
+    pub running: HashMap<TaskID, Box<dyn Executable>>,
+    pub results: HashMap<TaskID, Result<YieldUpdate>>,
+}
+
+/* IMPL TRAIT FOR TYPE */
 
 impl Runner for SyncRunner {
     fn units(&self) -> usize {

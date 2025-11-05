@@ -7,11 +7,11 @@ use mockall::automock;
 
 use anyhow::Result;
 
-use crate::types::scheduler::PollStatus;
-use crate::types::scheduler::SchedulerState;
-use crate::types::scheduler::TaskID;
-use crate::types::scheduler::TaskOutcomes;
-use crate::types::scheduler::YieldUpdate;
+use crate::core::scheduler::PollStatus;
+use crate::core::scheduler::SchedulerState;
+use crate::core::scheduler::TaskID;
+use crate::core::scheduler::TaskOutcomes;
+use crate::core::scheduler::YieldUpdate;
 
 /* INTERFACES */
 

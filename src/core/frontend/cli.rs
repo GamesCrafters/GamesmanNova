@@ -13,12 +13,12 @@ use serde_json::Value;
 
 use std::io::BufRead;
 
-use crate::types::frontend::GAME_ATTRIBUTES;
-use crate::types::frontend::GameAttribute;
-use crate::types::frontend::IOMode;
-use crate::types::frontend::InfoFormat;
-use crate::types::game::GameData;
-use crate::types::game::GameModule;
+use crate::core::frontend::GAME_ATTRIBUTES;
+use crate::core::frontend::GameAttribute;
+use crate::core::frontend::IOMode;
+use crate::core::frontend::InfoFormat;
+use crate::core::game::GameData;
+use crate::core::game::GameModule;
 
 /* CLI DECLARATIONS */
 
@@ -106,9 +106,8 @@ pub fn format_and_output_game_attributes(
     attrs: Vec<GameAttribute>,
     format: InfoFormat,
 ) -> Result<()> {
-    let attrs = (!attrs.is_empty())
-        .then_some(attrs)
-        .unwrap_or(GAME_ATTRIBUTES.to_vec());
+    let attrs =
+        if !attrs.is_empty() { attrs } else { GAME_ATTRIBUTES.to_vec() };
 
     let out = aggregate_and_format_attributes(data, attrs, format)
         .context("Failed format specified game data attributes.")?;

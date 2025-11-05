@@ -8,6 +8,8 @@ use rusqlite::Connection;
 
 use std::env;
 
+/* HELPER FUNCTIONS */
+
 pub fn database() -> Result<Connection> {
     let path = env::var("SQLITE_DATABASE")
         .context("SQLITE_DATABASE environment variable not set.")?;

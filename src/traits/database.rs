@@ -6,16 +6,16 @@ use anyhow::Result;
 use rusqlite::Statement;
 use rusqlite::Transaction;
 
-use crate::types::database::InsertQuery;
-use crate::types::database::SelectQuery;
-use crate::types::frontend::IOMode;
-use crate::types::game::DEFAULT_STATE_BYTES;
-use crate::types::game::IUtility;
-use crate::types::game::Player;
-use crate::types::game::PlayerCount;
-use crate::types::game::Remoteness;
-use crate::types::game::SUtility;
-use crate::types::game::State;
+use crate::core::database::InsertQuery;
+use crate::core::database::SelectQuery;
+use crate::core::frontend::IOMode;
+use crate::core::game::DEFAULT_STATE_BYTES;
+use crate::core::game::IUtility;
+use crate::core::game::Player;
+use crate::core::game::PlayerCount;
+use crate::core::game::Remoteness;
+use crate::core::game::SUtility;
+use crate::core::game::State;
 
 /* SQLITE INTERFACES */
 

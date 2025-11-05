@@ -4,12 +4,17 @@
 
 use anyhow::Result;
 
+use crate::core::scheduler::SchedulerState;
+use crate::core::scheduler::TaskState;
 use crate::traits::scheduler::Logger;
-use crate::types::scheduler::SchedulerState;
-use crate::types::scheduler::TaskState;
-use crate::types::scheduler::logger::count::CountLogger;
 
-/* IMPLEMENTATION */
+/* STRUCTURES */
+
+/// Simple command-line logger that prints task progress counts.
+#[derive(Default)]
+pub struct CountLogger;
+
+/* IMPL TRAIT FOR TYPE */
 
 impl Logger for CountLogger {
     fn log(&mut self, state: &SchedulerState) -> Result<()> {

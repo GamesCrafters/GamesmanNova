@@ -2,45 +2,107 @@
 //!
 //! TODO
 
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
-use anyhow::bail;
-use crossbeam_channel::Receiver;
-use crossbeam_channel::unbounded;
-
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::thread::Builder;
+use std::thread::JoinHandle;
 use std::time::Duration;
 
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
+use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
+use crossbeam_channel::unbounded;
+use derive_builder::Builder as DeriveBuilder;
+
+use crate::core::scheduler::PollStatus;
+use crate::core::scheduler::TaskID;
+use crate::core::scheduler::TaskOutcomes;
+use crate::core::scheduler::YieldIntention;
+use crate::core::scheduler::YieldUpdate;
 use crate::traits::scheduler::Executable;
 use crate::traits::scheduler::Runner;
-use crate::types::scheduler::PollStatus;
-use crate::types::scheduler::TaskID;
-use crate::types::scheduler::TaskOutcomes;
-use crate::types::scheduler::YieldIntention;
-use crate::types::scheduler::YieldUpdate;
-use crate::types::scheduler::runner::thread::CompletionPacket;
-use crate::types::scheduler::runner::thread::RunningTaskState;
-use crate::types::scheduler::runner::thread::ThreadPoolConfig;
-use crate::types::scheduler::runner::thread::ThreadPoolRunner;
-use crate::types::scheduler::runner::thread::WorkPacket;
-use crate::types::scheduler::runner::thread::WorkResult;
+
+/* ENUMERATIONS */
+
+/// Result of worker execution.
+pub enum WorkResult {
+    Yielded(YieldUpdate),
+    Panicked(String),
+    Preempted,
+}
+
+/// State of a running task from the runner's perspective.
+pub enum RunningTaskState {
+    Completed(WorkResult),
+    Preempting,
+    Executing,
+}
+
+/* STRUCTURES */
+
+/// Thread pool runner configuration.
+#[derive(Clone, DeriveBuilder)]
+#[builder(pattern = "owned", setter(into))]
+pub struct ThreadPoolConfig {
+    #[builder(default = "num_cpus::get()")]
+    pub num_threads: usize,
+    #[builder(default = "Duration::from_millis(100)")]
+    pub preempt_timeout: Duration,
+}
+
+/// Concurrent runner that executes tasks across a pool of worker threads.
+pub struct ThreadPoolRunner {
+    /// Worker thread handles
+    pub workers: Vec<JoinHandle<()>>,
+
+    /// Channel to dispatch work to idle workers
+    pub work_tx: Sender<WorkPacket>,
+
+    /// Channel to send completed work from workers
+    pub result_tx: Sender<CompletionPacket>,
+
+    /// Channel to receive completed work from workers
+    pub result_rx: Receiver<CompletionPacket>,
+
+    /// Track state of running tasks (scheduler's perspective)
+    pub running: HashMap<TaskID, RunningTaskState>,
+
+    /// Completed tasks waiting to be collected
+    pub completed: HashMap<TaskID, Box<dyn Executable>>,
+
+    /// Preemption signals indexed by TaskID
+    pub signals: HashMap<TaskID, Arc<AtomicBool>>,
+
+    /// Configuration
+    pub config: ThreadPoolConfig,
+
+    /// Shutdown signal for all workers
+    pub shutdown: Arc<AtomicBool>,
+}
+
+/// Work packet sent from runner to worker.
+pub struct WorkPacket {
+    pub executable: Box<dyn Executable>,
+    pub result_tx: Sender<CompletionPacket>,
+    pub awaited: TaskOutcomes,
+    pub signal: Arc<AtomicBool>,
+    pub tid: TaskID,
+}
+
+/// Completion packet sent from worker back to runner.
+pub struct CompletionPacket {
+    pub executable: Box<dyn Executable>,
+    pub result: WorkResult,
+    pub tid: TaskID,
+}
 
 /* IMPLEMENTATIONS */
-
-impl Default for ThreadPoolConfig {
-    fn default() -> Self {
-        Self {
-            preempt_timeout: Duration::from_millis(100),
-            num_threads: num_cpus::get(),
-        }
-    }
-}
 
 impl ThreadPoolRunner {
     pub fn new(config: ThreadPoolConfig) -> Result<Self> {
@@ -97,9 +159,9 @@ impl ThreadPoolRunner {
 
     /// Set preemption signal for a task.
     fn signal(&self, tid: TaskID) {
-        self.signals
-            .get(&tid)
-            .map(|signal| signal.store(true, Ordering::Relaxed));
+        if let Some(signal) = self.signals.get(&tid) {
+            signal.store(true, Ordering::Relaxed)
+        }
     }
 
     /// Remove all metadata for a task.
@@ -114,6 +176,113 @@ impl ThreadPoolRunner {
         self.running.get(&tid)
     }
 }
+
+impl WorkResult {
+    /// Convert panic payload to WorkResult::Panicked.
+    pub fn panicked(panic: Box<dyn Any + Send>) -> Self {
+        let message = if let Some(s) = panic.downcast_ref::<String>() {
+            s.clone()
+        } else if let Some(s) = panic.downcast_ref::<&str>() {
+            s.to_string()
+        } else {
+            "Unknown panic".to_string()
+        };
+        Self::Panicked(message)
+    }
+
+    /// Convert WorkResult to PollStatus.
+    pub fn status(self) -> PollStatus {
+        match self {
+            Self::Yielded(update) => PollStatus::Ready(update),
+            Self::Preempted => PollStatus::Ready(YieldUpdate {
+                intention: YieldIntention::Ready,
+                discovered: Vec::new(),
+            }),
+            Self::Panicked(msg) => PollStatus::Panic(msg),
+        }
+    }
+
+    /// Check if result is yielded.
+    pub fn yielded(&self) -> bool {
+        match self {
+            Self::Yielded(_) => true,
+            Self::Preempted | Self::Panicked(_) => false,
+        }
+    }
+
+    /// Check if result is preempted.
+    pub fn preempted(&self) -> bool {
+        match self {
+            Self::Preempted => true,
+            Self::Yielded(_) | Self::Panicked(_) => false,
+        }
+    }
+}
+
+impl RunningTaskState {
+    /// Check if task is executing.
+    pub fn executing(&self) -> bool {
+        match self {
+            Self::Executing => true,
+            Self::Preempting | Self::Completed(_) => false,
+        }
+    }
+
+    /// Check if task is preempting.
+    pub fn preempting(&self) -> bool {
+        match self {
+            Self::Preempting => true,
+            Self::Executing | Self::Completed(_) => false,
+        }
+    }
+
+    /// Check if task is completed.
+    pub fn completed(&self) -> bool {
+        match self {
+            Self::Completed(_) => true,
+            Self::Executing | Self::Preempting => false,
+        }
+    }
+
+    /// Check if task can be preempted.
+    pub fn preemptable(&self) -> bool {
+        match self {
+            Self::Executing | Self::Preempting | Self::Completed(_) => true,
+        }
+    }
+
+    /// Check if task can be collected.
+    pub fn collectable(&self) -> bool {
+        match self {
+            Self::Completed(_) => true,
+            Self::Executing | Self::Preempting => false,
+        }
+    }
+
+    /// Extract result, consuming self.
+    pub fn result(self) -> Option<WorkResult> {
+        match self {
+            Self::Completed(result) => Some(result),
+            Self::Executing | Self::Preempting => None,
+        }
+    }
+
+    /// Take result, leaving Preempted placeholder.
+    pub fn take(&mut self) -> Option<WorkResult> {
+        match self {
+            Self::Completed(_) => {
+                let placeholder = Self::Completed(WorkResult::Preempted);
+                match std::mem::replace(self, placeholder) {
+                    Self::Completed(result) => Some(result),
+                    Self::Executing | Self::Preempting => unreachable!(),
+                }
+            },
+            Self::Executing | Self::Preempting => None,
+        }
+    }
+}
+
+/* IMPL TRAIT FOR TYPE */
 
 impl Runner for ThreadPoolRunner {
     fn units(&self) -> usize {
@@ -231,6 +400,8 @@ impl Runner for ThreadPoolRunner {
     }
 }
 
+/* IMPL EXTERNAL TRAIT */
+
 impl Drop for ThreadPoolRunner {
     fn drop(&mut self) {
         self.shutdown
@@ -247,107 +418,11 @@ impl Drop for ThreadPoolRunner {
     }
 }
 
-impl WorkResult {
-    /// Convert panic payload to WorkResult::Panicked.
-    pub fn panicked(panic: Box<dyn Any + Send>) -> Self {
-        let message = if let Some(s) = panic.downcast_ref::<String>() {
-            s.clone()
-        } else if let Some(s) = panic.downcast_ref::<&str>() {
-            s.to_string()
-        } else {
-            "Unknown panic".to_string()
-        };
-        Self::Panicked(message)
-    }
-
-    /// Convert WorkResult to PollStatus.
-    pub fn status(self) -> PollStatus {
-        match self {
-            Self::Yielded(update) => PollStatus::Ready(update),
-            Self::Preempted => PollStatus::Ready(YieldUpdate {
-                intention: YieldIntention::Ready,
-                discovered: Vec::new(),
-            }),
-            Self::Panicked(msg) => PollStatus::Panic(msg),
-        }
-    }
-
-    /// Check if result is yielded.
-    pub fn yielded(&self) -> bool {
-        match self {
-            Self::Yielded(_) => true,
-            Self::Preempted | Self::Panicked(_) => false,
-        }
-    }
-
-    /// Check if result is preempted.
-    pub fn preempted(&self) -> bool {
-        match self {
-            Self::Preempted => true,
-            Self::Yielded(_) | Self::Panicked(_) => false,
-        }
-    }
-}
-
-impl RunningTaskState {
-    /// Check if task is executing.
-    pub fn executing(&self) -> bool {
-        match self {
-            Self::Executing => true,
-            Self::Preempting | Self::Completed(_) => false,
-        }
-    }
-
-    /// Check if task is preempting.
-    pub fn preempting(&self) -> bool {
-        match self {
-            Self::Preempting => true,
-            Self::Executing | Self::Completed(_) => false,
-        }
-    }
-
-    /// Check if task is completed.
-    pub fn completed(&self) -> bool {
-        match self {
-            Self::Completed(_) => true,
-            Self::Executing | Self::Preempting => false,
-        }
-    }
-
-    /// Check if task can be preempted.
-    pub fn preemptable(&self) -> bool {
-        match self {
-            Self::Executing | Self::Preempting | Self::Completed(_) => true,
-        }
-    }
-
-    /// Check if task can be collected.
-    pub fn collectable(&self) -> bool {
-        match self {
-            Self::Completed(_) => true,
-            Self::Executing | Self::Preempting => false,
-        }
-    }
-
-    /// Extract result, consuming self.
-    pub fn result(self) -> Option<WorkResult> {
-        match self {
-            Self::Completed(result) => Some(result),
-            Self::Executing | Self::Preempting => None,
-        }
-    }
-
-    /// Take result, leaving Preempted placeholder.
-    pub fn take(&mut self) -> Option<WorkResult> {
-        match self {
-            Self::Completed(_) => {
-                let placeholder = Self::Completed(WorkResult::Preempted);
-                match std::mem::replace(self, placeholder) {
-                    Self::Completed(result) => Some(result),
-                    Self::Executing | Self::Preempting => unreachable!(),
-                }
-            },
-            Self::Executing | Self::Preempting => None,
+impl Default for ThreadPoolConfig {
+    fn default() -> Self {
+        Self {
+            preempt_timeout: Duration::from_millis(100),
+            num_threads: num_cpus::get(),
         }
     }
 }

@@ -4,13 +4,13 @@
 
 use regex::Regex;
 
-use crate::types::error::GameError;
-use crate::types::game::Player;
-use crate::types::game::State;
-use crate::types::game::zero_by::Elements;
-use crate::types::game::zero_by::NAME;
-use crate::types::game::zero_by::STATE_PATTERN;
-use crate::types::game::zero_by::Session;
+use crate::core::error::GameError;
+use crate::core::game::Player;
+use crate::core::game::State;
+use crate::core::game::zero_by::Elements;
+use crate::core::game::zero_by::NAME;
+use crate::core::game::zero_by::STATE_PATTERN;
+use crate::core::game::zero_by::Session;
 
 /* API */
 
@@ -108,9 +108,9 @@ mod test {
 
     use anyhow::Result;
 
+    use crate::core::game::zero_by::STATE_DEFAULT;
     use crate::traits::game::Forward;
     use crate::traits::game::Variable;
-    use crate::types::game::zero_by::STATE_DEFAULT;
 
     use super::*;
 

@@ -10,10 +10,10 @@ use clap::Parser;
 use std::process;
 
 use crate::core::frontend::cli;
+use crate::core::game::GameModule;
+use crate::core::game::zero_by;
 use crate::traits::game::Forward;
 use crate::traits::game::Information;
-use crate::types::game::GameModule;
-use crate::types::game::zero_by;
 
 /* MODULES */
 
@@ -30,16 +30,6 @@ mod core {
 mod traits {
     pub mod scheduler;
     pub mod database;
-    pub mod game;
-}
-
-mod types {
-    #[cfg(test)]
-    pub mod developer;
-    pub mod scheduler;
-    pub mod frontend;
-    pub mod database;
-    pub mod error;
     pub mod game;
 }
 

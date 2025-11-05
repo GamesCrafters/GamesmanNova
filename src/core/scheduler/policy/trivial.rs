@@ -2,12 +2,17 @@
 //!
 //! TODO
 
+use crate::core::scheduler::SchedulerState;
+use crate::core::scheduler::TaskID;
 use crate::traits::scheduler::Policy;
-use crate::types::scheduler::SchedulerState;
-use crate::types::scheduler::TaskID;
-use crate::types::scheduler::policy::trivial::TrivialPolicy;
 
-/* IMPLEMENTATION */
+/* STRUCTURES */
+
+/// No-preemption policy that always picks the task with lowest ID.
+#[derive(Default)]
+pub struct TrivialPolicy;
+
+/* IMPL TRAIT FOR TYPE */
 
 impl Policy for TrivialPolicy {
     fn retry(&mut self, _state: &SchedulerState) -> Option<TaskID> {

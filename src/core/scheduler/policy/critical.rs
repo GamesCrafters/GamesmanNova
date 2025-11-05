@@ -4,15 +4,38 @@
 
 use std::collections::HashMap;
 
-use crate::traits::scheduler::Policy;
-use crate::types::scheduler::SchedulerState;
-use crate::types::scheduler::SizeStats;
-use crate::types::scheduler::TaskID;
-use crate::types::scheduler::TaskRegistry;
-use crate::types::scheduler::policy::critical::CriticalPathPolicy;
-use crate::types::scheduler::policy::critical::RetryPolicy;
+use derive_builder::Builder;
 
-/* IMPLEMENTATION */
+use crate::core::scheduler::SchedulerState;
+use crate::core::scheduler::SizeStats;
+use crate::core::scheduler::TaskID;
+use crate::core::scheduler::TaskRegistry;
+use crate::traits::scheduler::Policy;
+
+/* TYPE ALIASES */
+
+/// Generic component of a scheduler policy in charge of retrying tasks.
+pub type RetryPolicy = Box<dyn FnMut(&SchedulerState) -> Option<TaskID>>;
+
+/* STRUCTURES */
+
+/// Weighted critical path scheduling policy with preemption.
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
+pub struct CriticalPathPolicy {
+    /// The difference in standard deviations of longest blocked critical path
+    /// size among two tasks that will cause the one blocking the lighter path
+    /// to be immediately preempted (without necessarily scheduling the other).
+    #[builder(default = "1.0f64")]
+    pub sigma: f64,
+
+    /// Custom retry policy, determining which tasks the scheduler will mark as
+    /// ready for execution (immediately and regardless of their state).
+    #[builder(default = "threshold(0)")]
+    pub retry: RetryPolicy,
+}
+
+/* IMPL TRAIT FOR TYPE */
 
 impl Policy for CriticalPathPolicy {
     fn retry(&mut self, state: &SchedulerState) -> Option<TaskID> {
@@ -53,7 +76,7 @@ impl Policy for CriticalPathPolicy {
     }
 }
 
-/* PRESET RETRY POLICIES */
+/* FUNCTIONS */
 
 /// Provide each task up to `limit` retry opportunities.
 pub fn threshold(limit: usize) -> RetryPolicy {
@@ -152,13 +175,15 @@ fn compute_size_stats(registry: &TaskRegistry) -> SizeStats {
     }
 }
 
+/* TESTS */
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use crate::core::scheduler::TaskState;
+    use crate::core::scheduler::policy::critical::CriticalPathPolicyBuilder;
     use crate::core::scheduler::utils::test_utils::*;
-    use crate::types::scheduler::TaskState;
-    use crate::types::scheduler::policy::critical::CriticalPathPolicyBuilder;
     use std::collections::HashSet;
 
     #[test]

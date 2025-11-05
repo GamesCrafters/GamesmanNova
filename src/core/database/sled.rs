@@ -9,6 +9,8 @@ use std::env;
 
 use crate::traits::game::Variable;
 
+/* HELPER FUNCTIONS */
+
 pub fn open_tree<G>(game: &G) -> Result<sled::Tree>
 where
     G: Variable,

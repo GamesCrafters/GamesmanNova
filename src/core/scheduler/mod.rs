@@ -5,20 +5,15 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+use derive_builder::Builder;
 
-use crate::types::scheduler::Dependencies;
-use crate::types::scheduler::PollStatus;
-use crate::types::scheduler::Scheduler;
-use crate::types::scheduler::SchedulerContext;
-use crate::types::scheduler::SchedulerState;
-use crate::types::scheduler::Task;
-use crate::types::scheduler::TaskContext;
-use crate::types::scheduler::TaskID;
-use crate::types::scheduler::TaskOutcome;
-use crate::types::scheduler::TaskOutcomes;
-use crate::types::scheduler::TaskState;
-use crate::types::scheduler::YieldIntention;
-use crate::types::scheduler::YieldUpdate;
+use std::collections::HashMap;
+use std::collections::HashSet;
+
+use crate::traits::scheduler::Executable;
+use crate::traits::scheduler::Logger;
+use crate::traits::scheduler::Policy;
+use crate::traits::scheduler::Runner;
 
 use utils::find_cycle_path;
 
@@ -43,6 +38,105 @@ pub mod runner {
 pub mod task {
     #[cfg(test)]
     pub mod mock;
+}
+
+/* TYPE ALIASES */
+
+pub type TaskID = u64;
+pub type OutcomeCode = u64;
+pub type Dependencies = HashSet<TaskID>;
+pub type TaskOutcomes = HashMap<TaskID, TaskOutcome>;
+pub type TaskBuffer = HashMap<TaskID, Box<dyn Executable>>;
+pub type TaskRegistry = HashMap<TaskID, TaskContext>;
+
+/* ENUMERATIONS */
+
+#[derive(Clone, Debug)]
+pub enum TaskOutcome {
+    Success(OutcomeCode),
+    Failure(OutcomeCode),
+    Error,
+}
+
+pub enum TaskState {
+    Finished(TaskOutcome),
+    Waiting(Dependencies),
+    Preempting,
+    Running,
+    Error,
+    Ready,
+}
+
+pub enum YieldIntention {
+    Finished(TaskOutcome),
+    Waiting(Dependencies),
+    Ready,
+}
+
+pub enum PollStatus {
+    Pending,
+    Ready(YieldUpdate),
+    Panic(String),
+}
+
+/* STRUCTURES */
+
+pub struct YieldUpdate {
+    pub intention: YieldIntention,
+    pub discovered: Vec<Task>,
+}
+
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
+pub struct Task {
+    pub executable: Box<dyn Executable>,
+    pub retriable: bool,
+    pub tid: TaskID,
+    #[builder(default)]
+    pub requires: Dependencies,
+    #[builder(default)]
+    pub about: String,
+    #[builder(default)]
+    pub size: Option<u64>,
+}
+
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
+pub struct TaskContext {
+    pub retriable: bool,
+    pub incoming: Dependencies,
+    pub progress: TaskState,
+    pub about: String,
+    pub size: Option<u64>,
+}
+
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
+pub struct SchedulerContext {
+    pub policy: Box<dyn Policy>,
+    pub logger: Box<dyn Logger>,
+    pub runner: Box<dyn Runner>,
+}
+
+#[derive(Default)]
+pub struct SchedulerState {
+    pub registry: TaskRegistry,
+    pub buffer: TaskBuffer,
+    pub ticks: u64,
+    pub units: usize,
+}
+
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
+pub struct Scheduler {
+    pub context: SchedulerContext,
+    pub state: SchedulerState,
+}
+
+#[derive(Clone, Copy)]
+pub struct SizeStats {
+    pub stddev: f64,
+    pub mean: f64,
 }
 
 /* IMPLEMENTATIONS */

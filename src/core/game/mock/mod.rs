@@ -5,13 +5,6 @@
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
-use std::fmt::Display;
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
-use std::process::Stdio;
-
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
@@ -19,6 +12,9 @@ use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use modular_bitfield::Specifier;
+use modular_bitfield::bitfield;
+use modular_bitfield::prelude::B15;
+use modular_bitfield::prelude::B32;
 use petgraph::Direction;
 use petgraph::Graph;
 use petgraph::csr::DefaultIx;
@@ -30,8 +26,26 @@ use rusqlite::Statement;
 use rusqlite::Transaction;
 use rusqlite::params_from_iter;
 
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::fs::File;
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::Command;
+use std::process::Stdio;
+
+use crate::core::database::InsertQuery;
+use crate::core::database::Schema;
+use crate::core::developer::DevelopmentData;
+use crate::core::developer::TestSetting;
 use crate::core::developer::get_directory;
 use crate::core::developer::test_setting;
+use crate::core::frontend::IOMode;
+use crate::core::game::IUtility;
+use crate::core::game::Player;
+use crate::core::game::PlayerCount;
+use crate::core::game::Remoteness;
+use crate::core::game::State;
 use crate::core::game::util::min_ubits;
 use crate::traits::database::DrawRecord;
 use crate::traits::database::IntegerUtilityRecord;
@@ -41,26 +55,95 @@ use crate::traits::database::SQLiteWriter;
 use crate::traits::game::Implicit;
 use crate::traits::game::IntegerUtility;
 use crate::traits::game::Sequential;
-use crate::types::database::InsertQuery;
-use crate::types::developer::DevelopmentData;
-use crate::types::developer::TestSetting;
-use crate::types::frontend::IOMode;
-use crate::types::game::IUtility;
-use crate::types::game::Player;
-use crate::types::game::PlayerCount;
-use crate::types::game::Remoteness;
-use crate::types::game::State;
-use crate::types::game::mock::Node;
-use crate::types::game::mock::PlayerStorage;
-use crate::types::game::mock::Record;
-use crate::types::game::mock::RemotenessStorage;
-use crate::types::game::mock::Session;
 
 /* SUBMODULES */
 
-mod builder;
+pub mod builder;
 
-/* API IMPLEMENTATION */
+/* TYPE ALIASES */
+
+type Finalized = bool;
+pub type RemotenessStorage = B32;
+pub type PlayerStorage = B15;
+pub type DrawStorage = bool;
+
+/* ENUMERATIONS */
+
+/// Indicates whether a game state node is terminal (there are no outgoing moves
+/// or edges) or medial (it is possible to transition out of it). Nodes in the
+/// terminal stage have an associated utility vector, and medial nodes have a
+/// turn encoding whose player's action is pending.
+#[derive(Debug)]
+pub enum Node {
+    Terminal(Player, Vec<IUtility>),
+    Medial(Player),
+}
+
+/* STRUCTURES */
+
+/// Represents an initialized session of an abstract graph game. This can be
+/// constructed using `SessionBuilder`.
+pub struct Session<'a> {
+    pub inserted: HashMap<*const Node, NodeIndex>,
+    pub players: PlayerCount,
+    pub source: NodeIndex,
+    pub schema: Schema,
+    pub game: Graph<&'a Node, ()>,
+    pub name: &'static str,
+}
+
+/// Builder pattern for creating a graph game by progressively adding nodes and
+/// edges and specifying a source node. Directed unweighed edges represent
+/// represent state transitions, and nodes containing either turn information
+/// or utility vectors store the information necessary to solve the game being
+/// represented.
+///
+/// # Example
+///
+/// ```no_run
+/// // Long-form node initialization
+/// let s0 = Node::Medial(0);
+/// let s1 = Node::Medial(1);
+/// let s2 = Node::Terminal(vec![1, -1]);
+///
+/// // Macro node initialization (equivalent)
+/// let s0 = node!(0);
+/// let s1 = node!(1);
+/// let s2 = node!([1, -1]);
+///
+/// let session = SessionBuilder::new("example")
+///     .edge(&s0, &s1)?
+///     .edge(&s0, &s2)?
+///     .edge(&s1, &s2)?
+///     .source(&s0)?
+///     .build()?;
+///
+/// assert_eq!(session.players, 2);
+/// ```
+pub struct SessionBuilder<'a> {
+    pub inserted: HashMap<*const Node, NodeIndex>,
+    pub players: (PlayerCount, Finalized),
+    pub source: Option<NodeIndex>,
+    pub game: Graph<&'a Node, ()>,
+    pub name: &'static str,
+}
+
+/// Sled database record header
+#[derive(Clone, Copy)]
+#[bitfield]
+pub struct RecordHeader {
+    pub remoteness: RemotenessStorage,
+    pub player: PlayerStorage,
+    pub draw: DrawStorage,
+}
+
+/// Sled database record
+pub struct Record<const N: PlayerCount> {
+    pub header: RecordHeader,
+    pub utility: [IUtility; N],
+}
+
+/* IMPLEMENTATIONS */
 
 impl<'a> Session<'a> {
     /// Return a name or identifier corresponding to this game.
@@ -88,11 +171,39 @@ impl<'a> Session<'a> {
     pub fn graph(&self) -> &Graph<&Node, ()> {
         &self.game
     }
-}
 
-/* PRIVATE IMPLEMENTATION */
+    /// Creates an SVG visualization of the game graph in the visuals directory
+    /// under the development data directory at the project root.
+    pub fn visualize(&self, module: &str) -> Result<()> {
+        match test_setting()? {
+            TestSetting::Correctness => return Ok(()),
+            TestSetting::Development => (),
+        }
 
-impl Session<'_> {
+        let subdir = PathBuf::from(module);
+        let mut dir = get_directory(DevelopmentData::Visuals, subdir)?;
+        let name = format!("{}.svg", self.name()).replace(' ', "-");
+
+        dir.push(name);
+        let file = File::create(dir)?;
+        let mut dot = Command::new("dot")
+            .arg("-Tsvg")
+            .stdin(Stdio::piped())
+            .stdout(file)
+            .spawn()
+            .context("Failed to execute 'dot' command.")?;
+
+        if let Some(mut stdin) = dot.stdin.take() {
+            let graph = format!("{}", self);
+            stdin.write_all(graph.as_bytes())?;
+        }
+
+        dot.wait()?;
+        Ok(())
+    }
+
+    /* PRIVATE HELPERS */
+
     fn adjacent(&self, state: &State, dir: Direction) -> Vec<State> {
         self.game
             .neighbors_directed(
@@ -116,7 +227,7 @@ impl Session<'_> {
     }
 }
 
-/* UTILITY IMPLEMENTATIONS */
+/* IMPL TRAIT FOR TYPE */
 
 impl Implicit for Session<'_> {
     fn adjacent(&self, state: &State) -> Vec<State> {
@@ -136,8 +247,6 @@ impl Implicit for Session<'_> {
         }
     }
 }
-
-/* SOLVING IMPLEMENTATIONS */
 
 impl<const N: PlayerCount> Sequential<N> for Session<'_> {
     fn turn(&self, state: &State) -> Player {
@@ -205,8 +314,6 @@ impl<const N: PlayerCount> SQLiteWriter<N> for Session<'_> {
     }
 }
 
-/* SLED RECORD IMPLEMENTATIONS */
-
 impl<const N: PlayerCount> RemotenessRecord for Record<N> {
     fn set_remoteness(&mut self, value: Remoteness) -> Result<&mut Self> {
         if min_ubits(value as u128) > RemotenessStorage::BITS {
@@ -263,39 +370,7 @@ impl<const N: PlayerCount> DrawRecord for Record<N> {
     }
 }
 
-/* UTILITY IMPLEMENTATIONS */
-
-impl Session<'_> {
-    /// Creates an SVG visualization of the game graph in the visuals directory
-    /// under the development data directory at the project root.
-    pub fn visualize(&self, module: &str) -> Result<()> {
-        match test_setting()? {
-            TestSetting::Correctness => return Ok(()),
-            TestSetting::Development => (),
-        }
-
-        let subdir = PathBuf::from(module);
-        let mut dir = get_directory(DevelopmentData::Visuals, subdir)?;
-        let name = format!("{}.svg", self.name()).replace(' ', "-");
-
-        dir.push(name);
-        let file = File::create(dir)?;
-        let mut dot = Command::new("dot")
-            .arg("-Tsvg")
-            .stdin(Stdio::piped())
-            .stdout(file)
-            .spawn()
-            .context("Failed to execute 'dot' command.")?;
-
-        if let Some(mut stdin) = dot.stdin.take() {
-            let graph = format!("{}", self);
-            stdin.write_all(graph.as_bytes())?;
-        }
-
-        dot.wait()?;
-        Ok(())
-    }
-}
+/* IMPL EXTERNAL TRAIT */
 
 impl Display for Session<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -333,12 +408,14 @@ impl Display for Session<'_> {
     }
 }
 
+/* TESTS */
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+    use crate::core::game::mock::SessionBuilder;
     use crate::node;
-    use crate::types::game::mock::SessionBuilder;
     use anyhow::Result;
 
     const MODULE_NAME: &str = "mock-core-tests";
@@ -385,8 +462,7 @@ mod tests {
 
         let repeats = states.iter().any(|&i| {
             states[(1 + BitArray::<_, Msb0>::from(i).load_be::<usize>())..]
-                .iter()
-                .any(|&j| i == j)
+                .contains(&i)
         });
 
         assert!(!repeats);

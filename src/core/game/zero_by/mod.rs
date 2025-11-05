@@ -9,10 +9,22 @@ use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
 use modular_bitfield::Specifier;
+use modular_bitfield::bitfield;
+use modular_bitfield::prelude::*;
 use rusqlite::Statement;
 use rusqlite::Transaction;
 use rusqlite::params_from_iter;
 
+use crate::core::database::InsertQuery;
+use crate::core::database::Schema;
+use crate::core::frontend::IOMode;
+use crate::core::game::GameData;
+use crate::core::game::Player;
+use crate::core::game::PlayerCount;
+use crate::core::game::Remoteness;
+use crate::core::game::SUtility;
+use crate::core::game::State;
+use crate::core::game::Variant;
 use crate::core::game::util::min_ubits;
 use crate::traits::database::DrawRecord;
 use crate::traits::database::PlayerRecord;
@@ -26,27 +38,72 @@ use crate::traits::game::Information;
 use crate::traits::game::Sequential;
 use crate::traits::game::SimpleUtility;
 use crate::traits::game::Variable;
-use crate::types::database::InsertQuery;
-use crate::types::frontend::IOMode;
-use crate::types::game::GameData;
-use crate::types::game::Player;
-use crate::types::game::PlayerCount;
-use crate::types::game::Remoteness;
-use crate::types::game::SUtility;
-use crate::types::game::State;
-use crate::types::game::Variant;
-use crate::types::game::zero_by;
-use crate::types::game::zero_by::Elements;
-use crate::types::game::zero_by::PlayerStorage;
-use crate::types::game::zero_by::Record;
-use crate::types::game::zero_by::RemotenessStorage;
-use crate::types::game::zero_by::Session;
-use crate::types::game::zero_by::VARIANT_DEFAULT;
 
-/* UTILITY SUBMODULES */
+/* SUBMODULES */
 
 mod states;
 mod variants;
+
+/* TYPE ALIASES */
+
+pub type Elements = u64;
+pub type RemotenessStorage = B32;
+pub type PlayerStorage = B8;
+
+/* CONSTANTS */
+
+pub const NAME: &str = "zero-by";
+pub const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
+pub const ABOUT: &str = "Many players take turns removing a number of elements \
+from a set of arbitrary size. The game variant determines how many players are \
+in the game, how many elements are in the set to begin with, and the options \
+players have in the amount of elements to remove during their turn. The player \
+who is left with 0 elements in their turn loses. A player cannot remove more \
+elements than currently available in the set.";
+
+pub const VARIANT_DEFAULT: &str = "2-10-1-2";
+pub const VARIANT_PATTERN: &str = r"^[1-9]\d*(?:-[1-9]\d*)+$";
+pub const VARIANT_PROTOCOL: &str = "The variant should be a dash-separated \
+group of three or more positive integers. For example, '4-232-23-6-3-6' is \
+valid but '598', '-23-1-5', and 'fifteen-2-5' are not. The first integer \
+represents the number of players in the game. The second integer represents \
+the number of elements in the set. The rest are choices that the players have \
+when they need to remove a number of pieces on their turn. Note that the \
+numbers can be repeated, but if you repeat the first number it will be a win \
+for the player with the first turn in 1 move. If you repeat any of the rest \
+of the numbers, the only consequence will be a slight decrease in performance.";
+
+pub const STATE_DEFAULT: &str = "10-0";
+pub const STATE_PATTERN: &str = r"^\d+-\d+$";
+pub const STATE_PROTOCOL: &str = "Two dash-separated positive integers. The \
+first integer indicates the amount of elements left to remove from the set, \
+and the second indicates whose turn it is to remove an element. The first \
+integer must be less than or equal to the number of initial elements specified \
+by the game variant. Likewise, the second integer must be strictly less than \
+the number of players in the game.";
+
+/* STRUCTURES */
+
+pub struct Session {
+    pub start_elems: Elements,
+    pub start_state: State,
+    pub player_bits: usize,
+    pub players: PlayerCount,
+    pub schema: Schema,
+    pub name: String,
+    pub by: Vec<Elements>,
+}
+
+#[bitfield]
+pub struct RecordHeader {
+    pub remoteness: RemotenessStorage,
+    pub player: PlayerStorage,
+}
+
+pub struct Record<const N: PlayerCount> {
+    pub header: RecordHeader,
+    pub utility: [SUtility; N],
+}
 
 /* IMPLEMENTATIONS */
 
@@ -90,17 +147,17 @@ impl Default for Session {
 impl Information for Session {
     fn info() -> GameData {
         GameData {
-            name: zero_by::NAME,
-            authors: zero_by::AUTHORS,
-            about: zero_by::ABOUT,
+            name: NAME,
+            authors: AUTHORS,
+            about: ABOUT,
 
-            variant_protocol: zero_by::VARIANT_PROTOCOL,
-            variant_pattern: zero_by::VARIANT_PATTERN,
-            variant_default: zero_by::VARIANT_DEFAULT,
+            variant_protocol: VARIANT_PROTOCOL,
+            variant_pattern: VARIANT_PATTERN,
+            variant_default: VARIANT_DEFAULT,
 
-            state_default: zero_by::STATE_DEFAULT,
-            state_pattern: zero_by::STATE_PATTERN,
-            state_protocol: zero_by::STATE_PROTOCOL,
+            state_default: STATE_DEFAULT,
+            state_pattern: STATE_PATTERN,
+            state_protocol: STATE_PROTOCOL,
         }
     }
 }
@@ -165,8 +222,6 @@ impl<const N: PlayerCount> Sequential<N> for Session {
     }
 }
 
-/* UTILITY IMPLEMENTATIONS */
-
 impl<const N: PlayerCount> SimpleUtility<N> for Session {
     fn utility(&self, state: &State) -> [SUtility; N] {
         let (turn, _) = self.decode_state(*state);
@@ -175,8 +230,6 @@ impl<const N: PlayerCount> SimpleUtility<N> for Session {
         payoffs
     }
 }
-
-/* SQLITE RECORD IMPLEMENTATIONS */
 
 impl<const N: PlayerCount> SQLiteWriter<N> for Session {
     type Solution = Record<N>;
@@ -225,8 +278,6 @@ impl<const N: PlayerCount> SQLiteWriter<N> for Session {
         Ok(())
     }
 }
-
-/* SLED RECORD IMPLEMENTATIONS */
 
 impl<const N: usize> RemotenessRecord for Record<N> {
     fn set_remoteness(&mut self, value: Remoteness) -> Result<&mut Self> {
