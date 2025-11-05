@@ -14,9 +14,19 @@ use crate::traits::scheduler::Runner;
 
 /* SUBMODULES */
 
-pub mod runner;
-pub mod logger;
-pub mod policy;
+pub mod logger {
+    pub mod count;
+}
+
+pub mod policy {
+    pub mod critical;
+    pub mod trivial;
+}
+
+pub mod runner {
+    pub mod sync;
+    pub mod thread;
+}
 
 /* TYPE ALIASES */
 

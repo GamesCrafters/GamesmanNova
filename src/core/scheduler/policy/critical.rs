@@ -1,4 +1,4 @@
-//! # Policy Implementations
+//! # Critical Path Policy Implementation
 //!
 //! TODO
 
@@ -9,28 +9,10 @@ use crate::types::scheduler::SchedulerState;
 use crate::types::scheduler::SizeStats;
 use crate::types::scheduler::TaskID;
 use crate::types::scheduler::TaskRegistry;
-use crate::types::scheduler::policy::CriticalPathPolicy;
-use crate::types::scheduler::policy::RetryPolicy;
-use crate::types::scheduler::policy::TrivialPolicy;
+use crate::types::scheduler::policy::critical::CriticalPathPolicy;
+use crate::types::scheduler::policy::critical::RetryPolicy;
 
-/* POLICY IMPLEMENTATIONS */
-
-impl Policy for TrivialPolicy {
-    fn retry(&mut self, _state: &SchedulerState) -> Option<TaskID> {
-        None
-    }
-
-    fn preempt(&mut self, _state: &SchedulerState) -> Option<TaskID> {
-        None
-    }
-
-    fn execute(&mut self, state: &SchedulerState) -> Option<TaskID> {
-        state
-            .tasks_ready()
-            .map(|(tid, _ctx)| *tid)
-            .min()
-    }
-}
+/* IMPLEMENTATION */
 
 impl Policy for CriticalPathPolicy {
     fn retry(&mut self, state: &SchedulerState) -> Option<TaskID> {
@@ -176,20 +158,8 @@ mod tests {
     use super::*;
     use crate::core::scheduler::utils::test_utils::*;
     use crate::types::scheduler::TaskState;
-    use crate::types::scheduler::policy::CriticalPathPolicyBuilder;
+    use crate::types::scheduler::policy::critical::CriticalPathPolicyBuilder;
     use std::collections::HashSet;
-
-    #[test]
-    fn test_trivial_never_preempts() {
-        let mut policy = TrivialPolicy;
-        let mut state = SchedulerState::default();
-
-        state
-            .registry
-            .insert(1, task_ctx(TaskState::Running));
-
-        assert_eq!(policy.preempt(&state), None);
-    }
 
     #[test]
     fn test_critical_path_selects_longest_path() {

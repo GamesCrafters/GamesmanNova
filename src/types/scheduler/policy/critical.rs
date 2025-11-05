@@ -1,10 +1,10 @@
-//! # Scheduler Policy Types
+//! # Critical Path Policy
 //!
-//! TODO
+//! Weighted critical path scheduling policy with preemption.
 
 use derive_builder::Builder;
 
-use crate::core::scheduler::component::policy::threshold;
+use crate::core::scheduler::policy::critical::threshold;
 use crate::types::scheduler::SchedulerState;
 use crate::types::scheduler::TaskID;
 
@@ -13,11 +13,7 @@ use crate::types::scheduler::TaskID;
 /// Generic component of a scheduler policy in charge of retrying tasks.
 pub type RetryPolicy = Box<dyn FnMut(&SchedulerState) -> Option<TaskID>>;
 
-/* POLICY STRUCTURES */
-
-/// No-preemption policy that always picks the task with lowest ID.
-#[derive(Default)]
-pub struct TrivialPolicy;
+/* TYPE */
 
 /// Weighted critical path scheduling policy with preemption.
 #[derive(Builder)]

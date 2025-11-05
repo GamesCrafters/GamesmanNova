@@ -23,7 +23,6 @@ mod core {
     pub mod scheduler;
     pub mod frontend;
     pub mod database;
-    pub mod solver;
     pub mod error;
     pub mod game;
 }
@@ -40,7 +39,6 @@ mod types {
     pub mod scheduler;
     pub mod frontend;
     pub mod database;
-    pub mod solver;
     pub mod error;
     pub mod game;
 }

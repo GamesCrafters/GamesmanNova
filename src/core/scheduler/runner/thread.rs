@@ -1,4 +1,4 @@
-//! # Runner Implementations
+//! # Thread Pool Runner Implementation
 //!
 //! TODO
 
@@ -24,68 +24,23 @@ use crate::types::scheduler::TaskID;
 use crate::types::scheduler::TaskOutcomes;
 use crate::types::scheduler::YieldIntention;
 use crate::types::scheduler::YieldUpdate;
-use crate::types::scheduler::runner::CompletionPacket;
-use crate::types::scheduler::runner::RunningTaskState;
-use crate::types::scheduler::runner::SyncRunner;
-use crate::types::scheduler::runner::ThreadPoolConfig;
-use crate::types::scheduler::runner::ThreadPoolRunner;
-use crate::types::scheduler::runner::WorkPacket;
-use crate::types::scheduler::runner::WorkResult;
+use crate::types::scheduler::runner::thread::CompletionPacket;
+use crate::types::scheduler::runner::thread::RunningTaskState;
+use crate::types::scheduler::runner::thread::ThreadPoolConfig;
+use crate::types::scheduler::runner::thread::ThreadPoolRunner;
+use crate::types::scheduler::runner::thread::WorkPacket;
+use crate::types::scheduler::runner::thread::WorkResult;
 
-/* SYNCHRONOUS RUNNER */
+/* IMPLEMENTATIONS */
 
-impl Runner for SyncRunner {
-    fn units(&self) -> usize {
-        0
-    }
-
-    fn execute(
-        &mut self,
-        tid: TaskID,
-        awaited: TaskOutcomes,
-        mut executable: Box<dyn Executable>,
-    ) -> Result<()> {
-        if self.running.contains_key(&tid) {
-            bail!("Task {} is already running.", tid);
+impl Default for ThreadPoolConfig {
+    fn default() -> Self {
+        Self {
+            preempt_timeout: Duration::from_millis(100),
+            num_threads: num_cpus::get(),
         }
-
-        let mut result = executable.tick(awaited);
-        while result.ready() {
-            result = executable.tick(TaskOutcomes::new());
-        }
-
-        self.running
-            .insert(tid, executable);
-
-        self.results
-            .insert(tid, Ok(result));
-
-        Ok(())
-    }
-
-    fn poll(&mut self, tid: TaskID) -> Result<PollStatus> {
-        match self.results.remove(&tid) {
-            Some(Ok(update)) => Ok(PollStatus::Ready(update)),
-            Some(Err(e)) => Ok(PollStatus::Panic(e.to_string())),
-            None => Ok(PollStatus::Pending),
-        }
-    }
-
-    fn preempt(&mut self, _tid: TaskID) -> Result<()> {
-        Ok(())
-    }
-
-    fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>> {
-        self.running
-            .remove(&tid)
-            .context(format!(
-                "Task {} is not running or not ready to collect",
-                tid
-            ))
     }
 }
-
-/* THREAD POOL RUNNER */
 
 impl ThreadPoolRunner {
     pub fn new(config: ThreadPoolConfig) -> Result<Self> {
@@ -142,9 +97,9 @@ impl ThreadPoolRunner {
 
     /// Set preemption signal for a task.
     fn signal(&self, tid: TaskID) {
-        if let Some(signal) = self.signals.get(&tid) {
-            signal.store(true, Ordering::Relaxed)
-        }
+        self.signals
+            .get(&tid)
+            .map(|signal| signal.store(true, Ordering::Relaxed));
     }
 
     /// Remove all metadata for a task.
@@ -276,8 +231,6 @@ impl Runner for ThreadPoolRunner {
     }
 }
 
-/* UTILITY IMPLEMENTATIONS */
-
 impl Drop for ThreadPoolRunner {
     fn drop(&mut self) {
         self.shutdown
@@ -399,7 +352,7 @@ impl RunningTaskState {
     }
 }
 
-/* HELPER METHODS */
+/* HELPER FUNCTIONS */
 
 fn harness(work_rx: Receiver<WorkPacket>, shutdown: Arc<AtomicBool>) {
     while !shutdown.load(Ordering::Relaxed) {

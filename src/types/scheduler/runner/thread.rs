@@ -1,8 +1,7 @@
-//! # Scheduler Runner Types
+//! # Thread Pool Runner
 //!
-//! TODO
+//! Concurrent runner that executes tasks across a pool of worker threads.
 
-use anyhow::Result;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
 use derive_builder::Builder;
@@ -34,14 +33,7 @@ pub enum RunningTaskState {
     Executing,
 }
 
-/* RUNNER STRUCTURES */
-
-/// Synchronous runner that just blocks on task spawns.
-#[derive(Default)]
-pub struct SyncRunner {
-    pub running: HashMap<TaskID, Box<dyn Executable>>,
-    pub results: HashMap<TaskID, Result<YieldUpdate>>,
-}
+/* TYPES */
 
 /// Thread pool runner configuration.
 #[derive(Clone, Builder)]

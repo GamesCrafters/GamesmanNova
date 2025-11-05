@@ -1,4 +1,4 @@
-//! # Logger Implementations
+//! # Count Logger Implementation
 //!
 //! TODO
 
@@ -7,9 +7,9 @@ use anyhow::Result;
 use crate::traits::scheduler::Logger;
 use crate::types::scheduler::SchedulerState;
 use crate::types::scheduler::TaskState;
-use crate::types::scheduler::logger::CountLogger;
+use crate::types::scheduler::logger::count::CountLogger;
 
-/* CLI LOGGER */
+/* IMPLEMENTATION */
 
 impl Logger for CountLogger {
     fn log(&mut self, state: &SchedulerState) -> Result<()> {

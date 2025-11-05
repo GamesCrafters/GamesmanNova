@@ -26,10 +26,23 @@ use utils::find_cycle_path;
 
 mod utils;
 
-pub mod component {
-    pub mod logger;
-    pub mod runner;
-    pub mod policy;
+pub mod logger {
+    pub mod count;
+}
+
+pub mod policy {
+    pub mod critical;
+    pub mod trivial;
+}
+
+pub mod runner {
+    pub mod sync;
+    pub mod thread;
+}
+
+pub mod task {
+    #[cfg(test)]
+    pub mod mock;
 }
 
 /* IMPLEMENTATIONS */

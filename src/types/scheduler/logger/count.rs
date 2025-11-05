@@ -1,8 +1,8 @@
-//! # Scheduler Logger Types
+//! # Count Logger
 //!
-//! TODO
+//! Simple command-line logger that prints task progress counts.
 
-/* LOGGER STRUCTURES */
+/* TYPE */
 
 /// Simple command-line logger that prints task progress counts.
 #[derive(Default)]
