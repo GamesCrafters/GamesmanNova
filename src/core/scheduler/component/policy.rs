@@ -5,12 +5,13 @@
 use std::collections::HashMap;
 
 use crate::traits::scheduler::Policy;
-use crate::types::scheduler::CriticalPathPolicy;
 use crate::types::scheduler::SchedulerState;
 use crate::types::scheduler::SizeStats;
 use crate::types::scheduler::TaskID;
 use crate::types::scheduler::TaskRegistry;
-use crate::types::scheduler::TrivialPolicy;
+use crate::types::scheduler::policy::CriticalPathPolicy;
+use crate::types::scheduler::policy::RetryPolicy;
+use crate::types::scheduler::policy::TrivialPolicy;
 
 /* POLICY IMPLEMENTATIONS */
 
@@ -25,32 +26,32 @@ impl Policy for TrivialPolicy {
 
     fn execute(&mut self, state: &SchedulerState) -> Option<TaskID> {
         state
-            .ready_tasks()
+            .tasks_ready()
             .map(|(tid, _ctx)| *tid)
             .min()
     }
 }
 
 impl Policy for CriticalPathPolicy {
-    fn retry(&mut self, _state: &SchedulerState) -> Option<TaskID> {
-        None
+    fn retry(&mut self, state: &SchedulerState) -> Option<TaskID> {
+        (self.retry)(state)
     }
 
     fn preempt(&mut self, state: &SchedulerState) -> Option<TaskID> {
-        let running_count = state.running_tasks().count();
-        if running_count < self.workers? {
+        let running_count = state.tasks_running().count();
+        if self.units == 0 || running_count < self.units {
             return None;
         }
 
         let stats = compute_size_stats(&state.registry);
         let threshold = (self.sigma * stats.stddev) as u64;
         let max_ready_depth = state
-            .ready_tasks()
+            .tasks_ready()
             .map(|(tid, _ctx)| calculate_depth(*tid, &state.registry))
             .max()?;
 
         let (min_running_tid, min_running_depth) = state
-            .running_tasks()
+            .tasks_running()
             .map(|(tid, _ctx)| (*tid, calculate_depth(*tid, &state.registry)))
             .min_by_key(|(_, depth)| *depth)?;
 
@@ -63,11 +64,34 @@ impl Policy for CriticalPathPolicy {
 
     fn execute(&mut self, state: &SchedulerState) -> Option<TaskID> {
         state
-            .ready_tasks()
+            .tasks_ready()
             .map(|(tid, _ctx)| (*tid, calculate_depth(*tid, &state.registry)))
             .max_by_key(|(_, depth)| *depth)
             .map(|(tid, _)| tid)
     }
+}
+
+/* PRESET RETRY POLICIES */
+
+/// Provide each task up to `limit` retry opportunities.
+pub fn threshold(limit: usize) -> RetryPolicy {
+    let mut counts: HashMap<TaskID, usize> = HashMap::new();
+    let policy = move |state: &SchedulerState| {
+        let tid = *state
+            .tasks_errored()
+            .map(|(tid, _)| tid)
+            .next()?;
+
+        let count = counts.entry(tid).or_insert(0);
+        if *count < limit {
+            *count += 1;
+            Some(tid)
+        } else {
+            None
+        }
+    };
+
+    Box::new(policy)
 }
 
 /* HELPER FUNCTIONS */
@@ -151,8 +175,8 @@ mod tests {
 
     use super::*;
     use crate::core::scheduler::utils::test_utils::*;
-    use crate::types::scheduler::CriticalPathPolicyBuilder;
     use crate::types::scheduler::TaskState;
+    use crate::types::scheduler::policy::CriticalPathPolicyBuilder;
     use std::collections::HashSet;
 
     #[test]
@@ -170,7 +194,7 @@ mod tests {
     #[test]
     fn test_critical_path_selects_longest_path() {
         let mut policy = CriticalPathPolicyBuilder::default()
-            .workers(None)
+            .units(0usize)
             .sigma(0.0)
             .build()
             .unwrap();
@@ -198,7 +222,7 @@ mod tests {
     #[test]
     fn test_critical_path_no_preemption_without_workers() {
         let mut policy = CriticalPathPolicyBuilder::default()
-            .workers(None)
+            .units(0usize)
             .sigma(0.0)
             .build()
             .unwrap();
@@ -218,7 +242,7 @@ mod tests {
     #[test]
     fn test_critical_path_preempts_at_capacity() {
         let mut policy = CriticalPathPolicyBuilder::default()
-            .workers(Some(1))
+            .units(1usize)
             .sigma(0.0)
             .build()
             .unwrap();
@@ -238,7 +262,7 @@ mod tests {
     #[test]
     fn test_critical_path_respects_sigma_threshold() {
         let mut policy = CriticalPathPolicyBuilder::default()
-            .workers(Some(1))
+            .units(1usize)
             .sigma(10.0)
             .build()
             .unwrap();

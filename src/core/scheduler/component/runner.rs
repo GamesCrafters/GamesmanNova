@@ -9,10 +9,10 @@ use async_trait::async_trait;
 
 use crate::traits::scheduler::Executable;
 use crate::traits::scheduler::Runner;
-use crate::types::scheduler::SyncRunner;
 use crate::types::scheduler::TaskID;
 use crate::types::scheduler::TaskOutcomes;
 use crate::types::scheduler::YieldUpdate;
+use crate::types::scheduler::runner::SyncRunner;
 
 /* SYNCHRONOUS RUNNER */
 
@@ -25,12 +25,18 @@ impl Runner for SyncRunner {
         deps: TaskOutcomes,
     ) -> Result<()> {
         if self.running.contains_key(&tid) {
-            bail!("Task {} is already running", tid);
+            bail!("Task {} is already running.", tid);
         }
 
-        let result = Ok(task.tick(deps));
+        let mut result = task.tick(deps);
+        while result.ready() {
+            result = task.tick(TaskOutcomes::new());
+        }
+
         self.running.insert(tid, task);
-        self.results.insert(tid, result);
+        self.results
+            .insert(tid, Ok(result));
+
         Ok(())
     }
 
@@ -41,6 +47,6 @@ impl Runner for SyncRunner {
     async fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>> {
         self.running
             .remove(&tid)
-            .context(format!("Task {} is not running", tid))
+            .context(format!("Task {} is not running.", tid))
     }
 }

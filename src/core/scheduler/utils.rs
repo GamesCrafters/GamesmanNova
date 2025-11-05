@@ -12,17 +12,72 @@ use crate::types::scheduler::TaskContext;
 use crate::types::scheduler::TaskID;
 use crate::types::scheduler::TaskRegistry;
 use crate::types::scheduler::TaskState;
+use crate::types::scheduler::YieldIntention;
+use crate::types::scheduler::YieldUpdate;
 
 /* UTILITY IMPLEMENTATIONS */
+
+impl YieldUpdate {
+    pub fn ready(&self) -> bool {
+        match self.intention {
+            YieldIntention::Finished(_) | YieldIntention::Waiting(_) => false,
+            YieldIntention::Ready => true,
+        }
+    }
+}
 
 impl TaskContext {
     pub fn active(&self) -> bool {
         match &self.progress {
             TaskState::Ready
             | TaskState::Running
-            | TaskState::Preempting
-            | TaskState::Waiting(_) => true,
+            | TaskState::Waiting(_)
+            | TaskState::Preempting => true,
             TaskState::Error | TaskState::Finished(_) => false,
+        }
+    }
+
+    pub fn ready(&self) -> bool {
+        match &self.progress {
+            TaskState::Error
+            | TaskState::Running
+            | TaskState::Waiting(_)
+            | TaskState::Finished(_)
+            | TaskState::Preempting => false,
+            TaskState::Ready => true,
+        }
+    }
+
+    pub fn running(&self) -> bool {
+        match &self.progress {
+            TaskState::Error
+            | TaskState::Waiting(_)
+            | TaskState::Finished(_)
+            | TaskState::Preempting
+            | TaskState::Ready => false,
+            TaskState::Running => true,
+        }
+    }
+
+    pub fn errored(&self) -> bool {
+        match &self.progress {
+            TaskState::Ready
+            | TaskState::Running
+            | TaskState::Waiting(_)
+            | TaskState::Finished(_)
+            | TaskState::Preempting => false,
+            TaskState::Error => true,
+        }
+    }
+
+    pub fn preempting(&self) -> bool {
+        match &self.progress {
+            TaskState::Error
+            | TaskState::Running
+            | TaskState::Waiting(_)
+            | TaskState::Finished(_)
+            | TaskState::Ready => false,
+            TaskState::Preempting => true,
         }
     }
 
@@ -39,32 +94,42 @@ impl TaskContext {
 }
 
 impl SchedulerState {
-    pub fn ready_tasks(&self) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
-        self.registry
-            .iter()
-            .filter(|(_, ctx)| match ctx.progress {
-                TaskState::Error
-                | TaskState::Waiting(_)
-                | TaskState::Finished(_)
-                | TaskState::Running
-                | TaskState::Preempting => false,
-                TaskState::Ready => true,
-            })
-    }
-
-    pub fn running_tasks(
+    pub fn tasks_active(
         &self,
     ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
         self.registry
             .iter()
-            .filter(|(_, ctx)| match ctx.progress {
-                TaskState::Error
-                | TaskState::Waiting(_)
-                | TaskState::Finished(_)
-                | TaskState::Preempting
-                | TaskState::Ready => false,
-                TaskState::Running => true,
-            })
+            .filter(|(_, ctx)| ctx.active())
+    }
+
+    pub fn tasks_ready(&self) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
+        self.registry
+            .iter()
+            .filter(|(_, ctx)| ctx.ready())
+    }
+
+    pub fn tasks_running(
+        &self,
+    ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
+        self.registry
+            .iter()
+            .filter(|(_, ctx)| ctx.running())
+    }
+
+    pub fn tasks_errored(
+        &self,
+    ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
+        self.registry
+            .iter()
+            .filter(|(_, ctx)| ctx.errored())
+    }
+
+    pub fn tasks_preempting(
+        &self,
+    ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
+        self.registry
+            .iter()
+            .filter(|(_, ctx)| ctx.preempting())
     }
 
     pub fn get_dependencies(&self, tid: TaskID) -> Option<&Dependencies> {

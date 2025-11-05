@@ -2,7 +2,6 @@
 //!
 //! TODO
 
-use anyhow::Result;
 use derive_builder::Builder;
 
 use std::collections::HashMap;
@@ -12,6 +11,12 @@ use crate::traits::scheduler::Executable;
 use crate::traits::scheduler::Logger;
 use crate::traits::scheduler::Policy;
 use crate::traits::scheduler::Runner;
+
+/* SUBMODULES */
+
+pub mod runner;
+pub mod logger;
+pub mod policy;
 
 /* TYPE ALIASES */
 
@@ -60,7 +65,7 @@ pub enum YieldIntention {
     Ready,
 }
 
-/* CORE STRUCTURES */
+/* STRUCTURES */
 
 /// Update provided by a task upon yielding or being preempted. Any information
 /// included about another existing task (through `discovered`) is ignored.
@@ -131,32 +136,3 @@ pub struct SizeStats {
     pub stddev: f64,
     pub mean: f64,
 }
-
-/* POLICY STRUCTURES */
-
-/// No-preemption policy that always picks the task with lowest ID.
-#[derive(Default)]
-pub struct TrivialPolicy;
-
-/// Weighted critical path scheduling policy with preemption.
-#[derive(Builder)]
-#[builder(pattern = "owned", setter(into))]
-pub struct CriticalPathPolicy {
-    pub workers: Option<usize>,
-    pub sigma: f64,
-}
-
-/* RUNNER STRUCTURES */
-
-/// Synchronous runner that just blocks on task spawns.
-#[derive(Default)]
-pub struct SyncRunner {
-    pub running: HashMap<TaskID, Box<dyn Executable>>,
-    pub results: HashMap<TaskID, Result<YieldUpdate>>,
-}
-
-/* LOGGER STRUCTURES */
-
-/// Simple command-line logger that prints task progress counts.
-#[derive(Default)]
-pub struct CountLogger;

@@ -25,9 +25,11 @@ use utils::find_cycle_path;
 
 mod utils;
 
-pub mod logger;
-pub mod runner;
-pub mod policy;
+pub mod component {
+    pub mod logger;
+    pub mod runner;
+    pub mod policy;
+}
 
 /* IMPLEMENTATIONS */
 
