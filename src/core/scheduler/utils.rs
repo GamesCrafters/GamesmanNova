@@ -18,9 +18,10 @@ use crate::types::scheduler::TaskState;
 impl TaskContext {
     pub fn active(&self) -> bool {
         match &self.progress {
-            TaskState::Ready | TaskState::Running | TaskState::Preempting | TaskState::Waiting(_) => {
-                true
-            },
+            TaskState::Ready
+            | TaskState::Running
+            | TaskState::Preempting
+            | TaskState::Waiting(_) => true,
             TaskState::Error | TaskState::Finished(_) => false,
         }
     }

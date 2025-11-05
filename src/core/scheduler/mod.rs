@@ -135,8 +135,11 @@ impl Scheduler {
             .registry
             .iter()
             .filter_map(|(tid, ctx)| {
-                matches!(ctx.progress, TaskState::Running | TaskState::Preempting)
-                    .then_some(*tid)
+                matches!(
+                    ctx.progress,
+                    TaskState::Running | TaskState::Preempting
+                )
+                .then_some(*tid)
             })
             .collect();
 
