@@ -7,6 +7,7 @@ use anyhow::Result;
 use anyhow::bail;
 
 use crate::types::scheduler::Dependencies;
+use crate::types::scheduler::PollStatus;
 use crate::types::scheduler::Scheduler;
 use crate::types::scheduler::SchedulerContext;
 use crate::types::scheduler::SchedulerState;
@@ -35,7 +36,8 @@ pub mod component {
 
 impl Scheduler {
     /// Create a scheduler in its own universe.
-    pub fn new(context: SchedulerContext, state: SchedulerState) -> Self {
+    pub fn new(context: SchedulerContext, mut state: SchedulerState) -> Self {
+        state.units = context.runner.units();
         Self { context, state }
     }
 
@@ -60,7 +62,7 @@ impl Scheduler {
 
         if !requires.is_empty() {
             self.link_dependencies(task.tid, &requires)?;
-            self.set_progress(task.tid, TaskState::Waiting(requires))?;
+            self.set_state(task.tid, TaskState::Waiting(requires))?;
         }
 
         self.ensure_acyclic()?;
@@ -68,26 +70,25 @@ impl Scheduler {
     }
 
     /// Loop the scheduler until there are no active tasks.
-    pub async fn run(&mut self) -> Result<()> {
+    pub fn run(&mut self) -> Result<()> {
         while self
             .state
             .registry
             .values()
             .any(|ctx| ctx.active())
         {
-            self.tick().await?;
+            self.tick()?;
         }
 
         Ok(())
     }
 
-    /// Execute one pass of retry policy phases and log changes.
-    async fn tick(&mut self) -> Result<()> {
+    fn tick(&mut self) -> Result<()> {
         let changed = [
-            self.collect_phase().await?,
-            self.retry_phase()?,
-            self.preempt_phase().await?,
-            self.execute_phase().await?,
+            self.collect_phase()?,
+            self.retries_phase()?,
+            self.preempt_phase()?,
+            self.execute_phase()?,
         ];
 
         self.state.ticks += 1;
@@ -102,75 +103,50 @@ impl Scheduler {
 
     /* TICK PHASES */
 
-    fn retry_phase(&mut self) -> Result<bool> {
+    fn collect_phase(&mut self) -> Result<bool> {
+        let executing = self.state.runner_tasks();
+        let tasks: Vec<TaskID> = executing
+            .map(|(tid, _)| *tid)
+            .collect();
+
+        let mut changed = false;
+        for tid in tasks {
+            changed |= self.collect_task(tid)?;
+        }
+
+        Ok(changed)
+    }
+
+    fn retries_phase(&mut self) -> Result<bool> {
         let mut changed = false;
         while let Some(tid) = self
             .context
             .policy
             .retry(&self.state)
         {
-            self.set_progress(tid, TaskState::Ready)?;
+            self.set_state(tid, TaskState::Ready)?;
             changed = true;
         }
 
         Ok(changed)
     }
 
-    async fn preempt_phase(&mut self) -> Result<bool> {
+    fn preempt_phase(&mut self) -> Result<bool> {
         let mut changed = false;
         while let Some(tid) = self
             .context
             .policy
             .preempt(&self.state)
         {
-            self.set_progress(tid, TaskState::Preempting)?;
+            self.context.runner.preempt(tid)?;
+            self.set_state(tid, TaskState::Preempting)?;
             changed = true;
         }
 
         Ok(changed)
     }
 
-    async fn collect_phase(&mut self) -> Result<bool> {
-        let mut changed = false;
-        let tasks: Vec<TaskID> = self
-            .state
-            .registry
-            .iter()
-            .filter_map(|(tid, ctx)| {
-                matches!(
-                    ctx.progress,
-                    TaskState::Running | TaskState::Preempting
-                )
-                .then_some(*tid)
-            })
-            .collect();
-
-        for tid in tasks {
-            let Some(result) = self.context.runner.poll(tid) else {
-                continue;
-            };
-
-            let task = self
-                .context
-                .runner
-                .collect(tid)
-                .await?;
-
-            self.state.buffer.insert(tid, task);
-            self.update_size(tid)?;
-
-            match result {
-                Ok(update) => self.reabsorb(tid, update).await?,
-                Err(_) => self.set_progress(tid, TaskState::Error)?,
-            }
-
-            changed = true;
-        }
-
-        Ok(changed)
-    }
-
-    async fn execute_phase(&mut self) -> Result<bool> {
+    fn execute_phase(&mut self) -> Result<bool> {
         let mut changed = false;
         while let Some(tid) = self
             .context
@@ -183,12 +159,11 @@ impl Scheduler {
                 .remove(&tid)
                 .context("Attempted to fetch non-existing task from buffer.")?;
 
-            let outcomes = self.collect_outcomes(tid)?;
-            self.set_progress(tid, TaskState::Running)?;
+            let awaited = self.collect_awaited(tid)?;
+            self.set_state(tid, TaskState::Running)?;
             self.context
                 .runner
-                .execute(tid, task, outcomes)
-                .await?;
+                .execute(tid, awaited, task)?;
 
             changed = true;
         }
@@ -196,13 +171,35 @@ impl Scheduler {
         Ok(changed)
     }
 
-    /* TASK YIELDING */
+    /* TASK COLLECTION */
 
-    async fn reabsorb(
-        &mut self,
-        tid: TaskID,
-        update: YieldUpdate,
-    ) -> Result<()> {
+    fn collect_task(&mut self, tid: TaskID) -> Result<bool> {
+        match self.context.runner.poll(tid)? {
+            PollStatus::Pending => Ok(false),
+            PollStatus::Ready(update) => {
+                let executable = self.context.runner.collect(tid)?;
+                self.state
+                    .buffer
+                    .insert(tid, executable);
+
+                self.update_size(tid)?;
+                self.handle_yield(tid, update)?;
+                Ok(true)
+            },
+            PollStatus::Panic(_) => {
+                let executable = self.context.runner.collect(tid)?;
+                self.state
+                    .buffer
+                    .insert(tid, executable);
+
+                self.update_size(tid)?;
+                self.set_state(tid, TaskState::Error)?;
+                Ok(true)
+            },
+        }
+    }
+
+    fn handle_yield(&mut self, tid: TaskID, update: YieldUpdate) -> Result<()> {
         match update.intention {
             YieldIntention::Finished(TaskOutcome::Error) => {
                 bail!("Task {} returned TaskOutcome::Error", tid);
@@ -216,7 +213,7 @@ impl Scheduler {
                     self.unlink_dependencies(tid, &deps);
                 }
 
-                self.set_progress(tid, TaskState::Finished(outcome))?;
+                self.set_state(tid, TaskState::Finished(outcome))?;
                 self.state.buffer.remove(&tid);
             },
             YieldIntention::Waiting(new_deps) => {
@@ -227,25 +224,29 @@ impl Scheduler {
                     .unwrap_or_default();
 
                 self.relink_dependencies(tid, &old_deps, &new_deps)?;
-                self.set_progress(tid, TaskState::Waiting(new_deps))?;
+                self.set_state(tid, TaskState::Waiting(new_deps))?;
                 self.ensure_acyclic()?;
             },
             YieldIntention::Ready => {
-                self.set_progress(tid, TaskState::Ready)?;
+                self.set_state(tid, TaskState::Ready)?;
             },
         }
 
-        for task in update.discovered {
+        let register = |task| {
             self.register(task)
-                .context("Failed to register discovered task")?;
-        }
+                .context("Failed to register discovered task")
+                .map(|_| ())
+        };
 
-        Ok(())
+        update
+            .discovered
+            .into_iter()
+            .try_for_each(register)
     }
 
     /* STATE MANIPULATION */
 
-    fn set_progress(&mut self, tid: TaskID, progress: TaskState) -> Result<()> {
+    fn set_state(&mut self, tid: TaskID, progress: TaskState) -> Result<()> {
         self.state
             .registry
             .get_mut(&tid)
@@ -285,27 +286,28 @@ impl Scheduler {
         source: TaskID,
         targets: &Dependencies,
     ) -> Result<()> {
-        targets
-            .iter()
-            .try_for_each(|target| {
-                self.state
-                    .registry
-                    .get_mut(target)
-                    .context(format!(
-                        "Task {} depends on non-existent task {}",
-                        source, target
-                    ))
-                    .map(|ctx| {
-                        ctx.incoming.insert(source);
-                    })
-            })
+        let link = |target: &TaskID| {
+            self.state
+                .registry
+                .get_mut(target)
+                .context(format!(
+                    "Task {} depends on non-existent task {}",
+                    source, target
+                ))
+                .map(|ctx| {
+                    ctx.incoming.insert(source);
+                })
+        };
+
+        targets.iter().try_for_each(link)
     }
 
     fn unlink_dependencies(&mut self, source: TaskID, targets: &Dependencies) {
         targets.iter().for_each(|target| {
-            if let Some(ctx) = self.state.registry.get_mut(target) {
-                ctx.incoming.remove(&source);
-            }
+            self.state
+                .registry
+                .get_mut(target)
+                .map(|ctx| ctx.incoming.remove(&source));
         });
     }
 
@@ -325,41 +327,40 @@ impl Scheduler {
             .copied()
             .collect();
 
-        added
-            .iter()
-            .try_for_each(|target| {
-                self.state
-                    .registry
-                    .get_mut(target)
-                    .context(format!(
-                        "Task {} updated to depend on non-existent task {}",
-                        source, target
-                    ))
-                    .map(|ctx| {
-                        ctx.incoming.insert(source);
-                    })
-            })?;
+        let link = |target: &TaskID| {
+            self.state
+                .registry
+                .get_mut(target)
+                .context(format!(
+                    "Task {} updated to depend on non-existent task {}",
+                    source, target
+                ))
+                .map(|ctx| {
+                    ctx.incoming.insert(source);
+                })
+        };
 
-        removed.iter().for_each(|target| {
+        added.iter().try_for_each(link)?;
+        let unlink = |target: &TaskID| {
             if let Some(ctx) = self.state.registry.get_mut(target) {
                 ctx.incoming.remove(&source);
             }
-        });
+        };
 
+        removed.iter().for_each(unlink);
         Ok(())
     }
 
     /* DEPENDENCY OUTCOMES */
 
-    fn collect_outcomes(&self, tid: TaskID) -> Result<TaskOutcomes> {
-        let deps = self
+    fn collect_awaited(&self, tid: TaskID) -> Result<TaskOutcomes> {
+        let dependencies = self
             .state
             .get_dependencies(tid)
             .cloned()
             .unwrap_or_default();
 
-        let mut outcomes = TaskOutcomes::new();
-        for dep_tid in deps {
+        let extract = |dep_tid| {
             let dep_ctx = self
                 .state
                 .registry
@@ -369,12 +370,24 @@ impl Scheduler {
                     dep_tid
                 ))?;
 
-            if let TaskState::Finished(outcome) = &dep_ctx.progress {
-                outcomes.insert(dep_tid, outcome.clone());
-            }
-        }
+            let result = dep_ctx
+                .outcome()
+                .map(|outcome| (dep_tid, outcome.clone()));
 
-        Ok(outcomes)
+            Ok(result)
+        };
+
+        let outcomes = dependencies
+            .into_iter()
+            .map(extract)
+            .collect::<Result<Vec<_>>>()?;
+
+        let awaited = outcomes
+            .into_iter()
+            .flatten()
+            .collect();
+
+        Ok(awaited)
     }
 
     /* VALIDATION */
@@ -386,19 +399,20 @@ impl Scheduler {
                 path.len() - 1
             );
 
-            let message = path
-                .iter()
-                .filter_map(|tid| {
-                    self.state
-                        .registry
-                        .get(tid)
-                        .map(|ctx| (tid, ctx))
-                })
-                .fold(base, |mut msg, (tid, ctx)| {
+            let format =
+                |mut msg: String, (tid, ctx): (&TaskID, &TaskContext)| {
                     msg.push_str(&format!("-> {:?}: {}\n", tid, ctx.about));
                     msg
-                });
+                };
 
+            let contexts = path.iter().filter_map(|tid| {
+                self.state
+                    .registry
+                    .get(tid)
+                    .map(|ctx| (tid, ctx))
+            });
+
+            let message = contexts.fold(base, format);
             bail!(message);
         }
 

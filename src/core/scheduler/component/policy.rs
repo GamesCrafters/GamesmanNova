@@ -39,7 +39,7 @@ impl Policy for CriticalPathPolicy {
 
     fn preempt(&mut self, state: &SchedulerState) -> Option<TaskID> {
         let running_count = state.tasks_running().count();
-        if self.units == 0 || running_count < self.units {
+        if state.units == 0 || running_count < state.units {
             return None;
         }
 
@@ -193,13 +193,13 @@ mod tests {
 
     #[test]
     fn test_critical_path_selects_longest_path() {
+        let mut state = SchedulerState::default();
         let mut policy = CriticalPathPolicyBuilder::default()
-            .units(0usize)
             .sigma(0.0)
             .build()
             .unwrap();
 
-        let mut state = SchedulerState::default();
+        state.units = 0;
         state.registry.insert(
             2,
             task_ctx_with_dependents(TaskState::Ready, Some(5), vec![3]),
@@ -221,13 +221,13 @@ mod tests {
 
     #[test]
     fn test_critical_path_no_preemption_without_workers() {
+        let mut state = SchedulerState::default();
         let mut policy = CriticalPathPolicyBuilder::default()
-            .units(0usize)
             .sigma(0.0)
             .build()
             .unwrap();
 
-        let mut state = SchedulerState::default();
+        state.units = 0;
         state
             .registry
             .insert(1, task_ctx_with_size(TaskState::Running, 5));
@@ -241,13 +241,13 @@ mod tests {
 
     #[test]
     fn test_critical_path_preempts_at_capacity() {
+        let mut state = SchedulerState::default();
         let mut policy = CriticalPathPolicyBuilder::default()
-            .units(1usize)
             .sigma(0.0)
             .build()
             .unwrap();
 
-        let mut state = SchedulerState::default();
+        state.units = 1;
         state
             .registry
             .insert(1, task_ctx_with_size(TaskState::Running, 5));
@@ -261,13 +261,13 @@ mod tests {
 
     #[test]
     fn test_critical_path_respects_sigma_threshold() {
+        let mut state = SchedulerState::default();
         let mut policy = CriticalPathPolicyBuilder::default()
-            .units(1usize)
             .sigma(10.0)
             .build()
             .unwrap();
 
-        let mut state = SchedulerState::default();
+        state.units = 1;
         state
             .registry
             .insert(1, task_ctx_with_size(TaskState::Running, 50));

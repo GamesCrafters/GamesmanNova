@@ -10,6 +10,7 @@ use crate::types::scheduler::Dependencies;
 use crate::types::scheduler::SchedulerState;
 use crate::types::scheduler::TaskContext;
 use crate::types::scheduler::TaskID;
+use crate::types::scheduler::TaskOutcome;
 use crate::types::scheduler::TaskRegistry;
 use crate::types::scheduler::TaskState;
 use crate::types::scheduler::YieldIntention;
@@ -91,6 +92,17 @@ impl TaskContext {
             TaskState::Waiting(deps) => Some(deps),
         }
     }
+
+    pub fn outcome(&self) -> Option<&TaskOutcome> {
+        match &self.progress {
+            TaskState::Ready
+            | TaskState::Running
+            | TaskState::Preempting
+            | TaskState::Waiting(_)
+            | TaskState::Error => None,
+            TaskState::Finished(outcome) => Some(outcome),
+        }
+    }
 }
 
 impl SchedulerState {
@@ -130,6 +142,14 @@ impl SchedulerState {
         self.registry
             .iter()
             .filter(|(_, ctx)| ctx.preempting())
+    }
+
+    pub fn runner_tasks(
+        &self,
+    ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
+        self.registry
+            .iter()
+            .filter(|(_, ctx)| ctx.running() || ctx.preempting())
     }
 
     pub fn get_dependencies(&self, tid: TaskID) -> Option<&Dependencies> {

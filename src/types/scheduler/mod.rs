@@ -41,7 +41,7 @@ pub type TaskRegistry = HashMap<TaskID, TaskContext>;
 /* ENUMERATIONS */
 
 /// The logical outcome of a task.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum TaskOutcome {
     Success(OutcomeCode),
     Failure(OutcomeCode),
@@ -72,6 +72,16 @@ pub enum YieldIntention {
 pub struct YieldUpdate {
     pub intention: YieldIntention,
     pub discovered: Vec<Task>,
+}
+
+/// Status returned by the runner when polling a task.
+pub enum PollStatus {
+    /// Task is still executing, not ready to collect yet.
+    Pending,
+    /// Task has completed (yielded, finished, or was preempted) and is ready to collect.
+    Ready(YieldUpdate),
+    /// Task executable panicked (internal task failure).
+    Panic(String),
 }
 
 /// The information needed to register a new task.
@@ -120,6 +130,7 @@ pub struct SchedulerState {
     pub registry: TaskRegistry,
     pub buffer: TaskBuffer,
     pub ticks: u64,
+    pub units: usize,
 }
 
 /// Generic task-recursive scheduler.

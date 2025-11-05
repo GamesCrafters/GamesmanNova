@@ -15,14 +15,16 @@ observability.
 The scheduler operates through a tick-based execution loop where each tick consists
 of four phases executed in sequence:
 
-1. **Collect Phase**: Poll the runner for completion of all running tasks, processing
-   any yields to update task states and discover new tasks.
+1. **Collect Phase**: Poll the runner for completion of all running and preempting
+   tasks, collecting executables from completed tasks, processing any yields to update
+   task states and discover new tasks.
 
 2. **Retry Phase**: Consult the policy to determine if any failed tasks should be
    retried, transitioning them from Error to Ready state.
 
 3. **Preempt Phase**: Consult the policy to determine if any running tasks should be
-   preempted, retrieving them from the runner and transitioning them to Ready state.
+   preempted, signaling the runner to initiate preemption and transitioning them to
+   Preempting state.
 
 4. **Execute Phase**: Consult the policy to select the next ready task to execute,
    dispatching it to the runner and transitioning it to Running state.
@@ -52,13 +54,16 @@ to buffer during retrieval (after yield or preemption).
 The scheduler uses **poll-based communication** with the runner:
 
 - The scheduler never blocks waiting for tasks to complete
-- Each poll operation returns immediately with current status
+- Each poll operation returns immediately with current status (Pending, Ready, or Panic)
 - The runner is responsible for managing its internal execution model
-- Preemption is requested via explicit preempt operations, with the scheduler polling
-  until retrieval completes
+- Preemption is a two-phase operation:
+  1. Scheduler calls runner.preempt() to signal the task should stop
+  2. Scheduler polls until task yields, then calls runner.collect() to retrieve it
 
 This design ensures the scheduler remains responsive and can make scheduling decisions
-at tick boundaries without being coupled to the runner's execution strategy.
+at tick boundaries without being coupled to the runner's execution strategy. The
+separation of preempt signaling from collection allows tasks to finish their current
+work unit before yielding.
 
 ### Methods
 
@@ -78,14 +83,14 @@ dependency graph and sets the task to Waiting state. Validates that the dependen
 graph remains acyclic. Returns a mutable reference to self for method chaining.
 
 ```rust
-async fn run(&mut self) -> Result<()>
+fn run(&mut self) -> Result<()>
 ```
 
 Runs the scheduler until all tasks have completed (either successfully or with
 errors). Repeatedly calls tick() while any tasks remain active in the registry.
 
 ```rust
-async fn tick(&mut self) -> Result<()>
+fn tick(&mut self) -> Result<()>
 ```
 
 Executes one scheduler tick, running all four phases in sequence. Increments the tick
@@ -93,13 +98,14 @@ counter and logs state changes if any phase modified task states. Returns after 
 phases complete.
 
 ```rust
-async fn collect_phase(&mut self) -> Result<bool>
+fn collect_phase(&mut self) -> Result<bool>
 ```
 
-Collect phase: Polls the runner for completion status of all running tasks. For each
-completed task, calls runner.collect() to retrieve the executable and processes the yield
-result (either transitioning to a new state or registering discovered tasks). Returns
-true if any task completed.
+Collect phase: Polls the runner for completion status of all running and preempting
+tasks. For each task that has completed (poll returns Ready or Panic), calls
+runner.collect() to retrieve the executable, inserts it back into the buffer, updates
+size tracking, and processes the yield result (either transitioning to a new state or
+registering discovered tasks). Returns true if any task completed.
 
 ```rust
 fn retry_phase(&mut self) -> Result<bool>
@@ -110,16 +116,17 @@ Transitions identified tasks from Error to Ready state. Returns true if any task
 changed.
 
 ```rust
-async fn preempt_phase(&mut self) -> Result<bool>
+fn preempt_phase(&mut self) -> Result<bool>
 ```
 
 Preempt phase: Consults the policy to identify running tasks that should be preempted.
-For each identified task, calls runner.collect() to retrieve the executable, inserts it
-back into the buffer, updates size tracking, and transitions the task to Ready state.
-Returns true if any task was preempted.
+For each identified task, calls runner.preempt() to signal preemption and transitions
+the task to Preempting state. The actual retrieval happens later in collect_phase when
+the task completes its current tick and yields. Returns true if any task was signaled
+for preemption.
 
 ```rust
-async fn execute_phase(&mut self) -> Result<bool>
+fn execute_phase(&mut self) -> Result<bool>
 ```
 
 Execute phase: Consults the policy to select the next ready task to execute. Removes
@@ -132,32 +139,66 @@ dispatched.
 ### Runner Interface
 
 The Runner trait abstracts task execution, allowing different concurrency models
-(synchronous, thread pool, async runtime) without changing scheduler logic.
+(synchronous, thread pool) without changing scheduler logic.
 
 ```rust
-async fn execute(&mut self, tid: TaskID, task: Box<dyn Executable>, deps: TaskOutcomes) -> Result<()>
+fn units(&self) -> usize
+```
+
+Returns the number of parallel execution units available. Zero indicates synchronous
+execution where tasks run to completion before returning. Used by the scheduler to
+determine how many tasks can run concurrently.
+
+```rust
+fn execute(&mut self, tid: TaskID, awaited: TaskOutcomes, executable: Box<dyn Executable>) -> Result<()>
 ```
 
 Initiates execution of a task with its dependencies' outcomes. Transfers ownership of
 the executable to the runner. The task transitions to Running state in the scheduler
-before this call. May return immediately (async dispatch) or block until first yield
+before this call. May return immediately (thread pool dispatch) or block until first yield
 (synchronous execution).
 
 ```rust
-fn poll(&mut self, tid: TaskID) -> Option<Result<YieldUpdate>>
+fn poll(&mut self, tid: TaskID) -> Result<PollStatus>
 ```
 
-Checks if a running task has yielded since the last poll. Returns None if the task is
-still executing, Some(Ok(update)) if it yielded successfully, or Some(Err(e)) if it
-failed. This method must not block - it returns immediately with current status.
+Checks if a running task has yielded since the last poll. Returns:
+- `PollStatus::Pending` if the task is still executing
+- `PollStatus::Ready(update)` if it yielded successfully with an update
+- `PollStatus::Panic(msg)` if the task executable panicked
+
+This method must not block - it returns immediately with current status. Returns an error
+for runner infrastructure failures (invalid task ID, etc).
 
 ```rust
-async fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>>
+fn preempt(&mut self, tid: TaskID) -> Result<()>
 ```
 
-Prepares for preemption if the task has not yet yielded, otherwise collects its yield
-update and retrieves the executable. Transfers ownership of the executable back to the
-scheduler. May block briefly if the task is mid-tick, bounded by tick duration.
+Signals a running task to preempt (stop execution and yield control). For synchronous
+runners, this may be a no-op. For concurrent runners, this sets the preemption signal
+that the task checks during execution. Does not block. Returns an error for
+infrastructure failures (task not found, not running, etc).
+
+```rust
+fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>>
+```
+
+Retrieves a completed task's executable. Only succeeds if the task has finished
+executing (poll returned Ready or Panic). Transfers ownership of the executable back to
+the scheduler. Returns an error if the task is not found, still executing, or not ready
+to collect. Does not block.
+
+#### PollStatus
+
+The PollStatus enum represents the result of polling a running task:
+
+- **Pending**: Task is still executing and has not yielded yet. Nothing to collect.
+
+- **Ready(YieldUpdate)**: Task has yielded and the update is available. The executable
+  can now be collected via runner.collect().
+
+- **Panic(String)**: Task executable panicked during execution. The error message is
+  captured. The executable can still be collected to return it to the buffer.
 
 ### Policy Interface
 
@@ -250,11 +291,13 @@ Each task in the scheduler registry has a Progress state that governs its lifecy
 **Transitions:**
 
 - Ready → Running: Execute phase selects task and dispatches to runner
-- Running → Preempting: Preempt phase identifies task and signals for preemption
-- Preempting → Ready: Collect phase polls and collects preempted task from runner
+- Running → Preempting: Preempt phase identifies task, calls runner.preempt() to signal
+  preemption, and marks task as Preempting
+- Preempting → Ready: Collect phase polls preempted task until it yields, collects the
+  executable, and transitions to Ready
 - Running → Waiting: Collect phase processes yield with new dependencies
 - Running → Finished: Collect phase processes yield indicating completion
-- Running → Error: Collect phase processes execution error
+- Running → Error: Collect phase detects task panic and transitions to Error
 - Error → Ready: Retry phase selects task for retry
 - Waiting → Ready: Dependency resolution detects all dependencies satisfied
 

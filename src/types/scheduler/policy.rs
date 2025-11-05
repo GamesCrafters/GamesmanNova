@@ -23,11 +23,6 @@ pub struct TrivialPolicy;
 #[derive(Builder)]
 #[builder(pattern = "owned", setter(into))]
 pub struct CriticalPathPolicy {
-    /// The number of parallel units being used for the runner component, which
-    /// will greatly impact policy. If zero, preemptions will never be scheduled
-    /// (because they cannot be beneficial without parallelism).
-    pub units: usize,
-
     /// The difference in standard deviations of longest blocked critical path
     /// size among two tasks that will cause the one blocking the lighter path
     /// to be immediately preempted (without necessarily scheduling the other).

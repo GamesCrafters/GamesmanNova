@@ -1,0 +1,263 @@
+# Rust Style Guide for Nova
+
+## Control Flow Patterns
+
+### Fixpoint Iterations
+Use `while let` for all fixpoint iterations where you repeatedly query until exhaustion:
+
+```rust
+// GOOD: Clear fixpoint pattern
+while let Some(tid) = self.context.policy.retry(&self.state) {
+    self.set_state(tid, TaskState::Ready)?;
+    changed = true;
+}
+
+// BAD: Overcomplicated with iterators
+std::iter::from_fn(|| self.context.policy.retry(&self.state))
+    .collect::<Vec<_>>()
+    .into_iter()
+    .try_fold(false, |_, tid| { ... })
+```
+
+### Single-Pass Processing
+Use simple `for` loops for single-pass collection processing:
+
+```rust
+// GOOD: Clear single-pass iteration
+let tasks: Vec<TaskID> = self.state.runner_tasks()
+    .map(|(tid, _)| *tid)
+    .collect();
+
+let mut changed = false;
+for tid in tasks {
+    changed |= self.collect_task(tid)?;
+}
+
+// BAD: Unnecessarily complex
+tasks.into_iter().try_fold(false, |changed, tid| {
+    Ok(changed | self.collect_task(tid)?)
+})
+```
+
+### Iterator Combinators
+Prefer iterator combinators over manual loops where it improves clarity:
+
+```rust
+// GOOD: Clear functional pipeline
+dependencies.iter().try_for_each(link)?;
+
+// GOOD: Clear transformation
+let outcomes = dependencies
+    .into_iter()
+    .map(extract)
+    .collect::<Result<Vec<_>>>()?;
+
+// BAD: Manual accumulation when combinators are clearer
+let mut results = Vec::new();
+for dep in dependencies {
+    results.push(extract(dep)?);
+}
+```
+
+## Closures
+
+### Extract Long Closures
+Always extract long or nested closures to top-level variables with single-word names:
+
+```rust
+// GOOD: Extracted closure with clear name
+let extract = |dep_tid| {
+    let dep_ctx = self.state.registry.get(&dep_tid)
+        .context(format!("Dependency {} not found", dep_tid))?;
+    let result = dep_ctx.outcome()
+        .map(|outcome| (dep_tid, outcome.clone()));
+    Ok(result)
+};
+
+let outcomes = dependencies
+    .into_iter()
+    .map(extract)
+    .collect::<Result<Vec<_>>>()?;
+
+// BAD: Inline nested closure
+let outcomes = dependencies.into_iter().map(|dep_tid| {
+    let dep_ctx = self.state.registry.get(&dep_tid)
+        .context(format!("Dependency {} not found", dep_tid))?;
+    Ok(dep_ctx.outcome().map(|outcome| (dep_tid, outcome.clone())))
+}).collect::<Result<Vec<_>>>()?;
+```
+
+### Closure Naming
+Use single-word names that describe the operation: `register`, `link`, `unlink`,
+`extract`, `format`, `validate`, `lookup`.
+
+## Variables and Naming
+
+### Single-Word Names
+Prefer single-word variable names for intermediate values:
+
+```rust
+// GOOD: Clear semantic stages with single words
+let dependencies = self.state.get_dependencies(tid).cloned().unwrap_or_default();
+let outcomes = dependencies.into_iter().map(extract).collect::<Result<Vec<_>>>()?;
+let awaited = outcomes.into_iter().flatten().collect();
+
+// BAD: Multi-word or generic names
+let dep_outcomes_list = ...;
+let temp_result = ...;
+```
+
+### Break Long Iterator Chains
+Insert meaningful intermediate variables to break long chains where it clarifies semantics:
+
+```rust
+// GOOD: Clear semantic pipeline
+let executing = self.state.runner_tasks();
+let tasks: Vec<TaskID> = executing.map(|(tid, _)| *tid).collect();
+
+// GOOD: Each stage has meaning
+let contexts = path.iter().filter_map(lookup);
+let message = contexts.fold(base, format);
+
+// BAD: Everything in one chain (too long)
+let message = path.iter()
+    .filter_map(|tid| self.state.registry.get(tid).map(|ctx| (tid, ctx)))
+    .fold(base, |mut msg, (tid, ctx)| {
+        msg.push_str(&format!("-> {:?}: {}\n", tid, ctx.about));
+        msg
+    });
+```
+
+Only break chains when:
+1. The intermediate variable has clear semantic meaning
+2. It represents a conceptual stage in a pipeline
+3. It uses a single-word name that describes what the data is
+
+## Return Values
+
+### Never Wrap Function Calls in Ok()
+Always extract the result to a variable before wrapping in `Ok()`:
+
+```rust
+// GOOD: Clear separation
+let result = dep_ctx.outcome()
+    .map(|outcome| (dep_tid, outcome.clone()));
+Ok(result)
+
+// GOOD: Clear variable
+let awaited = outcomes.into_iter().flatten().collect();
+Ok(awaited)
+
+// BAD: Function call inside Ok()
+Ok(dep_ctx.outcome().map(|outcome| (dep_tid, outcome.clone())))
+
+// BAD: Multiline expression in Ok()
+Ok(outcomes
+    .into_iter()
+    .flatten()
+    .collect())
+```
+
+This applies to any expression with function calls or multiple lines, not just `Ok()`.
+
+## Pattern Matching
+
+### Exhaustive Matches
+Always use exhaustive match statements. Avoid catch-all patterns unless truly needed:
+
+```rust
+// GOOD: Exhaustive match
+match &self.progress {
+    TaskState::Ready | TaskState::Running | TaskState::Preempting
+    | TaskState::Waiting(_) | TaskState::Error => None,
+    TaskState::Finished(outcome) => Some(outcome),
+}
+
+// BAD: Catch-all pattern
+match &self.progress {
+    TaskState::Finished(outcome) => Some(outcome),
+    _ => None,
+}
+```
+
+## Helper Methods
+
+### Utils Pattern
+Add helper methods to utils.rs following existing patterns:
+
+- State predicates: `active()`, `ready()`, `running()`, `preempting()`
+- State extractors: `outcome()`, `dependencies()`
+- State iterators: `tasks_active()`, `tasks_ready()`, `runner_tasks()`
+
+All helpers should:
+1. Use exhaustive matches
+2. Have clear single-purpose semantics
+3. Follow the naming conventions of existing helpers
+
+## Code Organization
+
+### Function Length
+Keep functions focused and reasonably short. Extract helpers when:
+- Logic becomes nested more than 3 levels
+- A clear sub-operation can be named
+- The same pattern repeats
+
+### Variable Scope
+Declare closures and variables at the top of their usage scope, not inline in chains.
+
+### Comments
+Use comments sparingly. Prefer:
+1. Clear variable names
+2. Extracted functions with descriptive names
+3. Section comments for major blocks (e.g., `/* TICK PHASES */`)
+
+Avoid:
+- Inline comments explaining obvious operations
+- Redundant comments that repeat the code
+
+## Examples
+
+### Complete Function Example
+
+```rust
+fn collect_awaited(&self, tid: TaskID) -> Result<TaskOutcomes> {
+    let dependencies = self
+        .state
+        .get_dependencies(tid)
+        .cloned()
+        .unwrap_or_default();
+
+    let extract = |dep_tid| {
+        let dep_ctx = self
+            .state
+            .registry
+            .get(&dep_tid)
+            .context(format!("Dependency {} not found in registry", dep_tid))?;
+
+        let result = dep_ctx
+            .outcome()
+            .map(|outcome| (dep_tid, outcome.clone()));
+
+        Ok(result)
+    };
+
+    let outcomes = dependencies
+        .into_iter()
+        .map(extract)
+        .collect::<Result<Vec<_>>>()?;
+
+    let awaited = outcomes
+        .into_iter()
+        .flatten()
+        .collect();
+
+    Ok(awaited)
+}
+```
+
+This demonstrates:
+- Clear semantic stages (dependencies → outcomes → awaited)
+- Extracted closure with single-word name (extract)
+- Breaking chains with meaningful variables
+- No function calls inside Ok()
+- Single-word variable names
