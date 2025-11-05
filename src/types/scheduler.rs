@@ -11,19 +11,12 @@ use std::collections::HashSet;
 use crate::traits::scheduler::Executable;
 use crate::traits::scheduler::Logger;
 use crate::traits::scheduler::Policy;
-use crate::traits::scheduler::Retrier;
 use crate::traits::scheduler::Runner;
 
 /* TYPE ALIASES */
 
 /// Identifier for a logical piece of work (universally unique).
 pub type TaskID = u64;
-
-/// Policy-interpreted order for task execution. Lower is more important.
-pub type Priority = u64;
-
-/// Count of times a scheduler has retried a task due to internal failure.
-pub type Retries = u64;
 
 /// Integer encoding of the logical outcome of a task's dependency.
 pub type OutcomeCode = u64;
@@ -51,9 +44,10 @@ pub enum TaskOutcome {
 }
 
 /// The logical progress of a task.
-pub enum Progress {
+pub enum TaskState {
     Finished(TaskOutcome),
     Waiting(Dependencies),
+    Preempting,
     Running,
     Error,
     Ready,
@@ -101,7 +95,7 @@ pub struct Task {
 pub struct TaskContext {
     pub retriable: bool,
     pub incoming: Dependencies,
-    pub progress: Progress,
+    pub progress: TaskState,
     pub about: String,
     pub size: Option<u64>,
 }
@@ -110,7 +104,6 @@ pub struct TaskContext {
 #[derive(Builder)]
 #[builder(pattern = "owned", setter(into))]
 pub struct SchedulerContext {
-    pub retrier: Box<dyn Retrier>,
     pub policy: Box<dyn Policy>,
     pub logger: Box<dyn Logger>,
     pub runner: Box<dyn Runner>,
@@ -137,21 +130,6 @@ pub struct Scheduler {
 pub struct SizeStats {
     pub stddev: f64,
     pub mean: f64,
-}
-
-/* RETRIER STRUCTURES */
-
-/// No-op retrier that never retries internal failures.
-#[derive(Default)]
-pub struct NoRetrier;
-
-/// Retrier that allows a fixed maximum number of retries per task.
-#[derive(Builder)]
-#[builder(pattern = "owned")]
-pub struct LimitedRetrier {
-    #[builder(default)]
-    pub counts: HashMap<TaskID, usize>,
-    pub limit: usize,
 }
 
 /* POLICY STRUCTURES */

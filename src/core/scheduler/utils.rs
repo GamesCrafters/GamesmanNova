@@ -7,29 +7,32 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 use crate::types::scheduler::Dependencies;
-use crate::types::scheduler::Progress;
 use crate::types::scheduler::SchedulerState;
 use crate::types::scheduler::TaskContext;
 use crate::types::scheduler::TaskID;
 use crate::types::scheduler::TaskRegistry;
+use crate::types::scheduler::TaskState;
 
 /* UTILITY IMPLEMENTATIONS */
 
 impl TaskContext {
     pub fn active(&self) -> bool {
         match &self.progress {
-            Progress::Ready | Progress::Running | Progress::Waiting(_) => true,
-            Progress::Error | Progress::Finished(_) => false,
+            TaskState::Ready | TaskState::Running | TaskState::Preempting | TaskState::Waiting(_) => {
+                true
+            },
+            TaskState::Error | TaskState::Finished(_) => false,
         }
     }
 
     pub fn dependencies(&self) -> Option<&Dependencies> {
         match &self.progress {
-            Progress::Ready
-            | Progress::Running
-            | Progress::Finished(_)
-            | Progress::Error => None,
-            Progress::Waiting(deps) => Some(deps),
+            TaskState::Ready
+            | TaskState::Running
+            | TaskState::Preempting
+            | TaskState::Finished(_)
+            | TaskState::Error => None,
+            TaskState::Waiting(deps) => Some(deps),
         }
     }
 }
@@ -39,11 +42,12 @@ impl SchedulerState {
         self.registry
             .iter()
             .filter(|(_, ctx)| match ctx.progress {
-                Progress::Error
-                | Progress::Waiting(_)
-                | Progress::Finished(_)
-                | Progress::Running => false,
-                Progress::Ready => true,
+                TaskState::Error
+                | TaskState::Waiting(_)
+                | TaskState::Finished(_)
+                | TaskState::Running
+                | TaskState::Preempting => false,
+                TaskState::Ready => true,
             })
     }
 
@@ -53,11 +57,12 @@ impl SchedulerState {
         self.registry
             .iter()
             .filter(|(_, ctx)| match ctx.progress {
-                Progress::Error
-                | Progress::Waiting(_)
-                | Progress::Finished(_)
-                | Progress::Ready => false,
-                Progress::Running => true,
+                TaskState::Error
+                | TaskState::Waiting(_)
+                | TaskState::Finished(_)
+                | TaskState::Preempting
+                | TaskState::Ready => false,
+                TaskState::Running => true,
             })
     }
 
@@ -68,14 +73,15 @@ impl SchedulerState {
     }
 }
 
-impl Display for Progress {
+impl Display for TaskState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let content = match self {
-            Progress::Finished(_) => "finished",
-            Progress::Waiting(_) => "waiting",
-            Progress::Running => "running",
-            Progress::Error => "error",
-            Progress::Ready => "ready",
+            TaskState::Finished(_) => "finished",
+            TaskState::Waiting(_) => "waiting",
+            TaskState::Preempting => "preempting",
+            TaskState::Running => "running",
+            TaskState::Error => "error",
+            TaskState::Ready => "ready",
         };
 
         write!(f, "{content}")
@@ -140,7 +146,7 @@ pub mod test_utils {
     use crate::types::scheduler::TaskContextBuilder;
 
     /// Create a simple task context for testing with minimal boilerplate.
-    pub fn task_ctx(progress: Progress) -> TaskContext {
+    pub fn task_ctx(progress: TaskState) -> TaskContext {
         TaskContextBuilder::default()
             .progress(progress)
             .retriable(false)
@@ -152,7 +158,7 @@ pub mod test_utils {
     }
 
     /// Create a task context with a specific size.
-    pub fn task_ctx_with_size(progress: Progress, size: u64) -> TaskContext {
+    pub fn task_ctx_with_size(progress: TaskState, size: u64) -> TaskContext {
         TaskContextBuilder::default()
             .progress(progress)
             .retriable(false)
@@ -165,7 +171,7 @@ pub mod test_utils {
 
     /// Create a task context with dependents (incoming dependencies).
     pub fn task_ctx_with_dependents(
-        progress: Progress,
+        progress: TaskState,
         size: Option<u64>,
         dependents: Vec<TaskID>,
     ) -> TaskContext {
@@ -181,7 +187,7 @@ pub mod test_utils {
     }
 
     /// Create a retriable task context.
-    pub fn retriable_task_ctx(progress: Progress) -> TaskContext {
+    pub fn retriable_task_ctx(progress: TaskState) -> TaskContext {
         TaskContextBuilder::default()
             .progress(progress)
             .retriable(true)

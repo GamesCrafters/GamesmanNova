@@ -18,7 +18,7 @@ use crate::types::scheduler::YieldUpdate;
 
 #[async_trait]
 impl Runner for SyncRunner {
-    async fn spawn(
+    async fn execute(
         &mut self,
         tid: TaskID,
         mut task: Box<dyn Executable>,
@@ -28,7 +28,7 @@ impl Runner for SyncRunner {
             bail!("Task {} is already running", tid);
         }
 
-        let result = Ok(task.execute(deps));
+        let result = Ok(task.tick(deps));
         self.running.insert(tid, task);
         self.results.insert(tid, result);
         Ok(())
@@ -38,7 +38,7 @@ impl Runner for SyncRunner {
         self.results.remove(&tid)
     }
 
-    async fn stop(&mut self, tid: TaskID) -> Result<Box<dyn Executable>> {
+    async fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>> {
         self.running
             .remove(&tid)
             .context(format!("Task {} is not running", tid))

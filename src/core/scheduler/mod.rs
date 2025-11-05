@@ -7,7 +7,6 @@ use anyhow::Result;
 use anyhow::bail;
 
 use crate::types::scheduler::Dependencies;
-use crate::types::scheduler::Progress;
 use crate::types::scheduler::Scheduler;
 use crate::types::scheduler::SchedulerContext;
 use crate::types::scheduler::SchedulerState;
@@ -16,6 +15,7 @@ use crate::types::scheduler::TaskContext;
 use crate::types::scheduler::TaskID;
 use crate::types::scheduler::TaskOutcome;
 use crate::types::scheduler::TaskOutcomes;
+use crate::types::scheduler::TaskState;
 use crate::types::scheduler::YieldIntention;
 use crate::types::scheduler::YieldUpdate;
 
@@ -26,7 +26,6 @@ use utils::find_cycle_path;
 mod utils;
 
 pub mod logger;
-pub mod retrier;
 pub mod runner;
 pub mod policy;
 
@@ -44,7 +43,7 @@ impl Scheduler {
         let ctx = TaskContext {
             retriable: task.retriable,
             about: task.about,
-            progress: Progress::Ready,
+            progress: TaskState::Ready,
             incoming: Dependencies::new(),
             size: task.size,
         };
@@ -59,7 +58,7 @@ impl Scheduler {
 
         if !requires.is_empty() {
             self.link_dependencies(task.tid, &requires)?;
-            self.set_progress(task.tid, Progress::Waiting(requires))?;
+            self.set_progress(task.tid, TaskState::Waiting(requires))?;
         }
 
         self.ensure_acyclic()?;
@@ -83,10 +82,10 @@ impl Scheduler {
     /// Execute one pass of retry policy phases and log changes.
     async fn tick(&mut self) -> Result<()> {
         let changed = [
-            self.phase_retry()?,
-            self.phase_pause().await?,
-            self.phase_poll().await?,
-            self.phase_next().await?,
+            self.collect_phase().await?,
+            self.retry_phase()?,
+            self.preempt_phase().await?,
+            self.execute_phase().await?,
         ];
 
         self.state.ticks += 1;
@@ -101,52 +100,47 @@ impl Scheduler {
 
     /* TICK PHASES */
 
-    fn phase_retry(&mut self) -> Result<bool> {
-        let mut changed = false;
-        while let Some(tid) = self
-            .context
-            .retrier
-            .retry(&self.state)
-        {
-            self.set_progress(tid, Progress::Ready)?;
-            changed = true;
-        }
-
-        Ok(changed)
-    }
-
-    async fn phase_pause(&mut self) -> Result<bool> {
+    fn retry_phase(&mut self) -> Result<bool> {
         let mut changed = false;
         while let Some(tid) = self
             .context
             .policy
-            .pause(&self.state)
+            .retry(&self.state)
         {
-            let task = self
-                .context
-                .runner
-                .stop(tid)
-                .await?;
-
-            self.state.buffer.insert(tid, task);
-            self.update_size(tid)?;
-
-            self.set_progress(tid, Progress::Ready)?;
+            self.set_progress(tid, TaskState::Ready)?;
             changed = true;
         }
 
         Ok(changed)
     }
 
-    async fn phase_poll(&mut self) -> Result<bool> {
+    async fn preempt_phase(&mut self) -> Result<bool> {
         let mut changed = false;
-        let running: Vec<TaskID> = self
+        while let Some(tid) = self
+            .context
+            .policy
+            .preempt(&self.state)
+        {
+            self.set_progress(tid, TaskState::Preempting)?;
+            changed = true;
+        }
+
+        Ok(changed)
+    }
+
+    async fn collect_phase(&mut self) -> Result<bool> {
+        let mut changed = false;
+        let tasks: Vec<TaskID> = self
             .state
-            .running_tasks()
-            .map(|(tid, _)| *tid)
+            .registry
+            .iter()
+            .filter_map(|(tid, ctx)| {
+                matches!(ctx.progress, TaskState::Running | TaskState::Preempting)
+                    .then_some(*tid)
+            })
             .collect();
 
-        for tid in running {
+        for tid in tasks {
             let Some(result) = self.context.runner.poll(tid) else {
                 continue;
             };
@@ -154,7 +148,7 @@ impl Scheduler {
             let task = self
                 .context
                 .runner
-                .stop(tid)
+                .collect(tid)
                 .await?;
 
             self.state.buffer.insert(tid, task);
@@ -162,7 +156,7 @@ impl Scheduler {
 
             match result {
                 Ok(update) => self.reabsorb(tid, update).await?,
-                Err(_) => self.set_progress(tid, Progress::Error)?,
+                Err(_) => self.set_progress(tid, TaskState::Error)?,
             }
 
             changed = true;
@@ -171,12 +165,12 @@ impl Scheduler {
         Ok(changed)
     }
 
-    async fn phase_next(&mut self) -> Result<bool> {
+    async fn execute_phase(&mut self) -> Result<bool> {
         let mut changed = false;
         while let Some(tid) = self
             .context
             .policy
-            .next(&self.state)
+            .execute(&self.state)
         {
             let task = self
                 .state
@@ -185,10 +179,10 @@ impl Scheduler {
                 .context("Attempted to fetch non-existing task from buffer.")?;
 
             let outcomes = self.collect_outcomes(tid)?;
-            self.set_progress(tid, Progress::Running)?;
+            self.set_progress(tid, TaskState::Running)?;
             self.context
                 .runner
-                .spawn(tid, task, outcomes)
+                .execute(tid, task, outcomes)
                 .await?;
 
             changed = true;
@@ -217,7 +211,7 @@ impl Scheduler {
                     self.unlink_dependencies(tid, &deps);
                 }
 
-                self.set_progress(tid, Progress::Finished(outcome))?;
+                self.set_progress(tid, TaskState::Finished(outcome))?;
                 self.state.buffer.remove(&tid);
             },
             YieldIntention::Waiting(new_deps) => {
@@ -228,11 +222,11 @@ impl Scheduler {
                     .unwrap_or_default();
 
                 self.relink_dependencies(tid, &old_deps, &new_deps)?;
-                self.set_progress(tid, Progress::Waiting(new_deps))?;
+                self.set_progress(tid, TaskState::Waiting(new_deps))?;
                 self.ensure_acyclic()?;
             },
             YieldIntention::Ready => {
-                self.set_progress(tid, Progress::Ready)?;
+                self.set_progress(tid, TaskState::Ready)?;
             },
         }
 
@@ -246,7 +240,7 @@ impl Scheduler {
 
     /* STATE MANIPULATION */
 
-    fn set_progress(&mut self, tid: TaskID, progress: Progress) -> Result<()> {
+    fn set_progress(&mut self, tid: TaskID, progress: TaskState) -> Result<()> {
         self.state
             .registry
             .get_mut(&tid)
@@ -370,7 +364,7 @@ impl Scheduler {
                     dep_tid
                 ))?;
 
-            if let Progress::Finished(outcome) = &dep_ctx.progress {
+            if let TaskState::Finished(outcome) = &dep_ctx.progress {
                 outcomes.insert(dep_tid, outcome.clone());
             }
         }

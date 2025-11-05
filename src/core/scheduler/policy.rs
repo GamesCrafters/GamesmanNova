@@ -15,11 +15,15 @@ use crate::types::scheduler::TrivialPolicy;
 /* POLICY IMPLEMENTATIONS */
 
 impl Policy for TrivialPolicy {
-    fn pause(&mut self, _state: &SchedulerState) -> Option<TaskID> {
+    fn retry(&mut self, _state: &SchedulerState) -> Option<TaskID> {
         None
     }
 
-    fn next(&mut self, state: &SchedulerState) -> Option<TaskID> {
+    fn preempt(&mut self, _state: &SchedulerState) -> Option<TaskID> {
+        None
+    }
+
+    fn execute(&mut self, state: &SchedulerState) -> Option<TaskID> {
         state
             .ready_tasks()
             .map(|(tid, _ctx)| *tid)
@@ -28,7 +32,11 @@ impl Policy for TrivialPolicy {
 }
 
 impl Policy for CriticalPathPolicy {
-    fn pause(&mut self, state: &SchedulerState) -> Option<TaskID> {
+    fn retry(&mut self, _state: &SchedulerState) -> Option<TaskID> {
+        None
+    }
+
+    fn preempt(&mut self, state: &SchedulerState) -> Option<TaskID> {
         let running_count = state.running_tasks().count();
         if running_count < self.workers? {
             return None;
@@ -53,7 +61,7 @@ impl Policy for CriticalPathPolicy {
         }
     }
 
-    fn next(&mut self, state: &SchedulerState) -> Option<TaskID> {
+    fn execute(&mut self, state: &SchedulerState) -> Option<TaskID> {
         state
             .ready_tasks()
             .map(|(tid, _ctx)| (*tid, calculate_depth(*tid, &state.registry)))
@@ -144,19 +152,19 @@ mod tests {
     use super::*;
     use crate::core::scheduler::utils::test_utils::*;
     use crate::types::scheduler::CriticalPathPolicyBuilder;
-    use crate::types::scheduler::Progress;
+    use crate::types::scheduler::TaskState;
     use std::collections::HashSet;
 
     #[test]
-    fn test_trivial_never_pauses() {
+    fn test_trivial_never_preempts() {
         let mut policy = TrivialPolicy;
         let mut state = SchedulerState::default();
 
         state
             .registry
-            .insert(1, task_ctx(Progress::Running));
+            .insert(1, task_ctx(TaskState::Running));
 
-        assert_eq!(policy.pause(&state), None);
+        assert_eq!(policy.preempt(&state), None);
     }
 
     #[test]
@@ -170,20 +178,21 @@ mod tests {
         let mut state = SchedulerState::default();
         state.registry.insert(
             2,
-            task_ctx_with_dependents(Progress::Ready, Some(5), vec![3]),
+            task_ctx_with_dependents(TaskState::Ready, Some(5), vec![3]),
         );
 
         state
             .registry
-            .insert(1, task_ctx_with_size(Progress::Ready, 10));
+            .insert(1, task_ctx_with_size(TaskState::Ready, 10));
 
         let mut deps = HashSet::new();
         deps.insert(2);
-        state
-            .registry
-            .insert(3, task_ctx_with_size(Progress::Waiting(deps), 20));
+        state.registry.insert(
+            3,
+            task_ctx_with_size(TaskState::Waiting(deps), 20),
+        );
 
-        assert_eq!(policy.next(&state), Some(2));
+        assert_eq!(policy.execute(&state), Some(2));
     }
 
     #[test]
@@ -197,13 +206,13 @@ mod tests {
         let mut state = SchedulerState::default();
         state
             .registry
-            .insert(1, task_ctx_with_size(Progress::Running, 5));
+            .insert(1, task_ctx_with_size(TaskState::Running, 5));
 
         state
             .registry
-            .insert(2, task_ctx_with_size(Progress::Ready, 100));
+            .insert(2, task_ctx_with_size(TaskState::Ready, 100));
 
-        assert_eq!(policy.pause(&state), None);
+        assert_eq!(policy.preempt(&state), None);
     }
 
     #[test]
@@ -217,13 +226,13 @@ mod tests {
         let mut state = SchedulerState::default();
         state
             .registry
-            .insert(1, task_ctx_with_size(Progress::Running, 5));
+            .insert(1, task_ctx_with_size(TaskState::Running, 5));
 
         state
             .registry
-            .insert(2, task_ctx_with_size(Progress::Ready, 100));
+            .insert(2, task_ctx_with_size(TaskState::Ready, 100));
 
-        assert_eq!(policy.pause(&state), Some(1));
+        assert_eq!(policy.preempt(&state), Some(1));
     }
 
     #[test]
@@ -237,12 +246,12 @@ mod tests {
         let mut state = SchedulerState::default();
         state
             .registry
-            .insert(1, task_ctx_with_size(Progress::Running, 50));
+            .insert(1, task_ctx_with_size(TaskState::Running, 50));
 
         state
             .registry
-            .insert(2, task_ctx_with_size(Progress::Ready, 55));
+            .insert(2, task_ctx_with_size(TaskState::Ready, 55));
 
-        assert_eq!(policy.pause(&state), None);
+        assert_eq!(policy.preempt(&state), None);
     }
 }
