@@ -1,5 +1,14 @@
 # Rust Style Guide for Nova
 
+## General
+
+* No methods or functions longer than about ~50 lines (!!)
+* Avoid deep indentation levels (!!)
+* Names should be one word long, or two words long for helper methods (tests do 
+  not need to follow this rule).
+* Always prefer iterator combinators over for or while loops unless the result 
+  is much too convoluted.
+
 ## Control Flow Patterns
 
 ### Fixpoint Iterations

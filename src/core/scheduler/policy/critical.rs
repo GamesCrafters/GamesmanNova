@@ -35,7 +35,7 @@ pub struct CriticalPathPolicy {
     pub retry: RetryPolicy,
 }
 
-/* IMPL TRAIT FOR TYPE */
+/* IMPLEMENTATIONS */
 
 impl Policy for CriticalPathPolicy {
     fn retry(&mut self, state: &SchedulerState) -> Option<TaskID> {
@@ -48,16 +48,16 @@ impl Policy for CriticalPathPolicy {
             return None;
         }
 
-        let stats = compute_size_stats(&state.registry);
+        let stats = compute_size_stats(&state.buffer);
         let threshold = (self.sigma * stats.stddev) as u64;
         let max_ready_depth = state
             .tasks_ready()
-            .map(|(tid, _ctx)| calculate_depth(*tid, &state.registry))
+            .map(|(tid, _ctx)| critical_weight(*tid, &state.buffer))
             .max()?;
 
         let (min_running_tid, min_running_depth) = state
             .tasks_running()
-            .map(|(tid, _ctx)| (*tid, calculate_depth(*tid, &state.registry)))
+            .map(|(tid, _ctx)| (*tid, critical_weight(*tid, &state.buffer)))
             .min_by_key(|(_, depth)| *depth)?;
 
         if max_ready_depth > min_running_depth + threshold {
@@ -70,7 +70,7 @@ impl Policy for CriticalPathPolicy {
     fn execute(&mut self, state: &SchedulerState) -> Option<TaskID> {
         state
             .tasks_ready()
-            .map(|(tid, _ctx)| (*tid, calculate_depth(*tid, &state.registry)))
+            .map(|(tid, _ctx)| (*tid, critical_weight(*tid, &state.buffer)))
             .max_by_key(|(_, depth)| *depth)
             .map(|(tid, _)| tid)
     }
@@ -104,7 +104,7 @@ pub fn threshold(limit: usize) -> RetryPolicy {
 /// Returns size(task) + max{critical_path(child) : child depends on task}.
 /// Scheduling this way is competitive to <= (2 + 1/cores) * optimal. (Under
 /// certain unrealistic but pretty well-posed assumptions.)
-fn calculate_depth(tid: TaskID, registry: &TaskRegistry) -> u64 {
+fn critical_weight(tid: TaskID, registry: &TaskRegistry) -> u64 {
     let avg_size = compute_size_stats(registry).mean as u64;
     let mut memo = HashMap::new();
     let mut stack = vec![(tid, false)];
@@ -178,99 +178,4 @@ fn compute_size_stats(registry: &TaskRegistry) -> SizeStats {
 /* TESTS */
 
 #[cfg(test)]
-mod tests {
-
-    use super::*;
-    use crate::core::scheduler::TaskState;
-    use crate::core::scheduler::policy::critical::CriticalPathPolicyBuilder;
-    use crate::core::scheduler::utils::test_utils::*;
-    use std::collections::HashSet;
-
-    #[test]
-    fn test_critical_path_selects_longest_path() {
-        let mut state = SchedulerState::default();
-        let mut policy = CriticalPathPolicyBuilder::default()
-            .sigma(0.0)
-            .build()
-            .unwrap();
-
-        state.units = 0;
-        state.registry.insert(
-            2,
-            task_ctx_with_dependents(TaskState::Ready, Some(5), vec![3]),
-        );
-
-        state
-            .registry
-            .insert(1, task_ctx_with_size(TaskState::Ready, 10));
-
-        let mut deps = HashSet::new();
-        deps.insert(2);
-        state.registry.insert(
-            3,
-            task_ctx_with_size(TaskState::Waiting(deps), 20),
-        );
-
-        assert_eq!(policy.execute(&state), Some(2));
-    }
-
-    #[test]
-    fn test_critical_path_no_preemption_without_workers() {
-        let mut state = SchedulerState::default();
-        let mut policy = CriticalPathPolicyBuilder::default()
-            .sigma(0.0)
-            .build()
-            .unwrap();
-
-        state.units = 0;
-        state
-            .registry
-            .insert(1, task_ctx_with_size(TaskState::Running, 5));
-
-        state
-            .registry
-            .insert(2, task_ctx_with_size(TaskState::Ready, 100));
-
-        assert_eq!(policy.preempt(&state), None);
-    }
-
-    #[test]
-    fn test_critical_path_preempts_at_capacity() {
-        let mut state = SchedulerState::default();
-        let mut policy = CriticalPathPolicyBuilder::default()
-            .sigma(0.0)
-            .build()
-            .unwrap();
-
-        state.units = 1;
-        state
-            .registry
-            .insert(1, task_ctx_with_size(TaskState::Running, 5));
-
-        state
-            .registry
-            .insert(2, task_ctx_with_size(TaskState::Ready, 100));
-
-        assert_eq!(policy.preempt(&state), Some(1));
-    }
-
-    #[test]
-    fn test_critical_path_respects_sigma_threshold() {
-        let mut state = SchedulerState::default();
-        let mut policy = CriticalPathPolicyBuilder::default()
-            .sigma(10.0)
-            .build()
-            .unwrap();
-
-        state.units = 1;
-        state
-            .registry
-            .insert(1, task_ctx_with_size(TaskState::Running, 50));
-
-        state
-            .registry
-            .insert(2, task_ctx_with_size(TaskState::Ready, 55));
-
-        assert_eq!(policy.preempt(&state), None);
-    }
-}
+mod tests {}

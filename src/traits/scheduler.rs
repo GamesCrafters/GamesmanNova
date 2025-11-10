@@ -6,6 +6,8 @@
 use mockall::automock;
 
 use anyhow::Result;
+use anyhow::bail;
+use std::any::Any;
 
 use crate::core::scheduler::PollStatus;
 use crate::core::scheduler::SchedulerState;
@@ -51,7 +53,7 @@ pub trait Runner {
 }
 
 #[cfg_attr(test, automock)]
-pub trait Executable: Send {
+pub trait Executable: Send + Any {
     /// Executes one tick of work (bounded time quantum). Receives outcomes of
     /// all dependencies and returns update indicating whether task finished, is
     /// waiting for new dependencies, or is ready to continue. Must checkpoint
@@ -62,6 +64,15 @@ pub trait Executable: Send {
     /// policies to make weighted scheduling decisions.
     fn size(&self) -> Option<u64> {
         None
+    }
+
+    /// Merges another task of the same type into this one. Used when a task
+    /// is discovered multiple times - the new version is merged with the
+    /// existing version. Implementations should downcast to verify type
+    /// compatibility and return an error if types don't match. Default
+    /// implementation returns an error.
+    fn merge(&mut self, _other: Box<dyn Executable>) -> Result<()> {
+        bail!("Merging not supported for this task type")
     }
 }
 
@@ -86,7 +97,11 @@ pub trait Policy {
 
 #[cfg_attr(test, automock)]
 pub trait Logger {
-    /// Does anything related to observability upon observing `state`. Called
-    /// only when a scheduling tick results in state changes.
-    fn log(&mut self, state: &SchedulerState) -> Result<()>;
+    /// Observes a scheduler snapshot at each tick. The `changed` flag indicates
+    /// whether any state transitions occurred during the tick.
+    fn observe(
+        &mut self,
+        snapshot: &crate::core::scheduler::SchedulerSnapshot,
+        changed: bool,
+    ) -> Result<()>;
 }

@@ -5,12 +5,19 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
+use petgraph::Graph;
+use petgraph::graph::NodeIndex;
 use rusqlite::Connection;
 use strum_macros::Display;
 
+use std::collections::HashMap;
 use std::env;
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
+use std::process::Command;
+use std::process::Stdio;
 use std::sync::RwLock;
 
 /* CONSTANTS */
@@ -40,6 +47,42 @@ pub enum DevelopmentData {
 pub enum TestSetting {
     Correctness,
     Development,
+}
+
+/* STRUCTURES */
+
+/// In Nova, many objects (namely game states and scheduler tasks) are organized
+/// as graphs. For testing purposes, it is useful to have an abstraction to make
+/// graph structures out of these objects for testing in an ergonomic fashion.
+pub struct GraphBuilder<'a, T> {
+    pub inserted: HashMap<*const T, NodeIndex>,
+    pub graph: Graph<&'a T, ()>,
+}
+
+/* IMPLEMENTATIONS */
+
+impl<'a, T> GraphBuilder<'a, T> {
+    pub fn new() -> Self {
+        Self {
+            inserted: HashMap::new(),
+            graph: Graph::new(),
+        }
+    }
+
+    pub fn edge(mut self, from: &'a T, to: &'a T) -> Self {
+        let i = *self
+            .inserted
+            .entry(from as *const T)
+            .or_insert_with(|| self.graph.add_node(from));
+
+        let j = *self
+            .inserted
+            .entry(to as *const T)
+            .or_insert_with(|| self.graph.add_node(to));
+
+        self.graph.update_edge(i, j, ());
+        self
+    }
 }
 
 /* FUNCTIONS */
@@ -116,6 +159,39 @@ pub fn get_directory(
     }
 
     Ok(directory)
+}
+
+/// Creates an SVG visualization of a graph using Graphviz dot.
+/// Only generates output in Development test mode.
+pub fn visualize_graph(
+    graph_dot: &str,
+    name: &str,
+    module: &str,
+) -> Result<()> {
+    match test_setting()? {
+        TestSetting::Correctness => return Ok(()),
+        TestSetting::Development => (),
+    }
+
+    let subdir = PathBuf::from(module);
+    let mut dir = get_directory(DevelopmentData::Visuals, subdir)?;
+    let filename = format!("{}.svg", name).replace(' ', "-");
+
+    dir.push(filename);
+    let file = File::create(dir)?;
+    let mut dot = Command::new("dot")
+        .arg("-Tsvg")
+        .stdin(Stdio::piped())
+        .stdout(file)
+        .spawn()
+        .context("Failed to execute 'dot' command.")?;
+
+    if let Some(mut stdin) = dot.stdin.take() {
+        stdin.write_all(graph_dot.as_bytes())?;
+    }
+
+    dot.wait()?;
+    Ok(())
 }
 
 /* HELPER FUNCTIONS */

@@ -2,11 +2,15 @@
 //!
 //! TODO    
 
+use anyhow::Context;
+use anyhow::Result;
+
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
 use crate::core::scheduler::Dependencies;
+use crate::core::scheduler::MergeContext;
 use crate::core::scheduler::SchedulerState;
 use crate::core::scheduler::TaskContext;
 use crate::core::scheduler::TaskID;
@@ -21,9 +25,26 @@ use crate::core::scheduler::YieldUpdate;
 impl YieldUpdate {
     pub fn ready(&self) -> bool {
         match self.intention {
-            YieldIntention::Finished(_) | YieldIntention::Waiting(_) => false,
+            YieldIntention::Suspended(_) | YieldIntention::Waiting(_) => false,
             YieldIntention::Ready => true,
         }
+    }
+}
+
+impl MergeContext {
+    pub fn merge_into(&mut self, other: MergeContext) -> Result<()> {
+        self.executable
+            .merge(other.executable)
+            .context("Failed to merge pending executables")?;
+
+        let merged: Dependencies = self
+            .dependencies
+            .union(&other.dependencies)
+            .copied()
+            .collect();
+
+        self.dependencies = merged;
+        Ok(())
     }
 }
 
@@ -34,7 +55,7 @@ impl TaskContext {
             | TaskState::Running
             | TaskState::Waiting(_)
             | TaskState::Preempting => true,
-            TaskState::Error | TaskState::Finished(_) => false,
+            TaskState::Error | TaskState::Suspended(_) => false,
         }
     }
 
@@ -43,7 +64,7 @@ impl TaskContext {
             TaskState::Error
             | TaskState::Running
             | TaskState::Waiting(_)
-            | TaskState::Finished(_)
+            | TaskState::Suspended(_)
             | TaskState::Preempting => false,
             TaskState::Ready => true,
         }
@@ -53,7 +74,7 @@ impl TaskContext {
         match &self.progress {
             TaskState::Error
             | TaskState::Waiting(_)
-            | TaskState::Finished(_)
+            | TaskState::Suspended(_)
             | TaskState::Preempting
             | TaskState::Ready => false,
             TaskState::Running => true,
@@ -65,7 +86,7 @@ impl TaskContext {
             TaskState::Ready
             | TaskState::Running
             | TaskState::Waiting(_)
-            | TaskState::Finished(_)
+            | TaskState::Suspended(_)
             | TaskState::Preempting => false,
             TaskState::Error => true,
         }
@@ -76,7 +97,7 @@ impl TaskContext {
             TaskState::Error
             | TaskState::Running
             | TaskState::Waiting(_)
-            | TaskState::Finished(_)
+            | TaskState::Suspended(_)
             | TaskState::Ready => false,
             TaskState::Preempting => true,
         }
@@ -87,7 +108,7 @@ impl TaskContext {
             TaskState::Ready
             | TaskState::Running
             | TaskState::Preempting
-            | TaskState::Finished(_)
+            | TaskState::Suspended(_)
             | TaskState::Error => None,
             TaskState::Waiting(deps) => Some(deps),
         }
@@ -100,7 +121,7 @@ impl TaskContext {
             | TaskState::Preempting
             | TaskState::Waiting(_)
             | TaskState::Error => None,
-            TaskState::Finished(outcome) => Some(outcome),
+            TaskState::Suspended(outcome) => Some(outcome),
         }
     }
 }
@@ -109,13 +130,13 @@ impl SchedulerState {
     pub fn tasks_active(
         &self,
     ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
-        self.registry
+        self.buffer
             .iter()
             .filter(|(_, ctx)| ctx.active())
     }
 
     pub fn tasks_ready(&self) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
-        self.registry
+        self.buffer
             .iter()
             .filter(|(_, ctx)| ctx.ready())
     }
@@ -123,7 +144,7 @@ impl SchedulerState {
     pub fn tasks_running(
         &self,
     ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
-        self.registry
+        self.buffer
             .iter()
             .filter(|(_, ctx)| ctx.running())
     }
@@ -131,40 +152,41 @@ impl SchedulerState {
     pub fn tasks_errored(
         &self,
     ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
-        self.registry
+        self.buffer
             .iter()
             .filter(|(_, ctx)| ctx.errored())
-    }
-
-    pub fn tasks_preempting(
-        &self,
-    ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
-        self.registry
-            .iter()
-            .filter(|(_, ctx)| ctx.preempting())
     }
 
     pub fn runner_tasks(
         &self,
     ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
-        self.registry
+        self.buffer
             .iter()
-            .filter(|(_, ctx)| ctx.running() || ctx.preempting())
+            .filter(|(_, ctx)| {
+                matches!(
+                    ctx.progress,
+                    TaskState::Running | TaskState::Preempting
+                )
+            })
     }
 
     pub fn get_dependencies(&self, tid: TaskID) -> Option<&Dependencies> {
-        self.registry
+        self.buffer
             .get(&tid)?
             .dependencies()
+    }
+
+    pub fn take_merge(&mut self, tid: &TaskID) -> Option<MergeContext> {
+        self.merges.remove(tid)
     }
 }
 
 impl Display for TaskState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let content = match self {
-            TaskState::Finished(_) => "finished",
-            TaskState::Waiting(_) => "waiting",
             TaskState::Preempting => "preempting",
+            TaskState::Suspended(_) => "suspended",
+            TaskState::Waiting(_) => "waiting",
             TaskState::Running => "running",
             TaskState::Error => "error",
             TaskState::Ready => "ready",

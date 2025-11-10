@@ -28,18 +28,10 @@ use rusqlite::params_from_iter;
 
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::fs::File;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
-use std::process::Stdio;
 
 use crate::core::database::InsertQuery;
 use crate::core::database::Schema;
-use crate::core::developer::DevelopmentData;
-use crate::core::developer::TestSetting;
-use crate::core::developer::get_directory;
-use crate::core::developer::test_setting;
+use crate::core::developer::visualize_graph;
 use crate::core::frontend::IOMode;
 use crate::core::game::IUtility;
 use crate::core::game::Player;
@@ -56,13 +48,16 @@ use crate::traits::game::Implicit;
 use crate::traits::game::IntegerUtility;
 use crate::traits::game::Sequential;
 
+/* RE-EXPORTS */
+
+pub use builder::SessionBuilder;
+
 /* SUBMODULES */
 
 pub mod builder;
 
 /* TYPE ALIASES */
 
-type Finalized = bool;
 pub type RemotenessStorage = B32;
 pub type PlayerStorage = B15;
 pub type DrawStorage = bool;
@@ -88,42 +83,6 @@ pub struct Session<'a> {
     pub players: PlayerCount,
     pub source: NodeIndex,
     pub schema: Schema,
-    pub game: Graph<&'a Node, ()>,
-    pub name: &'static str,
-}
-
-/// Builder pattern for creating a graph game by progressively adding nodes and
-/// edges and specifying a source node. Directed unweighed edges represent
-/// represent state transitions, and nodes containing either turn information
-/// or utility vectors store the information necessary to solve the game being
-/// represented.
-///
-/// # Example
-///
-/// ```no_run
-/// // Long-form node initialization
-/// let s0 = Node::Medial(0);
-/// let s1 = Node::Medial(1);
-/// let s2 = Node::Terminal(vec![1, -1]);
-///
-/// // Macro node initialization (equivalent)
-/// let s0 = node!(0);
-/// let s1 = node!(1);
-/// let s2 = node!([1, -1]);
-///
-/// let session = SessionBuilder::new("example")
-///     .edge(&s0, &s1)?
-///     .edge(&s0, &s2)?
-///     .edge(&s1, &s2)?
-///     .source(&s0)?
-///     .build()?;
-///
-/// assert_eq!(session.players, 2);
-/// ```
-pub struct SessionBuilder<'a> {
-    pub inserted: HashMap<*const Node, NodeIndex>,
-    pub players: (PlayerCount, Finalized),
-    pub source: Option<NodeIndex>,
     pub game: Graph<&'a Node, ()>,
     pub name: &'static str,
 }
@@ -175,31 +134,8 @@ impl<'a> Session<'a> {
     /// Creates an SVG visualization of the game graph in the visuals directory
     /// under the development data directory at the project root.
     pub fn visualize(&self, module: &str) -> Result<()> {
-        match test_setting()? {
-            TestSetting::Correctness => return Ok(()),
-            TestSetting::Development => (),
-        }
-
-        let subdir = PathBuf::from(module);
-        let mut dir = get_directory(DevelopmentData::Visuals, subdir)?;
-        let name = format!("{}.svg", self.name()).replace(' ', "-");
-
-        dir.push(name);
-        let file = File::create(dir)?;
-        let mut dot = Command::new("dot")
-            .arg("-Tsvg")
-            .stdin(Stdio::piped())
-            .stdout(file)
-            .spawn()
-            .context("Failed to execute 'dot' command.")?;
-
-        if let Some(mut stdin) = dot.stdin.take() {
-            let graph = format!("{}", self);
-            stdin.write_all(graph.as_bytes())?;
-        }
-
-        dot.wait()?;
-        Ok(())
+        let graph = format!("{}", self);
+        visualize_graph(&graph, self.name(), module)
     }
 
     /* PRIVATE HELPERS */
@@ -414,11 +350,12 @@ impl Display for Session<'_> {
 mod tests {
 
     use super::*;
+    use crate::core::developer::GraphBuilder;
     use crate::core::game::mock::SessionBuilder;
     use crate::node;
     use anyhow::Result;
 
-    const MODULE_NAME: &str = "mock-core-tests";
+    const MODULE_NAME: &str = "mock-game-tests";
 
     #[test]
     fn get_unique_node_states() -> Result<()> {
@@ -431,14 +368,18 @@ mod tests {
         let t1 = node![0; 1, 2, 3];
         let t2 = node![1; 3, 2, 1];
 
-        let g = SessionBuilder::new("sample1")
-            .edge(&s1, &s2)?
-            .edge(&s2, &s3)?
-            .edge(&s3, &s4)?
-            .edge(&s4, &s5)?
-            .edge(&s4, &t1)?
-            .edge(&s5, &t2)?
-            .source(&s1)?
+        let graph = GraphBuilder::new()
+            .edge(&s1, &s2)
+            .edge(&s2, &s3)
+            .edge(&s3, &s4)
+            .edge(&s4, &s5)
+            .edge(&s4, &t1)
+            .edge(&s5, &t2);
+
+        let g = SessionBuilder::new()
+            .name("sample1")
+            .graph(graph)
+            .source(&s1)
             .build()?;
 
         g.visualize(MODULE_NAME)?;
@@ -478,12 +419,16 @@ mod tests {
         let t1 = node![2; 1, 2, 3];
         let t2 = node![1; 3, 2, 1];
 
-        let g = SessionBuilder::new("sample2")
-            .edge(&s1, &s2)?
-            .edge(&s2, &s3)?
-            .edge(&s2, &t1)?
-            .edge(&s3, &t2)?
-            .source(&s1)?
+        let graph = GraphBuilder::new()
+            .edge(&s1, &s2)
+            .edge(&s2, &s3)
+            .edge(&s2, &t1)
+            .edge(&s3, &t2);
+
+        let g = SessionBuilder::new()
+            .name("sample2")
+            .graph(graph)
+            .source(&s1)
             .build()?;
 
         g.visualize(MODULE_NAME)?;
@@ -506,12 +451,16 @@ mod tests {
         let t1 = node![1; 1, 2, 3];
         let t2 = node![2; 3, 2, 1];
 
-        let g = SessionBuilder::new("sample3")
-            .edge(&s1, &s2)?
-            .edge(&s1, &s3)?
-            .edge(&s2, &t1)?
-            .edge(&s3, &t2)?
-            .source(&s1)?
+        let graph = GraphBuilder::new()
+            .edge(&s1, &s2)
+            .edge(&s1, &s3)
+            .edge(&s2, &t1)
+            .edge(&s3, &t2);
+
+        let g = SessionBuilder::new()
+            .name("sample3")
+            .graph(graph)
+            .source(&s1)
             .build()?;
 
         g.visualize(MODULE_NAME)?;
@@ -544,10 +493,15 @@ mod tests {
         let s1 = node!(0);
         let s2 = node!(1);
         let t1 = node![1; -1, 2];
-        let g = SessionBuilder::new("interesting name")
-            .edge(&s1, &s2)?
-            .edge(&s2, &t1)?
-            .source(&s1)?
+
+        let graph = GraphBuilder::new()
+            .edge(&s1, &s2)
+            .edge(&s2, &t1);
+
+        let g = SessionBuilder::new()
+            .name("interesting name")
+            .graph(graph)
+            .source(&s1)
             .build()?;
 
         g.visualize(MODULE_NAME)?;
@@ -560,10 +514,15 @@ mod tests {
         let s1 = node!(0);
         let s2 = node!(5);
         let t1 = node![4; 1, -2, 3, -4, 5, -6, 7];
-        let g = SessionBuilder::new("7 player game")
-            .edge(&s1, &s2)?
-            .edge(&s2, &t1)?
-            .source(&s1)?
+
+        let graph = GraphBuilder::new()
+            .edge(&s1, &s2)
+            .edge(&s2, &t1);
+
+        let g = SessionBuilder::new()
+            .name("7 player game")
+            .graph(graph)
+            .source(&s1)
             .build()?;
 
         g.visualize(MODULE_NAME)?;

@@ -1,0 +1,222 @@
+SCHEDULER STATE MACHINE - COMPLETE REFERENCE
+==============================================
+
+CORE STATES (6)
+---------------
+
+1. READY - Task has executable and no pending dependencies, ready for execution
+2. WAITING(deps) - Task blocked on unsatisfied dependencies
+3. RUNNING - Task actively executing in a runner (executable moved to runner)
+4. PREEMPTING - Task signaled to stop, still executing
+5. SUSPENDED(outcome) - Task completed with outcome (Success/Failure)
+6. ERROR - Task panicked during execution
+
+State Categories:
+- Active: Ready, Running, Waiting, Preempting (scheduler continues while any active)
+- Inactive: Suspended, Error (terminal unless resurrected)
+
+
+COMPLETE STATE TRANSITIONS
+---------------------------
+
+Initial Registration:
+  (new) → Ready          [register() with no deps, mod.rs:191]
+  (new) → Waiting        [register() with deps, mod.rs:193]
+
+Normal Execution Flow:
+  Ready → Running        [policy.execute() selects task, mod.rs:444]
+  Running → Preempting   [policy.preempt() signals task, mod.rs:418]
+  Running → Ready        [task yields YieldIntention::Ready, mod.rs:536]
+  Running → Waiting      [task yields YieldIntention::Waiting(deps), mod.rs:524]
+  Running → Suspended    [task yields YieldIntention::Suspended(outcome), mod.rs:498]
+  Running → Error        [runner catches panic, mod.rs:344]
+  Preempting → Ready     [task responds to signal and yields, mod.rs:536]
+  Waiting → Ready        [all dependencies satisfied, mod.rs:536]
+
+RESURRECTION PATHS (Critical):
+  Error → Ready          [policy.retry() for retriable tasks, mod.rs:401]
+  Suspended → Ready      [register() same ID with no deps, mod.rs:252]
+  Suspended → Waiting    [register() same ID with deps, mod.rs:254]
+
+Merge-Induced Transitions:
+  Ready → Waiting        [merge adds dependencies, mod.rs:254]
+  Waiting → Ready        [merge removes all dependencies, mod.rs:252]
+  Waiting → Waiting      [merge changes dependencies, mod.rs:254]
+
+
+RESURRECTION MECHANISMS
+-----------------------
+
+Path 1: Error Recovery (Policy-Driven)
+  - Error state tasks can be retried if retriable flag is true
+  - Policy's retry() method selects which tasks to retry
+  - Task transitions to Ready and re-enters execution pipeline
+  - No dependencies restored (Error state has no deps)
+
+Path 2 & 3: Suspended Task Resurrection (Registration-Driven)
+  - Registering a task with the same ID as a Suspended task triggers resurrection
+  - Executables are merged via Executable::merge()
+  - New dependencies replace old (old deps were unlinked during suspension)
+  - **OUTCOME IS LOST** - TaskOutcome discarded, no record of previous completion
+  - Goes to Ready (no deps) or Waiting (with deps)
+  - NO VALIDATION - no check if resurrection is intended
+
+Consequences of Suspended Resurrection:
+  - Same task can complete multiple times with different outcomes
+  - Dependent tasks that already consumed the outcome see inconsistent state
+  - No protection against unintended resurrection
+  - Circular dependencies can be introduced (caught by ensure_acyclic)
+
+
+DEFERRED MERGE FLOW
+-------------------
+
+When registering a task ID that's currently Running or Preempting:
+  1. should_defer() returns true (executable is None - in runner)
+  2. defer_merge() stores MergeContext in state.merges HashMap
+  3. If multiple deferrals occur, they're merged via merge_into()
+  4. During collection phase, finalize_collection() applies pending merge
+  5. Executable is merged: existing.merge(pending)
+  6. Pending dependencies are unioned with yielded dependencies
+  7. Task state recalculated based on total dependencies
+
+Note: Merge can modify a task while it's being preempted
+
+
+STATE INVARIANTS
+----------------
+
+1. Executable Ownership
+   - Ready, Waiting, Suspended, Error: executable = Some(...)
+   - Running, Preempting: executable = None (moved to runner)
+   - Transferred to runner during Ready → Running
+   - Returned during collection
+
+2. Dependency Consistency
+   - Waiting(deps): Bidirectional links maintained (forward in TaskState, backward in incoming)
+   - Suspended: All dependencies unlinked (line 495)
+   - Ready, Running, Preempting, Error: No dependency state
+   - Links validated after every change
+
+3. Terminal States Are Not Terminal
+   - Suspended can transition to Ready/Waiting (resurrection via registration)
+   - Error can transition to Ready (retry via policy)
+   - Both require external trigger
+   - No true permanent terminal state exists
+
+4. Acyclic Dependency Graph
+   - Validated after EVERY dependency change via ensure_acyclic()
+   - Uses DFS algorithm (utils.rs:202-247)
+   - Scheduler aborts if cycle detected
+
+5. Outcome Volatility
+   - Suspended(outcome) stores completion result
+   - Result accessible via outcome() method while Suspended
+   - Result is LOST if task is resurrected
+   - No mechanism to preserve or retrieve lost outcomes
+
+
+EDGE CASES & GOTCHAS
+--------------------
+
+1. Double Completion
+   Task completes → Suspended(Success)
+   Task resurrected → Ready
+   Task completes again → Suspended(Success)
+   Same task generates multiple outcomes over its lifetime.
+
+2. Dependent Task Race
+   T1: Task A completes → Suspended(result)
+   T2: Task B collects result from A
+   T3: Task A resurrected → Ready (result lost)
+   T4: Task C tries to depend on A → sees Ready state, not Suspended
+   Dependent tasks observe inconsistent states.
+
+3. Merge with Error Task
+   Attempting to register task with ID in Error state:
+   - attempt_merge() called but executable is None
+   - Returns error: "Cannot merge with currently running task"
+   - **Misleading error message** - task is in Error, not Running
+
+4. Preemption + Deferred Merge
+   Task Running → Preempting → New registration → defer_merge()
+   Task yields → Merge applied → State recalculated
+   Preempted task can be modified mid-preemption.
+
+5. Circular Resurrection
+   Task A depends on Task B
+   Task B completes → Suspended
+   Task B resurrected with dependency on A
+   Cycle created, ensure_acyclic() catches it, scheduler aborts.
+
+
+TICK EXECUTION PHASES
+---------------------
+
+Each scheduler tick processes 4 phases sequentially:
+
+1. Collection Phase (collect_phase)
+   - Poll all runners for task status
+   - Collect completed/panicked tasks (executables returned)
+   - Process YieldIntentions and update states
+   - Apply pending deferred merges
+   - Register newly discovered tasks
+
+2. Retry Phase (retry_phase)
+   - Policy identifies Error tasks to retry
+   - Error → Ready transition
+
+3. Preemption Phase (preempt_phase)
+   - Policy identifies Running tasks to preempt
+   - Running → Preempting transition
+   - Signal sent to runner
+
+4. Execution Phase (execute_phase)
+   - Policy selects Ready task for execution
+   - Ready → Running transition
+   - Executable transferred to runner
+
+Changes are logged only if any phase modified state.
+
+
+CONCURRENCY MODEL
+-----------------
+
+SyncRunner (0 parallel units):
+  - Synchronous execution, blocks on execute() until task yields
+  - No true preemption (signal ignored, checked after full execution)
+
+ThreadPoolRunner (N parallel units):
+  - Asynchronous execution across thread pool
+  - Non-blocking execute() dispatches to worker threads
+  - True preemption via atomic signals (checked at checkpoints)
+  - Workers run task until yield or preemption signal
+
+
+KEY INSIGHTS
+------------
+
+1. "Completed" does not mean "done forever" - Suspended tasks can be resurrected
+2. Task outcomes are ephemeral - lost during resurrection with no recovery mechanism
+3. State transitions happen both inside and outside the tick loop (registration-time)
+4. Dependencies are fluid - can change through merges, yields, and resurrections
+5. The system prioritizes flexibility over guarantees - no protection against:
+   - Unintended resurrections
+   - Outcome loss
+   - Dependent task inconsistencies
+6. Merging is the most complex mechanism - affects executables, dependencies, and state
+7. Policy has significant control - selects what executes, preempts, and retries
+8. All state changes maintain acyclic dependency invariant (enforced, not assumed)
+
+
+IMPLEMENTATION NOTES
+--------------------
+
+- File locations: src/core/scheduler/mod.rs, utils.rs, traits/scheduler.rs
+- TaskState enum defined at mod.rs:63-70
+- Main tick loop at mod.rs:298-314
+- Registration logic at mod.rs:170-187
+- Merge logic at mod.rs:224-280
+- Yield handling at mod.rs:456-550
+- Cycle detection at mod.rs:687-693 and utils.rs:202-247
+- Bug: MergeContext::merge_into() references non-existent 'pending' field (should be 'dependencies')
