@@ -32,27 +32,19 @@ impl HistoryLogger {
     }
 
     pub fn state(&self, tick: u64, tid: TaskID) -> Option<TaskState> {
-        let snapshots = self
-            .snapshots
-            .lock()
-            .unwrap();
+        let snapshots = self.snapshots.lock().unwrap();
 
         let snapshot = snapshots
             .iter()
             .find(|s| s.tick == tick)?;
 
-        let ctx = snapshot
-            .tasks
-            .get(&tid)?;
+        let ctx = snapshot.tasks.get(&tid)?;
 
         Some(ctx.progress.clone())
     }
 
     pub fn transitions(&self, tid: TaskID) -> Vec<Transition> {
-        let snapshots = self
-            .snapshots
-            .lock()
-            .unwrap();
+        let snapshots = self.snapshots.lock().unwrap();
 
         let filter = |t: &Transition| t.task == tid;
         snapshots
@@ -67,10 +59,7 @@ impl HistoryLogger {
     where
         F: Fn(&TaskContextSnapshot) -> bool,
     {
-        let snapshots = self
-            .snapshots
-            .lock()
-            .unwrap();
+        let snapshots = self.snapshots.lock().unwrap();
 
         let latest = snapshots.last()?;
         latest
@@ -84,10 +73,7 @@ impl HistoryLogger {
     where
         F: Fn(&TaskContextSnapshot) -> bool,
     {
-        let snapshots = self
-            .snapshots
-            .lock()
-            .unwrap();
+        let snapshots = self.snapshots.lock().unwrap();
 
         let Some(latest) = snapshots.last() else {
             return Vec::new();
@@ -106,10 +92,7 @@ impl HistoryLogger {
     }
 
     pub fn before(&self, tid1: TaskID, tid2: TaskID) -> bool {
-        let snapshots = self
-            .snapshots
-            .lock()
-            .unwrap();
+        let snapshots = self.snapshots.lock().unwrap();
 
         let find_first_running = |tid: TaskID| {
             for snapshot in snapshots.iter() {
@@ -143,7 +126,11 @@ impl Clone for HistoryLogger {
 }
 
 impl Logger for HistoryLogger {
-    fn observe(&mut self, snapshot: &SchedulerSnapshot, _changed: bool) -> Result<()> {
+    fn observe(
+        &mut self,
+        snapshot: &SchedulerSnapshot,
+        _changed: bool,
+    ) -> Result<()> {
         self.snapshots
             .lock()
             .unwrap()

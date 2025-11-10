@@ -17,7 +17,11 @@ pub struct CountLogger;
 /* IMPL TRAIT FOR TYPE */
 
 impl Logger for CountLogger {
-    fn observe(&mut self, snapshot: &SchedulerSnapshot, changed: bool) -> Result<()> {
+    fn observe(
+        &mut self,
+        snapshot: &SchedulerSnapshot,
+        changed: bool,
+    ) -> Result<()> {
         if !changed {
             return Ok(());
         }
@@ -43,7 +47,13 @@ impl Logger for CountLogger {
         println!(
             "[Tick {}] Ready: {} | Running: {} | Preempting: {} | Waiting: {} \
             | Suspended: {} | Error: {}",
-            snapshot.tick, ready, running, preempting, waiting, suspended, error
+            snapshot.tick,
+            ready,
+            running,
+            preempting,
+            waiting,
+            suspended,
+            error
         );
 
         Ok(())

@@ -25,7 +25,11 @@ impl ComposedLogger {
 }
 
 impl Logger for ComposedLogger {
-    fn observe(&mut self, snapshot: &SchedulerSnapshot, changed: bool) -> Result<()> {
+    fn observe(
+        &mut self,
+        snapshot: &SchedulerSnapshot,
+        changed: bool,
+    ) -> Result<()> {
         for logger in &mut self.loggers {
             logger.observe(snapshot, changed)?;
         }
