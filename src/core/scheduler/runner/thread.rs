@@ -5,6 +5,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::thread::Builder;
@@ -79,6 +80,9 @@ pub struct ThreadPoolRunner {
     /// Preemption signals indexed by TaskID
     pub signals: HashMap<TaskID, Arc<AtomicBool>>,
 
+    /// Progress samples from running tasks
+    pub progress: Arc<RwLock<HashMap<TaskID, u64>>>,
+
     /// Configuration
     pub config: ThreadPoolConfig,
 
@@ -92,6 +96,7 @@ pub struct WorkPacket {
     pub result_tx: Sender<CompletionPacket>,
     pub awaited: TaskOutcomes,
     pub signal: Arc<AtomicBool>,
+    pub progress: Arc<RwLock<HashMap<TaskID, u64>>>,
     pub tid: TaskID,
 }
 
@@ -124,6 +129,7 @@ impl ThreadPoolRunner {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(Self {
+            progress: Arc::new(RwLock::new(HashMap::new())),
             completed: HashMap::new(),
             running: HashMap::new(),
             signals: HashMap::new(),
@@ -169,6 +175,9 @@ impl ThreadPoolRunner {
         self.running.remove(&tid);
         self.completed.remove(&tid);
         self.signals.remove(&tid);
+        if let Ok(mut map) = self.progress.write() {
+            map.remove(&tid);
+        }
     }
 
     /// Get task state.
@@ -312,11 +321,13 @@ impl Runner for ThreadPoolRunner {
             .insert(tid, signal.clone());
 
         let result_tx = self.result_tx.clone();
+        let progress = self.progress.clone();
         let packet = WorkPacket {
             result_tx,
             executable,
             awaited,
             signal,
+            progress,
             tid,
         };
 
@@ -398,6 +409,14 @@ impl Runner for ThreadPoolRunner {
             },
         }
     }
+
+    fn progress(&self, tid: TaskID) -> Option<u64> {
+        self.progress
+            .read()
+            .ok()?
+            .get(&tid)
+            .copied()
+    }
 }
 
 /* IMPL EXTERNAL TRAIT */
@@ -437,8 +456,13 @@ fn harness(work_rx: Receiver<WorkPacket>, shutdown: Arc<AtomicBool>) {
             Err(_) => continue,
         };
 
-        let (executable, result) =
-            execute_task(packet.signal, packet.awaited, packet.executable);
+        let (executable, result) = execute_task(
+            packet.signal,
+            packet.awaited,
+            packet.executable,
+            packet.progress,
+            packet.tid,
+        );
 
         let _ = packet
             .result_tx
@@ -454,6 +478,8 @@ fn execute_task(
     signal: Arc<AtomicBool>,
     mut awaited: TaskOutcomes,
     mut executable: Box<dyn Executable>,
+    progress: Arc<RwLock<HashMap<TaskID, u64>>>,
+    tid: TaskID,
 ) -> (Box<dyn Executable>, WorkResult) {
     let execute = || loop {
         if signal.load(Ordering::Relaxed) {
@@ -461,6 +487,13 @@ fn execute_task(
         }
 
         let update = executable.tick(awaited);
+
+        if let Some(value) = executable.progress()
+            && let Ok(mut map) = progress.write()
+        {
+            map.insert(tid, value);
+        }
+
         if !update.ready() {
             return WorkResult::Yielded(update);
         }

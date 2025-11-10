@@ -24,6 +24,7 @@ pub mod logger {
     pub mod count;
     pub mod history;
     pub mod compose;
+    pub mod tui;
 }
 
 pub mod policy {
@@ -123,7 +124,8 @@ pub struct TaskContext {
     pub executable: Option<Box<dyn Executable>>,
     pub retriable: bool,
     pub incoming: Dependencies,
-    pub progress: TaskState,
+    pub progress: Option<u64>,
+    pub state: TaskState,
     pub about: String,
     pub size: Option<u64>,
 }
@@ -172,9 +174,10 @@ pub struct SchedulerSnapshot {
 pub struct TaskContextSnapshot {
     pub retriable: bool,
     pub incoming: Dependencies,
-    pub progress: TaskState,
+    pub state: TaskState,
     pub about: String,
     pub size: Option<u64>,
+    pub progress: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -230,7 +233,7 @@ impl Scheduler {
     }
 
     fn register_new(&mut self, task: Task) -> Result<()> {
-        let progress = if task.requires.is_empty() {
+        let state = if task.requires.is_empty() {
             TaskState::Ready
         } else {
             TaskState::Waiting(task.requires.clone())
@@ -240,9 +243,10 @@ impl Scheduler {
             executable: Some(task.executable),
             retriable: task.retriable,
             incoming: Dependencies::new(),
+            progress: None,
             about: task.about,
             size: task.size,
-            progress,
+            state,
         };
 
         self.state
@@ -346,6 +350,8 @@ impl Scheduler {
         self.restart_phase()?;
         self.preempt_phase()?;
         self.execute_phase()?;
+
+        self.update_progress()?;
 
         let changed = !self.transitions.is_empty();
         let snapshot = self.snapshot();
@@ -623,8 +629,8 @@ impl Scheduler {
             .get_mut(&tid)
             .context("Task not in registry")?;
 
-        let from = ctx.progress.clone();
-        ctx.progress = state.clone();
+        let from = ctx.state.clone();
+        ctx.state = state.clone();
 
         let transition = Transition {
             task: tid,
@@ -642,7 +648,27 @@ impl Scheduler {
             .buffer
             .get_mut(&tid)
             .context("Task not in registry")?
-            .progress = progress;
+            .state = progress;
+
+        Ok(())
+    }
+
+    fn update_progress(&mut self) -> Result<()> {
+        let running = self.state.runner_tasks();
+        let tasks: Vec<TaskID> = running
+            .map(|(tid, _)| *tid)
+            .collect();
+
+        for tid in tasks {
+            if let Some(value) = self.context.runner.progress(tid) {
+                let ctx = self
+                    .state
+                    .buffer
+                    .get_mut(&tid)
+                    .context("Task not in registry")?;
+                ctx.progress = Some(value);
+            }
+        }
 
         Ok(())
     }
@@ -652,9 +678,10 @@ impl Scheduler {
             let snapshot = TaskContextSnapshot {
                 retriable: ctx.retriable,
                 incoming: ctx.incoming.clone(),
-                progress: ctx.progress.clone(),
+                state: ctx.state.clone(),
                 about: ctx.about.clone(),
                 size: ctx.size,
+                progress: ctx.progress,
             };
             (*tid, snapshot)
         };

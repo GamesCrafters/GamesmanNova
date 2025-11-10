@@ -1,10 +1,9 @@
 //! # History Logger
 //!
-//! Logger that captures complete scheduler state history for post-execution analysis.
+//! TODO
 
 use anyhow::Result;
-use std::sync::Arc;
-use std::sync::Mutex;
+use derive_builder::Builder;
 
 use crate::core::scheduler::SchedulerSnapshot;
 use crate::core::scheduler::TaskContextSnapshot;
@@ -13,41 +12,46 @@ use crate::core::scheduler::TaskState;
 use crate::core::scheduler::Transition;
 use crate::traits::scheduler::Logger;
 
+/* STRUCTURES */
+
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
 pub struct HistoryLogger {
-    snapshots: Arc<Mutex<Vec<SchedulerSnapshot>>>,
+    #[builder(default = "1")]
+    frequency: usize,
+
+    #[builder(default = "false")]
+    lazy: bool,
+
+    #[builder(default)]
+    #[builder(setter(skip))]
+    changes: usize,
+
+    #[builder(default)]
+    #[builder(setter(skip))]
+    snapshots: Vec<SchedulerSnapshot>,
 }
 
-impl HistoryLogger {
-    pub fn new() -> Self {
-        Self {
-            snapshots: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
+/* IMPLEMENTATIONS */
 
-    pub fn snapshots(&self) -> Vec<SchedulerSnapshot> {
-        self.snapshots
-            .lock()
-            .unwrap()
-            .clone()
+impl HistoryLogger {
+    pub fn snapshots(&self) -> &[SchedulerSnapshot] {
+        &self.snapshots
     }
 
     pub fn state(&self, tick: u64, tid: TaskID) -> Option<TaskState> {
-        let snapshots = self.snapshots.lock().unwrap();
-
-        let snapshot = snapshots
+        let snapshot = self
+            .snapshots
             .iter()
             .find(|s| s.tick == tick)?;
 
         let ctx = snapshot.tasks.get(&tid)?;
-
-        Some(ctx.progress.clone())
+        Some(ctx.state.clone())
     }
 
     pub fn transitions(&self, tid: TaskID) -> Vec<Transition> {
-        let snapshots = self.snapshots.lock().unwrap();
-
         let filter = |t: &Transition| t.task == tid;
-        snapshots
+        self.snapshots
             .iter()
             .flat_map(|s| s.transitions.iter())
             .filter(|t| filter(t))
@@ -59,9 +63,7 @@ impl HistoryLogger {
     where
         F: Fn(&TaskContextSnapshot) -> bool,
     {
-        let snapshots = self.snapshots.lock().unwrap();
-
-        let latest = snapshots.last()?;
+        let latest = self.snapshots.last()?;
         latest
             .tasks
             .iter()
@@ -73,9 +75,7 @@ impl HistoryLogger {
     where
         F: Fn(&TaskContextSnapshot) -> bool,
     {
-        let snapshots = self.snapshots.lock().unwrap();
-
-        let Some(latest) = snapshots.last() else {
+        let Some(latest) = self.snapshots.last() else {
             return Vec::new();
         };
 
@@ -87,41 +87,28 @@ impl HistoryLogger {
             .collect()
     }
 
-    pub fn describe(&self, about: &str) -> Option<TaskID> {
-        self.find(|ctx| ctx.about == about)
-    }
-
     pub fn before(&self, tid1: TaskID, tid2: TaskID) -> bool {
-        let snapshots = self.snapshots.lock().unwrap();
-
-        let find_first_running = |tid: TaskID| {
-            for snapshot in snapshots.iter() {
-                for transition in &snapshot.transitions {
-                    if transition.task == tid
-                        && matches!(transition.to, TaskState::Running)
-                    {
-                        return Some(snapshot.tick);
-                    }
-                }
-            }
-            None
-        };
-
-        let t1 = find_first_running(tid1);
-        let t2 = find_first_running(tid2);
-
-        match (t1, t2) {
-            (Some(tick1), Some(tick2)) => tick1 < tick2,
-            _ => false,
-        }
+        let t1 = self.running_tick(tid1, &self.snapshots);
+        let t2 = self.running_tick(tid2, &self.snapshots);
+        matches!((t1, t2), (Some(tick1), Some(tick2)) if tick1 < tick2)
     }
-}
 
-impl Clone for HistoryLogger {
-    fn clone(&self) -> Self {
-        Self {
-            snapshots: Arc::clone(&self.snapshots),
-        }
+    /* HELPERS */
+
+    fn running_tick(
+        &self,
+        tid: TaskID,
+        snapshots: &[SchedulerSnapshot],
+    ) -> Option<u64> {
+        snapshots
+            .iter()
+            .flat_map(|s| {
+                s.transitions
+                    .iter()
+                    .map(move |t| (s.tick, t))
+            })
+            .find(|(_, t)| t.task == tid && matches!(t.to, TaskState::Running))
+            .map(|(tick, _)| tick)
     }
 }
 
@@ -129,19 +116,25 @@ impl Logger for HistoryLogger {
     fn observe(
         &mut self,
         snapshot: &SchedulerSnapshot,
-        _changed: bool,
+        changed: bool,
     ) -> Result<()> {
-        self.snapshots
-            .lock()
-            .unwrap()
-            .push(snapshot.clone());
+        let record = match (self.lazy, changed) {
+            (true, false) => false,
+            (false, _) => snapshot
+                .tick
+                .is_multiple_of(self.frequency as u64),
+            (true, true) => {
+                self.changes += 1;
+                self.changes
+                    .is_multiple_of(self.frequency)
+            },
+        };
+
+        if record {
+            self.snapshots
+                .push(snapshot.clone());
+        }
 
         Ok(())
-    }
-}
-
-impl Default for HistoryLogger {
-    fn default() -> Self {
-        Self::new()
     }
 }

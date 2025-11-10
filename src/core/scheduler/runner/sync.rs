@@ -75,4 +75,8 @@ impl Runner for SyncRunner {
                 tid
             ))
     }
+
+    fn progress(&self, tid: TaskID) -> Option<u64> {
+        self.running.get(&tid)?.progress()
+    }
 }

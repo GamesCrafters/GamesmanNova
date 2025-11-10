@@ -3,6 +3,7 @@
 //! TODO
 
 use anyhow::Result;
+use derive_builder::Builder;
 
 use crate::core::scheduler::SchedulerSnapshot;
 use crate::core::scheduler::TaskState;
@@ -11,8 +12,19 @@ use crate::traits::scheduler::Logger;
 /* STRUCTURES */
 
 /// Simple command-line logger that prints task progress counts.
-#[derive(Default)]
-pub struct CountLogger;
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
+pub struct CountLogger {
+    #[builder(default = "1")]
+    frequency: usize,
+
+    #[builder(default = "true")]
+    lazy: bool,
+
+    #[builder(default)]
+    #[builder(setter(skip))]
+    changes: usize,
+}
 
 /* IMPL TRAIT FOR TYPE */
 
@@ -22,7 +34,19 @@ impl Logger for CountLogger {
         snapshot: &SchedulerSnapshot,
         changed: bool,
     ) -> Result<()> {
-        if !changed {
+        let record = match (self.lazy, changed) {
+            (true, false) => false,
+            (false, _) => snapshot
+                .tick
+                .is_multiple_of(self.frequency as u64),
+            (true, true) => {
+                self.changes += 1;
+                self.changes
+                    .is_multiple_of(self.frequency)
+            },
+        };
+
+        if !record {
             return Ok(());
         }
 
@@ -34,7 +58,7 @@ impl Logger for CountLogger {
         let mut preempting = 0;
 
         for ctx in snapshot.tasks.values() {
-            match ctx.progress {
+            match ctx.state {
                 TaskState::Error => error += 1,
                 TaskState::Ready => ready += 1,
                 TaskState::Running => running += 1,

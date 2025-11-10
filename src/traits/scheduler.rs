@@ -50,6 +50,12 @@ pub trait Runner {
     /// finished executing (poll returned Ready or Panic). Returns an error if
     /// the task is not found, still executing, or not ready to collect.
     fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>>;
+
+    /// Samples the progress of a running task. Returns None if the task is not
+    /// found, not running, or doesn't report progress. This method queries the
+    /// last known progress value without blocking. For concurrent runners, this
+    /// reflects progress sampled after the most recent tick() call.
+    fn progress(&self, tid: TaskID) -> Option<u64>;
 }
 
 #[cfg_attr(test, automock)]
@@ -66,11 +72,18 @@ pub trait Executable: Send + Any {
         None
     }
 
-    /// Merges another task of the same type into this one. Used when a task
-    /// is discovered multiple times - the new version is merged with the
-    /// existing version. Implementations should downcast to verify type
-    /// compatibility and return an error if types don't match. Default
-    /// implementation returns an error.
+    /// Returns the task's current progress using the same metric as size(). For
+    /// example, if size() returns all operations, progress() returns operations
+    /// completed. Used for live progress tracking and UI updates.
+    fn progress(&self) -> Option<u64> {
+        None
+    }
+
+    /// Merges another task of the same type into this one. Used when a task is
+    /// discovered multiple times - the new version is merged with the existing
+    /// version. Implementations should downcast to verify type compatibility
+    /// and return an error if types don't match. Default implementation returns
+    /// an error.
     fn merge(&mut self, _other: Box<dyn Executable>) -> Result<()> {
         bail!("Merging not supported for this task type")
     }

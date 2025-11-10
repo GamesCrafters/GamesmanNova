@@ -41,6 +41,8 @@ bitvec = "^1"
 regex = "^1"
 sled = "^0.34"
 crossbeam-channel = "0.5.15"
+ratatui = "0.28"
+crossterm = "0.28"
 
 [dev-dependencies]
 strum_macros = "0.26"

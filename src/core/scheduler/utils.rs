@@ -50,7 +50,7 @@ impl MergeContext {
 
 impl TaskContext {
     pub fn active(&self) -> bool {
-        match &self.progress {
+        match &self.state {
             TaskState::Ready
             | TaskState::Running
             | TaskState::Waiting(_)
@@ -60,7 +60,7 @@ impl TaskContext {
     }
 
     pub fn ready(&self) -> bool {
-        match &self.progress {
+        match &self.state {
             TaskState::Error
             | TaskState::Running
             | TaskState::Waiting(_)
@@ -71,7 +71,7 @@ impl TaskContext {
     }
 
     pub fn running(&self) -> bool {
-        match &self.progress {
+        match &self.state {
             TaskState::Error
             | TaskState::Waiting(_)
             | TaskState::Suspended(_)
@@ -82,7 +82,7 @@ impl TaskContext {
     }
 
     pub fn errored(&self) -> bool {
-        match &self.progress {
+        match &self.state {
             TaskState::Ready
             | TaskState::Running
             | TaskState::Waiting(_)
@@ -93,7 +93,7 @@ impl TaskContext {
     }
 
     pub fn preempting(&self) -> bool {
-        match &self.progress {
+        match &self.state {
             TaskState::Error
             | TaskState::Running
             | TaskState::Waiting(_)
@@ -104,7 +104,7 @@ impl TaskContext {
     }
 
     pub fn dependencies(&self) -> Option<&Dependencies> {
-        match &self.progress {
+        match &self.state {
             TaskState::Ready
             | TaskState::Running
             | TaskState::Preempting
@@ -115,7 +115,7 @@ impl TaskContext {
     }
 
     pub fn outcome(&self) -> Option<&TaskOutcome> {
-        match &self.progress {
+        match &self.state {
             TaskState::Ready
             | TaskState::Running
             | TaskState::Preempting
@@ -164,7 +164,7 @@ impl SchedulerState {
             .iter()
             .filter(|(_, ctx)| {
                 matches!(
-                    ctx.progress,
+                    ctx.state,
                     TaskState::Running | TaskState::Preempting
                 )
             })
@@ -256,11 +256,12 @@ pub mod test_utils {
     /// Create a simple task context for testing with minimal boilerplate.
     pub fn task_ctx(progress: TaskState) -> TaskContext {
         TaskContextBuilder::default()
-            .progress(progress)
+            .state(progress)
             .retriable(false)
             .incoming(HashSet::new())
             .about(String::new())
             .size(None)
+            .progress(None)
             .build()
             .unwrap()
     }
@@ -268,11 +269,12 @@ pub mod test_utils {
     /// Create a task context with a specific size.
     pub fn task_ctx_with_size(progress: TaskState, size: u64) -> TaskContext {
         TaskContextBuilder::default()
-            .progress(progress)
+            .state(progress)
             .retriable(false)
             .incoming(HashSet::new())
             .about(String::new())
             .size(Some(size))
+            .progress(None)
             .build()
             .unwrap()
     }
@@ -285,11 +287,12 @@ pub mod test_utils {
     ) -> TaskContext {
         let incoming: HashSet<TaskID> = dependents.into_iter().collect();
         TaskContextBuilder::default()
-            .progress(progress)
+            .state(progress)
             .retriable(false)
             .incoming(incoming)
             .about(String::new())
             .size(size)
+            .progress(None)
             .build()
             .unwrap()
     }
@@ -297,11 +300,12 @@ pub mod test_utils {
     /// Create a retriable task context.
     pub fn retriable_task_ctx(progress: TaskState) -> TaskContext {
         TaskContextBuilder::default()
-            .progress(progress)
+            .state(progress)
             .retriable(true)
             .incoming(HashSet::new())
             .about(String::new())
             .size(None)
+            .progress(None)
             .build()
             .unwrap()
     }

@@ -3,26 +3,21 @@
 //! Logger that composes multiple loggers, calling each in sequence.
 
 use anyhow::Result;
+use derive_builder::Builder;
 
 use crate::core::scheduler::SchedulerSnapshot;
 use crate::traits::scheduler::Logger;
 
+/* STRUCTURES */
+
+#[derive(Builder)]
+#[builder(pattern = "owned", setter(into))]
 pub struct ComposedLogger {
+    #[builder(setter(each = "logger"))]
     loggers: Vec<Box<dyn Logger>>,
 }
 
-impl ComposedLogger {
-    pub fn new() -> Self {
-        Self {
-            loggers: Vec::new(),
-        }
-    }
-
-    pub fn with(mut self, logger: Box<dyn Logger>) -> Self {
-        self.loggers.push(logger);
-        self
-    }
-}
+/* IMPLEMENTATIONS */
 
 impl Logger for ComposedLogger {
     fn observe(
@@ -33,12 +28,7 @@ impl Logger for ComposedLogger {
         for logger in &mut self.loggers {
             logger.observe(snapshot, changed)?;
         }
-        Ok(())
-    }
-}
 
-impl Default for ComposedLogger {
-    fn default() -> Self {
-        Self::new()
+        Ok(())
     }
 }
