@@ -28,8 +28,8 @@ pub struct SyncRunner {
 /* IMPL TRAIT FOR TYPE */
 
 impl Runner for SyncRunner {
-    fn units(&self) -> usize {
-        0
+    fn capacity(&self) -> Option<usize> {
+        None
     }
 
     fn execute(
@@ -43,9 +43,11 @@ impl Runner for SyncRunner {
         }
 
         let mut result = executable.tick(awaited);
-        while result.ready() {
+        while result.is_none() {
             result = executable.tick(TaskOutcomes::new());
         }
+
+        let result = result.expect("guaranteed");
 
         self.running
             .insert(tid, executable);

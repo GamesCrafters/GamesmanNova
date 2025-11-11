@@ -163,7 +163,7 @@ pub struct SchedulerContext {
 pub struct SchedulerState {
     pub merges: MergeRegistry,
     pub buffer: TaskRegistry,
-    pub units: usize,
+    pub units: Option<usize>,
     pub ticks: u64,
 }
 
@@ -227,7 +227,7 @@ pub struct DecisionContext<'a> {
     pub buffer: &'a TaskRegistry,
     /// Other state fields
     pub ticks: u64,
-    pub units: usize,
+    pub units: Option<usize>,
 }
 
 impl<'a> DecisionContext<'a> {
@@ -235,7 +235,7 @@ impl<'a> DecisionContext<'a> {
         candidates: HashMap<TaskID, &'a TaskContext>,
         buffer: &'a TaskRegistry,
         ticks: u64,
-        units: usize,
+        units: Option<usize>,
     ) -> Self {
         Self {
             candidates,
@@ -331,7 +331,7 @@ impl<'a> DecisionContext<'a> {
 impl Scheduler {
     /// Create a scheduler in its own universe.
     pub fn new(context: SchedulerContext, mut state: SchedulerState) -> Self {
-        state.units = context.runner.units();
+        state.units = context.runner.capacity();
         Self {
             transitions: Vec::new(),
             context,
@@ -634,13 +634,16 @@ impl Scheduler {
     /* RESOLUTION PHASE */
 
     fn resolve_phase(&mut self) -> Result<()> {
-        while let Some(tid) = {
+        while !self.state.at_capacity() {
             let ctx = DecisionContext::for_resolution(&self.state);
-            (!ctx.candidates.is_empty())
-                .then(|| self.context.policy.execute(&ctx))
-                .flatten()
-        } {
-            let ctx = DecisionContext::for_resolution(&self.state);
+            if ctx.candidates.is_empty() {
+                break;
+            }
+
+            let Some(tid) = self.context.policy.execute(&ctx) else {
+                break;
+            };
+
             if !ctx.candidates.contains_key(&tid) {
                 bail!(
                     "Policy selected non-candidate task {} in resolution",
@@ -662,10 +665,6 @@ impl Scheduler {
             self.context
                 .runner
                 .execute(tid, awaited, executable)?;
-
-            if self.state.at_capacity() {
-                break;
-            }
         }
 
         Ok(())
@@ -717,10 +716,16 @@ impl Scheduler {
     /* EXECUTION PHASE */
 
     fn execute_phase(&mut self) -> Result<()> {
-        while let Some(tid) = {
-            let ctx = DecisionContext::for_execution(&self.state);
-            self.context.policy.execute(&ctx)
-        } {
+        while !self.state.at_capacity() {
+            let tid = {
+                let ctx = DecisionContext::for_execution(&self.state);
+                self.context.policy.execute(&ctx)
+            };
+
+            let Some(tid) = tid else {
+                break;
+            };
+
             let ctx = DecisionContext::for_execution(&self.state);
             if !ctx.candidates.contains_key(&tid) {
                 bail!(

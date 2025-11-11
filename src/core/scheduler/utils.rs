@@ -29,15 +29,6 @@ use crate::core::scheduler::YieldUpdate;
 
 /* UTILITY IMPLEMENTATIONS */
 
-impl YieldUpdate {
-    pub fn ready(&self) -> bool {
-        match self.intention {
-            YieldIntention::Suspended(_) | YieldIntention::Waiting(_) => false,
-            YieldIntention::Ready => true,
-        }
-    }
-}
-
 impl MergeContext {
     pub fn merge_into(&mut self, other: MergeContext) -> Result<()> {
         self.executable
@@ -213,9 +204,11 @@ impl SchedulerState {
     }
 
     /// Check if scheduler has reached execution unit capacity.
-    /// Returns false if units == 0 (unlimited).
+    /// Returns false if units is None (unlimited).
     pub fn at_capacity(&self) -> bool {
-        self.units > 0 && self.runner_tasks().count() >= self.units
+        self.units
+            .map(|limit| self.runner_tasks().count() >= limit)
+            .unwrap_or(false)
     }
 
     /// Collect all currently running/preempting task IDs into a Vec.

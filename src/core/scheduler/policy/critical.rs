@@ -23,9 +23,9 @@
 //!   comparison
 //! - retry(): Delegates to configurable retry policy closure
 
-use std::collections::HashMap;
-
 use derive_builder::Builder;
+
+use std::collections::HashMap;
 
 use crate::core::scheduler::DecisionContext;
 use crate::core::scheduler::SizeStats;
@@ -66,7 +66,8 @@ impl Policy for CriticalPathPolicy {
 
     fn preempt<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
         let running_count = ctx.candidates.len();
-        if ctx.units == 0 || running_count < ctx.units {
+        let limit = ctx.units?;
+        if running_count < limit {
             return None;
         }
 
@@ -89,8 +90,8 @@ impl Policy for CriticalPathPolicy {
         // Find minimum critical weight among running tasks (candidates)
         let (min_running_tid, min_running_depth) = ctx
             .candidates
-            .iter()
-            .map(|(tid, _ctx)| (*tid, critical_weight(*tid, ctx.buffer)))
+            .keys()
+            .map(|tid| (*tid, critical_weight(*tid, ctx.buffer)))
             .min_by_key(|(_, depth)| *depth)?;
 
         if max_ready_depth > min_running_depth + threshold {
@@ -102,8 +103,8 @@ impl Policy for CriticalPathPolicy {
 
     fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
         ctx.candidates
-            .iter()
-            .map(|(tid, _ctx)| (*tid, critical_weight(*tid, ctx.buffer)))
+            .keys()
+            .map(|tid| (*tid, critical_weight(*tid, ctx.buffer)))
             .max_by_key(|(_, depth)| *depth)
             .map(|(tid, _)| tid)
     }
@@ -209,18 +210,23 @@ fn compute_size_stats(registry: &TaskRegistry) -> SizeStats {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-    use std::rc::Rc;
 
     use anyhow::Result;
 
-    use super::*;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    use std::rc::Rc;
+
     use crate::core::developer::GraphBuilder;
+    use crate::core::scheduler::DecisionContext;
+    use crate::core::scheduler::Dependencies;
     use crate::core::scheduler::Scheduler;
     use crate::core::scheduler::SchedulerContextBuilder;
     use crate::core::scheduler::SchedulerSnapshot;
     use crate::core::scheduler::SchedulerState;
+    use crate::core::scheduler::TaskContextBuilder;
     use crate::core::scheduler::TaskOutcome;
+    use crate::core::scheduler::TaskState;
     use crate::core::scheduler::logger::history::HistoryLogger;
     use crate::core::scheduler::logger::history::HistoryLoggerBuilder;
     use crate::core::scheduler::runner::sync::SyncRunner;
@@ -230,7 +236,11 @@ mod tests {
     use crate::traits::scheduler::Policy;
     use crate::traits::scheduler::Runner;
 
+    use super::*;
+
     /* TEST UTILITIES */
+
+    const MODULE: &str = "critical-policy";
 
     /// Wrapper for HistoryLogger that allows shared access in tests
     struct SharedLogger {
@@ -259,176 +269,15 @@ mod tests {
         }
     }
 
-    /* TESTS */
-
-    #[test]
-    fn test_debug_scheduler_execution() -> Result<()> {
-        // Debug: step through scheduler execution
-        let a = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .about("A")
-            .size(Some(100))
-            .build()?;
-
-        let b = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .about("B")
-            .size(Some(50))
-            .build()?;
-
-        let root = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .about("root")
-            .size(Some(10))
-            .build()?;
-
-        let graph = GraphBuilder::new()
-            .edge(&root, &a)
-            .edge(&root, &b);
-
-        let task_graph = TaskBuilder::new()
-            .name("test-debug-exec")
-            .graph(graph)
-            .source(&root)
-            .build()?;
-
-        let root_task = task_graph.root_task()?;
-        println!("Root task TID: {}", root_task.tid);
-        println!("Root task requires: {:?}", root_task.requires);
-
-        // Set up scheduler
-        let history = HistoryLoggerBuilder::default()
-            .frequency(1usize)
-            .build()?;
-        let (logger, _) = SharedLogger::new(history);
-
-        let policy = CriticalPathPolicyBuilder::default()
-            .sigma(1.0)
-            .build()?;
-
-        let context = SchedulerContextBuilder::default()
-            .policy(Box::new(policy) as Box<dyn Policy>)
-            .logger(Box::new(logger) as Box<dyn Logger>)
-            .runner(Box::new(SyncRunner::default()) as Box<dyn Runner>)
-            .build()?;
-
-        let state = SchedulerState::default();
-        let mut scheduler = Scheduler::new(context, state);
-
-        println!("Registering root task...");
-        scheduler.register(root_task)?;
-        println!("Root registered successfully");
-
-        println!("Running scheduler...");
-        scheduler.run()?;
-        println!("Scheduler completed");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_debug_graph_structure() -> Result<()> {
-        // Debug: understand what dependencies root has
-        let a = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .build()?;
-
-        let b = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .build()?;
-
-        let root = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .build()?;
-
-        let graph = GraphBuilder::new()
-            .edge(&root, &a)
-            .edge(&root, &b);
-
-        let task_graph = TaskBuilder::new()
-            .name("test-debug")
-            .graph(graph)
-            .source(&root)
-            .build()?;
-
-        // Build the root task and inspect it
-        let root_task = task_graph.root_task()?;
-        println!("Root task TID: {}", root_task.tid);
-        println!("Root task requires: {:?}", root_task.requires);
-        println!(
-            "Root task requires len: {}",
-            root_task.requires.len()
-        );
-
-        assert_eq!(
-            root_task.requires.len(),
-            0,
-            "Root should have no requires"
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_execute_selects_highest_critical_weight() -> Result<()> {
-        // Test with root discovering two children with different sizes
-        // Root -> A(100), B(50)
-        // A should execute before B due to higher critical weight
-        let a = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .about("A")
-            .size(Some(100))
-            .build()?;
-
-        let b = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .about("B")
-            .size(Some(50))
-            .build()?;
-
-        let root = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .about("root")
-            .size(Some(10))
-            .build()?;
-
-        let graph = GraphBuilder::new()
-            .edge(&root, &a)
-            .edge(&root, &b);
-
-        let task_graph = TaskBuilder::new()
-            .name("test-multi")
-            .graph(graph)
-            .source(&root)
-            .build()?;
-
-        // Set up scheduler
+    /// Helper to create a scheduler with default test configuration
+    fn create_test_scheduler(
+        policy: CriticalPathPolicy,
+    ) -> Result<(Scheduler, Rc<RefCell<HistoryLogger>>)> {
         let history = HistoryLoggerBuilder::default()
             .frequency(1usize)
             .build()?;
 
         let (logger, logger_ref) = SharedLogger::new(history);
-        let policy = CriticalPathPolicyBuilder::default()
-            .sigma(1.0)
-            .build()?;
 
         let context = SchedulerContextBuilder::default()
             .policy(Box::new(policy) as Box<dyn Policy>)
@@ -437,52 +286,694 @@ mod tests {
             .build()?;
 
         let state = SchedulerState::default();
-        let mut scheduler = Scheduler::new(context, state);
+        let scheduler = Scheduler::new(context, state);
 
-        // Register and run
+        Ok((scheduler, logger_ref))
+    }
+
+    /// Helper to find task ID by name in final snapshot
+    fn find_task_by_name(
+        snapshots: &[SchedulerSnapshot],
+        name: &str,
+    ) -> TaskID {
+        snapshots
+            .last()
+            .unwrap()
+            .tasks
+            .iter()
+            .find_map(|(tid, ctx)| (ctx.about == name).then_some(*tid))
+            .unwrap()
+    }
+
+    /* TESTS */
+
+    #[test]
+    fn test_executes_by_descending_weight() -> Result<()> {
+        // Test multiple ready tasks execute in descending weight order
+        // Root discovers A(100), B(50), C(25), D(10)
+        let a = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("A")
+            .size(Some(100))
+            .build()?;
+
+        let b = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("B")
+            .size(Some(50))
+            .build()?;
+
+        let c = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("C")
+            .size(Some(25))
+            .build()?;
+
+        let d = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("D")
+            .size(Some(10))
+            .build()?;
+
+        let root = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("root")
+            .size(Some(5))
+            .build()?;
+
+        let graph = GraphBuilder::new()
+            .edge(&root, &a)
+            .edge(&root, &b)
+            .edge(&root, &c)
+            .edge(&root, &d);
+
+        let task_graph = TaskBuilder::new()
+            .name("test-descending-weight")
+            .graph(graph)
+            .source(&root)
+            .build()?;
+
+        task_graph.visualize(MODULE)?;
+
+        let policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let (mut scheduler, logger_ref) = create_test_scheduler(policy)?;
+
         scheduler.register(task_graph.root_task()?)?;
         scheduler.run()?;
 
-        // Verify execution order
         let logger = logger_ref.borrow();
         let snapshots = logger.snapshots();
 
-        // Verify we got snapshots and all tasks completed
+        let tid_a = find_task_by_name(snapshots, "A");
+        let tid_b = find_task_by_name(snapshots, "B");
+        let tid_c = find_task_by_name(snapshots, "C");
+        let tid_d = find_task_by_name(snapshots, "D");
+
+        // Should execute in order: A(100), B(50), C(25), D(10)
         assert!(
-            !snapshots.is_empty(),
-            "Should have recorded snapshots"
+            logger.execution_order(&[tid_a, tid_b, tid_c, tid_d]),
+            "Tasks should execute in descending weight order: A, B, C, D"
         );
 
-        let final_snapshot = snapshots.last().unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn test_waits_for_discovered_dependencies() -> Result<()> {
+        // Test that tasks properly wait for their discovered children
+        // Root -> A -> B (A discovers B dynamically and waits for it)
+        let b = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("B")
+            .size(Some(50))
+            .build()?;
+
+        let a = TaskNodeBuilder::default()
+            .ticks(2)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("A")
+            .size(Some(100))
+            .build()?;
+
+        let root = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("root")
+            .size(Some(10))
+            .build()?;
+
+        let graph = GraphBuilder::new()
+            .edge(&root, &a)
+            .edge(&a, &b);
+
+        let task_graph = TaskBuilder::new()
+            .name("test-dependencies")
+            .graph(graph)
+            .source(&root)
+            .build()?;
+
+        task_graph.visualize(MODULE)?;
+
+        let policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let (mut scheduler, logger_ref) = create_test_scheduler(policy)?;
+
+        scheduler.register(task_graph.root_task()?)?;
+        scheduler.run()?;
+
+        let logger = logger_ref.borrow();
+        let snapshots = logger.snapshots();
+
+        let tid_a = find_task_by_name(snapshots, "A");
+        let tid_b = find_task_by_name(snapshots, "B");
+
+        // A starts running first, discovers B, then waits for B
         assert!(
-            final_snapshot.tasks.len() >= 3,
-            "Should have root + 2 children = 3 tasks, got {}",
-            final_snapshot.tasks.len()
+            logger.before(tid_a, tid_b),
+            "A should start before B (A discovers B dynamically)"
         );
 
-        // Find task IDs by size
-        let tasks: Vec<_> = final_snapshot
-            .tasks
-            .iter()
-            .filter(|(_, ctx)| ctx.size.is_some())
-            .collect();
+        Ok(())
+    }
 
-        let tid_100 = *tasks
-            .iter()
-            .find(|(_, ctx)| ctx.size == Some(100))
-            .expect("Should find task with size 100")
-            .0;
+    #[test]
+    fn test_critical_path_weight_propagation() -> Result<()> {
+        // Test diamond pattern where critical path weights matter:
+        // Root discovers Left(10) and Right(50) simultaneously
+        // Left discovers Bottom(100), Right discovers Bottom(100)
+        // Critical weights: Left=110, Right=150
+        // Right should execute before Left due to higher critical path weight
+        let bottom = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("Bottom")
+            .size(Some(100))
+            .build()?;
 
-        let tid_50 = *tasks
-            .iter()
-            .find(|(_, ctx)| ctx.size == Some(50))
-            .expect("Should find task with size 50")
-            .0;
+        let left = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("Left")
+            .size(Some(10))
+            .build()?;
 
-        // Verify A (size 100) executed before B (size 50)
+        let right = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("Right")
+            .size(Some(50))
+            .build()?;
+
+        let root = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("Root")
+            .size(Some(5))
+            .build()?;
+
+        let graph = GraphBuilder::new()
+            .edge(&root, &left)
+            .edge(&root, &right)
+            .edge(&left, &bottom)
+            .edge(&right, &bottom);
+
+        let task_graph = TaskBuilder::new()
+            .name("test-critical-path")
+            .graph(graph)
+            .source(&root)
+            .build()?;
+
+        task_graph.visualize(MODULE)?;
+
+        let policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let (mut scheduler, logger_ref) = create_test_scheduler(policy)?;
+
+        scheduler.register(task_graph.root_task()?)?;
+        scheduler.run()?;
+
+        let logger = logger_ref.borrow();
+        let snapshots = logger.snapshots();
+
+        let tid_left = find_task_by_name(snapshots, "Left");
+        let tid_right = find_task_by_name(snapshots, "Right");
+
+        // Right (weight 50, critical path 150) should execute before
+        // Left (weight 10, critical path 110)
         assert!(
-            logger.before(tid_100, tid_50),
-            "Task with size 100 should run before task with size 50"
+            logger.before(tid_right, tid_left),
+            "Right should execute before Left due to higher critical path weight"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sigma_threshold_prevents_unnecessary_preemption() -> Result<()> {
+        let mut policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let tid_low = TaskID::from(1u64);
+        let tid_high = TaskID::from(2u64);
+
+        // Task A: running, weight 50
+        let ctx_low = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(50))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("low".to_string())
+            .progress(None)
+            .build()?;
+
+        // Task B: ready, weight 65 (difference = 15)
+        // With sufficient stddev, sigma threshold should prevent preemption
+        let ctx_high = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Ready)
+            .size(Some(65))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("high".to_string())
+            .progress(None)
+            .build()?;
+
+        // Add more tasks with varied weights to increase stddev
+        // Weights: 10, 20, 30, 40, 50, 65 -> mean=35.8, stddev≈19.5
+        // Threshold = 19.5, difference = 65-50 = 15 < 19.5 (no preemption)
+        let ctx_other1 = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Suspended(TaskOutcome::Success(0)))
+            .size(Some(10))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("other1".to_string())
+            .progress(None)
+            .build()?;
+
+        let ctx_other2 = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Suspended(TaskOutcome::Success(0)))
+            .size(Some(20))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("other2".to_string())
+            .progress(None)
+            .build()?;
+
+        let ctx_other3 = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Suspended(TaskOutcome::Success(0)))
+            .size(Some(30))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("other3".to_string())
+            .progress(None)
+            .build()?;
+
+        let ctx_other4 = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Suspended(TaskOutcome::Success(0)))
+            .size(Some(40))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("other4".to_string())
+            .progress(None)
+            .build()?;
+
+        let mut buffer = HashMap::new();
+        buffer.insert(tid_low, ctx_low);
+        buffer.insert(tid_high, ctx_high);
+        buffer.insert(TaskID::from(3u64), ctx_other1);
+        buffer.insert(TaskID::from(4u64), ctx_other2);
+        buffer.insert(TaskID::from(5u64), ctx_other3);
+        buffer.insert(TaskID::from(6u64), ctx_other4);
+
+        // Candidates for preemption are the running tasks
+        let mut candidates = HashMap::new();
+        candidates.insert(tid_low, buffer.get(&tid_low).unwrap());
+
+        let ctx = DecisionContext {
+            candidates,
+            buffer: &buffer,
+            units: Some(1),
+            ticks: 0,
+        };
+
+        // Policy should NOT preempt (weight difference below threshold)
+        let decision = policy.preempt(&ctx);
+        assert_eq!(
+            decision, None,
+            "Should not preempt when weight difference below sigma threshold"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_preempt_decision_for_higher_weight() -> Result<()> {
+        let mut policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let tid_low = TaskID::from(1u64);
+        let tid_high = TaskID::from(2u64);
+
+        // Task A: running, low weight (size 10)
+        let ctx_low = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(10))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("low".to_string())
+            .progress(None)
+            .build()?;
+
+        // Task B: ready, high weight (size 100)
+        let ctx_high = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Ready)
+            .size(Some(100))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("high".to_string())
+            .progress(None)
+            .build()?;
+
+        let mut buffer = HashMap::new();
+        buffer.insert(tid_low, ctx_low);
+        buffer.insert(tid_high, ctx_high);
+
+        // Candidates for preemption are the running tasks
+        let mut candidates = HashMap::new();
+        candidates.insert(tid_low, buffer.get(&tid_low).unwrap());
+
+        let ctx = DecisionContext {
+            candidates,
+            buffer: &buffer,
+            units: Some(1),
+            ticks: 0,
+        };
+
+        // Policy should decide to preempt the low-weight running task
+        let decision = policy.preempt(&ctx);
+        assert_eq!(
+            decision,
+            Some(tid_low),
+            "Should preempt low-weight task when higher-weight task is ready"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_preempts_lowest_weight_among_multiple_running() -> Result<()> {
+        let mut policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let tid_low = TaskID::from(1u64);
+        let tid_med = TaskID::from(2u64);
+        let tid_high = TaskID::from(3u64);
+        let tid_ready = TaskID::from(4u64);
+
+        // Three running tasks with different weights
+        let ctx_low = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(10))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("low".to_string())
+            .progress(None)
+            .build()?;
+
+        let ctx_med = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(50))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("med".to_string())
+            .progress(None)
+            .build()?;
+
+        let ctx_high = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(75))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("high".to_string())
+            .progress(None)
+            .build()?;
+
+        // One ready task with very high weight
+        let ctx_ready = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Ready)
+            .size(Some(200))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("ready".to_string())
+            .progress(None)
+            .build()?;
+
+        let mut buffer = HashMap::new();
+        buffer.insert(tid_low, ctx_low);
+        buffer.insert(tid_med, ctx_med);
+        buffer.insert(tid_high, ctx_high);
+        buffer.insert(tid_ready, ctx_ready);
+
+        // All three running tasks are candidates
+        let mut candidates = HashMap::new();
+        candidates.insert(tid_low, buffer.get(&tid_low).unwrap());
+
+        candidates.insert(tid_med, buffer.get(&tid_med).unwrap());
+
+        candidates.insert(tid_high, buffer.get(&tid_high).unwrap());
+
+        let ctx = DecisionContext {
+            candidates,
+            buffer: &buffer,
+            units: Some(3),
+            ticks: 0,
+        };
+
+        // Should preempt the lowest weight task (tid_low with weight 10)
+        let decision = policy.preempt(&ctx);
+        assert_eq!(
+            decision,
+            Some(tid_low),
+            "Should preempt lowest weight task among multiple running tasks"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_preemption_when_under_capacity() -> Result<()> {
+        let mut policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let tid_running = TaskID::from(1u64);
+        let tid_ready = TaskID::from(2u64);
+
+        let ctx_running = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(10))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("running".to_string())
+            .progress(None)
+            .build()?;
+
+        let ctx_ready = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Ready)
+            .size(Some(100))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("ready".to_string())
+            .progress(None)
+            .build()?;
+
+        let mut buffer = HashMap::new();
+        buffer.insert(tid_running, ctx_running);
+        buffer.insert(tid_ready, ctx_ready);
+
+        let mut candidates = HashMap::new();
+        candidates.insert(tid_running, buffer.get(&tid_running).unwrap());
+
+        // Capacity is 2, only 1 running - no preemption needed
+        let ctx = DecisionContext {
+            candidates,
+            buffer: &buffer,
+            units: Some(2),
+            ticks: 0,
+        };
+
+        let decision = policy.preempt(&ctx);
+        assert_eq!(
+            decision, None,
+            "Should not preempt when running count is below capacity"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_preemption_with_unlimited_capacity() -> Result<()> {
+        let mut policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let tid_running = TaskID::from(1u64);
+        let tid_ready = TaskID::from(2u64);
+
+        let ctx_running = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(10))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("running".to_string())
+            .progress(None)
+            .build()?;
+
+        let ctx_ready = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Ready)
+            .size(Some(100))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("ready".to_string())
+            .progress(None)
+            .build()?;
+
+        let mut buffer = HashMap::new();
+        buffer.insert(tid_running, ctx_running);
+        buffer.insert(tid_ready, ctx_ready);
+
+        let mut candidates = HashMap::new();
+        candidates.insert(tid_running, buffer.get(&tid_running).unwrap());
+
+        // Unlimited capacity (None)
+        let ctx = DecisionContext {
+            candidates,
+            buffer: &buffer,
+            units: None,
+            ticks: 0,
+        };
+
+        let decision = policy.preempt(&ctx);
+        assert_eq!(
+            decision, None,
+            "Should not preempt when capacity is unlimited"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_preemption_when_no_ready_tasks() -> Result<()> {
+        let mut policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let tid_running = TaskID::from(1u64);
+
+        let ctx_running = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(10))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("running".to_string())
+            .progress(None)
+            .build()?;
+
+        let mut buffer = HashMap::new();
+        buffer.insert(tid_running, ctx_running);
+
+        let mut candidates = HashMap::new();
+        candidates.insert(tid_running, buffer.get(&tid_running).unwrap());
+
+        let ctx = DecisionContext {
+            candidates,
+            buffer: &buffer,
+            units: Some(1),
+            ticks: 0,
+        };
+
+        let decision = policy.preempt(&ctx);
+        assert_eq!(
+            decision, None,
+            "Should not preempt when no ready tasks exist"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_no_preemption_when_all_running_higher_weight() -> Result<()> {
+        let mut policy = CriticalPathPolicyBuilder::default()
+            .sigma(1.0)
+            .build()?;
+
+        let tid_running = TaskID::from(1u64);
+        let tid_ready = TaskID::from(2u64);
+
+        // Running task has high weight
+        let ctx_running = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Running)
+            .size(Some(100))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("running".to_string())
+            .progress(None)
+            .build()?;
+
+        // Ready task has low weight
+        let ctx_ready = TaskContextBuilder::default()
+            .executable(None)
+            .state(TaskState::Ready)
+            .size(Some(10))
+            .incoming(Dependencies::new())
+            .retriable(false)
+            .about("ready".to_string())
+            .progress(None)
+            .build()?;
+
+        let mut buffer = HashMap::new();
+        buffer.insert(tid_running, ctx_running);
+        buffer.insert(tid_ready, ctx_ready);
+
+        let mut candidates = HashMap::new();
+        candidates.insert(tid_running, buffer.get(&tid_running).unwrap());
+
+        let ctx = DecisionContext {
+            candidates,
+            buffer: &buffer,
+            units: Some(1),
+            ticks: 0,
+        };
+
+        let decision = policy.preempt(&ctx);
+        assert_eq!(
+            decision, None,
+            "Should not preempt when running tasks have higher weight than ready tasks"
         );
 
         Ok(())

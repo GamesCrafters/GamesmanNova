@@ -32,9 +32,9 @@ use crate::core::scheduler::YieldUpdate;
 
 #[cfg_attr(test, automock)]
 pub trait Runner {
-    /// Returns the number of parallel execution units available. Zero indicates
-    /// synchronous execution where tasks run to completion before returning.
-    fn units(&self) -> usize;
+    /// Returns the number of parallel execution units available. None indicates
+    /// unlimited capacity (synchronous execution where tasks run to completion).
+    fn capacity(&self) -> Option<usize>;
 
     /// Initiates execution of a task with its dependencies' outcomes. Transfers
     /// ownership of the executable to the runner. The task switches to Running
@@ -77,7 +77,10 @@ pub trait Executable: Send + Any {
     /// all dependencies and returns update indicating whether task finished, is
     /// waiting for new dependencies, or is ready to continue. Must checkpoint
     /// internal state via &mut self to support resurrection.
-    fn tick(&mut self, deps: TaskOutcomes) -> YieldUpdate;
+    ///
+    /// Returns None to continue ticking without yielding to scheduler, or
+    /// Some(YieldUpdate) to yield control back to scheduler with the given update.
+    fn tick(&mut self, deps: TaskOutcomes) -> Option<YieldUpdate>;
 
     /// Returns the task's internal estimate of its own relative size. Used by
     /// policies to make weighted scheduling decisions.

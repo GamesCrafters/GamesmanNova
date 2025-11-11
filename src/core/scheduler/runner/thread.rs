@@ -1,7 +1,6 @@
-//! # Thread Pool Runner
+//! # Thread Pool Runner Implementation
 //!
-//! Concurrent execution across worker threads with true
-//! preemption via atomic signals.
+//! TODO
 
 use std::any::Any;
 use std::collections::HashMap;
@@ -295,8 +294,8 @@ impl RunningTaskState {
 /* IMPL TRAIT FOR TYPE */
 
 impl Runner for ThreadPoolRunner {
-    fn units(&self) -> usize {
-        self.config.num_threads
+    fn capacity(&self) -> Option<usize> {
+        Some(self.config.num_threads)
     }
 
     fn execute(
@@ -321,6 +320,9 @@ impl Runner for ThreadPoolRunner {
         self.signals
             .insert(tid, signal.clone());
 
+        self.running
+            .insert(tid, RunningTaskState::Executing);
+
         let result_tx = self.result_tx.clone();
         let progress = self.progress.clone();
         let packet = WorkPacket {
@@ -335,9 +337,6 @@ impl Runner for ThreadPoolRunner {
         self.work_tx
             .send(packet)
             .map_err(|_| anyhow!("Failed to dispatch task to worker"))?;
-
-        self.running
-            .insert(tid, RunningTaskState::Executing);
 
         Ok(())
     }
@@ -495,11 +494,16 @@ fn execute_task(
             map.insert(tid, value);
         }
 
-        if !update.ready() {
-            return WorkResult::Yielded(update);
+        match update {
+            None => {
+                // Task wants to continue ticking - don't yield to scheduler yet
+                awaited = TaskOutcomes::new();
+            },
+            Some(yield_update) => {
+                // Task yielding control back to scheduler
+                return WorkResult::Yielded(yield_update);
+            },
         }
-
-        awaited = TaskOutcomes::new();
     };
 
     let panic_result =
@@ -507,4 +511,775 @@ fn execute_task(
 
     let result = panic_result.unwrap_or_else(WorkResult::panicked);
     (executable, result)
+}
+
+/* TESTS */
+
+#[cfg(test)]
+mod tests {
+
+    use anyhow::Result;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use crate::core::developer::GraphBuilder;
+    use crate::core::scheduler::Scheduler;
+    use crate::core::scheduler::SchedulerContextBuilder;
+    use crate::core::scheduler::SchedulerSnapshot;
+    use crate::core::scheduler::SchedulerState;
+    use crate::core::scheduler::TaskOutcome;
+    use crate::core::scheduler::logger::history::HistoryLogger;
+    use crate::core::scheduler::logger::history::HistoryLoggerBuilder;
+    use crate::core::scheduler::policy::critical::CriticalPathPolicyBuilder;
+    use crate::core::scheduler::task::mock::TaskBuilder;
+    use crate::core::scheduler::task::mock::TaskNodeBuilder;
+    use crate::traits::scheduler::Logger;
+    use crate::traits::scheduler::Policy;
+    use crate::traits::scheduler::Runner;
+
+    use super::*;
+
+    /* HELPER FUNCTIONS */
+
+    const MODULE: &str = "threadpool-runner";
+
+    /// Helper: Poll until task is no longer Pending, or timeout.
+    fn poll_until_ready(
+        runner: &mut ThreadPoolRunner,
+        tid: TaskID,
+        timeout: Duration,
+    ) -> Result<PollStatus> {
+        let start = std::time::Instant::now();
+        loop {
+            let status = runner.poll(tid)?;
+            if !matches!(status, PollStatus::Pending) {
+                return Ok(status);
+            }
+            if start.elapsed() > timeout {
+                bail!("Timeout waiting for task {} to complete", tid);
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    /// Helper: Execute task and wait for it to complete or timeout.
+    fn execute_and_wait(
+        runner: &mut ThreadPoolRunner,
+        tid: TaskID,
+        executable: Box<dyn Executable>,
+        timeout: Duration,
+    ) -> Result<PollStatus> {
+        runner.execute(tid, TaskOutcomes::new(), executable)?;
+        poll_until_ready(runner, tid, timeout)
+    }
+
+    /// Wrapper for HistoryLogger that allows shared access in tests
+    struct SharedLogger {
+        inner: Rc<RefCell<HistoryLogger>>,
+    }
+
+    impl SharedLogger {
+        fn new(logger: HistoryLogger) -> (Self, Rc<RefCell<HistoryLogger>>) {
+            let inner = Rc::new(RefCell::new(logger));
+            let shared = SharedLogger {
+                inner: inner.clone(),
+            };
+            (shared, inner)
+        }
+    }
+
+    impl Logger for SharedLogger {
+        fn observe(
+            &mut self,
+            snapshot: &SchedulerSnapshot,
+            changed: bool,
+        ) -> Result<()> {
+            self.inner
+                .borrow_mut()
+                .observe(snapshot, changed)
+        }
+    }
+
+    /// Helper to create a scheduler with ThreadPoolRunner for integration tests
+    fn create_test_scheduler_with_threadpool(
+        num_threads: usize,
+        sigma: f64,
+    ) -> Result<(Scheduler, Rc<RefCell<HistoryLogger>>)> {
+        let history = HistoryLoggerBuilder::default()
+            .frequency(1usize)
+            .build()?;
+
+        let (logger, logger_ref) = SharedLogger::new(history);
+
+        let config = ThreadPoolConfigBuilder::default()
+            .num_threads(num_threads)
+            .build()?;
+
+        let runner = ThreadPoolRunner::new(config)?;
+
+        let policy = CriticalPathPolicyBuilder::default()
+            .sigma(sigma)
+            .build()?;
+
+        let context = SchedulerContextBuilder::default()
+            .policy(Box::new(policy) as Box<dyn Policy>)
+            .logger(Box::new(logger) as Box<dyn Logger>)
+            .runner(Box::new(runner) as Box<dyn Runner>)
+            .build()?;
+
+        let state = SchedulerState::default();
+        let scheduler = Scheduler::new(context, state);
+
+        Ok((scheduler, logger_ref))
+    }
+
+    /// Helper to find task ID by name in final snapshot
+    fn find_task_by_name(
+        snapshots: &[SchedulerSnapshot],
+        name: &str,
+    ) -> TaskID {
+        snapshots
+            .last()
+            .unwrap()
+            .tasks
+            .iter()
+            .find_map(|(tid, ctx)| (ctx.about == name).then_some(*tid))
+            .unwrap()
+    }
+
+    /* UNIT TESTS */
+
+    #[test]
+    fn test_execute_and_poll_simple_task() -> Result<()> {
+        let config = ThreadPoolConfigBuilder::default()
+            .num_threads(2usize)
+            .build()?;
+
+        let mut runner = ThreadPoolRunner::new(config)?;
+        let task_config = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(42))
+            .about("simple task")
+            .build()?;
+
+        let graph = GraphBuilder::new();
+        let mock_task = TaskBuilder::new()
+            .name("test-execute-poll")
+            .graph(graph)
+            .source(&task_config)
+            .build()?;
+
+        let tid = TaskID::from(0u64);
+        let executable = mock_task.root_task()?.executable;
+        let awaited = TaskOutcomes::new();
+
+        runner.execute(tid, awaited, executable)?;
+
+        let timeout = Duration::from_secs(1);
+        let status = poll_until_ready(&mut runner, tid, timeout)?;
+        let ready = matches!(
+            status,
+            PollStatus::Ready(YieldUpdate {
+                intention: YieldIntention::Ready,
+                ..
+            })
+        );
+        assert!(ready, "Expected Ready after first execution");
+
+        let executable = runner.collect(tid)?;
+        runner.execute(tid, TaskOutcomes::new(), executable)?;
+
+        let status = poll_until_ready(&mut runner, tid, timeout)?;
+        let success = matches!(
+            status,
+            PollStatus::Ready(YieldUpdate {
+                intention: YieldIntention::Suspended(TaskOutcome::Success(42)),
+                ..
+            })
+        );
+        assert!(success, "Expected Suspended(Success(42))");
+
+        let _collected = runner.collect(tid)?;
+        Ok(())
+    }
+
+    #[test]
+    fn test_concurrent_execution_multiple_tasks() -> Result<()> {
+        let config = ThreadPoolConfigBuilder::default()
+            .num_threads(3usize)
+            .build()?;
+        let mut runner = ThreadPoolRunner::new(config)?;
+        let config1 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(1))
+            .about("task1")
+            .build()?;
+
+        let config2 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(2))
+            .about("task2")
+            .build()?;
+
+        let config3 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(3))
+            .about("task3")
+            .build()?;
+
+        let graph1 = GraphBuilder::new();
+        let graph2 = GraphBuilder::new();
+        let graph3 = GraphBuilder::new();
+
+        let mock1 = TaskBuilder::new()
+            .name("test-task1")
+            .graph(graph1)
+            .source(&config1)
+            .build()?;
+
+        let mock2 = TaskBuilder::new()
+            .name("test-task2")
+            .graph(graph2)
+            .source(&config2)
+            .build()?;
+
+        let mock3 = TaskBuilder::new()
+            .name("test-task3")
+            .graph(graph3)
+            .source(&config3)
+            .build()?;
+
+        let task1 = mock1.root_task()?.executable;
+        let task2 = mock2.root_task()?.executable;
+        let task3 = mock3.root_task()?.executable;
+
+        let tid1 = TaskID::from(1u64);
+        let tid2 = TaskID::from(2u64);
+        let tid3 = TaskID::from(3u64);
+
+        runner.execute(tid1, TaskOutcomes::new(), task1)?;
+        runner.execute(tid2, TaskOutcomes::new(), task2)?;
+        runner.execute(tid3, TaskOutcomes::new(), task3)?;
+
+        let timeout = Duration::from_secs(1);
+        let status1 = poll_until_ready(&mut runner, tid1, timeout)?;
+        let status2 = poll_until_ready(&mut runner, tid2, timeout)?;
+        let status3 = poll_until_ready(&mut runner, tid3, timeout)?;
+
+        assert!(matches!(status1, PollStatus::Ready(_)));
+        assert!(matches!(status2, PollStatus::Ready(_)));
+        assert!(matches!(status3, PollStatus::Ready(_)));
+
+        let exec1 = runner.collect(tid1)?;
+        let exec2 = runner.collect(tid2)?;
+        let exec3 = runner.collect(tid3)?;
+
+        runner.execute(tid1, TaskOutcomes::new(), exec1)?;
+        runner.execute(tid2, TaskOutcomes::new(), exec2)?;
+        runner.execute(tid3, TaskOutcomes::new(), exec3)?;
+
+        let final1 = poll_until_ready(&mut runner, tid1, timeout)?;
+        let final2 = poll_until_ready(&mut runner, tid2, timeout)?;
+        let final3 = poll_until_ready(&mut runner, tid3, timeout)?;
+
+        let success1 = matches!(
+            final1,
+            PollStatus::Ready(YieldUpdate {
+                intention: YieldIntention::Suspended(TaskOutcome::Success(1)),
+                ..
+            })
+        );
+        let success2 = matches!(
+            final2,
+            PollStatus::Ready(YieldUpdate {
+                intention: YieldIntention::Suspended(TaskOutcome::Success(2)),
+                ..
+            })
+        );
+        let success3 = matches!(
+            final3,
+            PollStatus::Ready(YieldUpdate {
+                intention: YieldIntention::Suspended(TaskOutcome::Success(3)),
+                ..
+            })
+        );
+
+        assert!(success1, "Task 1 should complete with Success(1)");
+        assert!(success2, "Task 2 should complete with Success(2)");
+        assert!(success3, "Task 3 should complete with Success(3)");
+
+        runner.collect(tid1)?;
+        runner.collect(tid2)?;
+        runner.collect(tid3)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_capacity_enforcement_when_saturated() -> Result<()> {
+        let config = ThreadPoolConfigBuilder::default()
+            .num_threads(2usize)
+            .build()?;
+        let mut runner = ThreadPoolRunner::new(config)?;
+        let config1 = TaskNodeBuilder::default()
+            .ticks(5)
+            .release(5)
+            .outcome(TaskOutcome::Success(1))
+            .about("long1")
+            .build()?;
+
+        let config2 = TaskNodeBuilder::default()
+            .ticks(5)
+            .release(5)
+            .outcome(TaskOutcome::Success(2))
+            .about("long2")
+            .build()?;
+
+        let config3 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(3))
+            .about("quick")
+            .build()?;
+
+        let graph = GraphBuilder::new();
+        let mock1 = TaskBuilder::new()
+            .name("long1")
+            .graph(graph)
+            .source(&config1)
+            .build()?;
+
+        let graph = GraphBuilder::new();
+        let mock2 = TaskBuilder::new()
+            .name("long2")
+            .graph(graph)
+            .source(&config2)
+            .build()?;
+
+        let graph = GraphBuilder::new();
+        let mock3 = TaskBuilder::new()
+            .name("quick")
+            .graph(graph)
+            .source(&config3)
+            .build()?;
+
+        let task1 = mock1.root_task()?.executable;
+        let task2 = mock2.root_task()?.executable;
+        let task3 = mock3.root_task()?.executable;
+
+        let tid1 = TaskID::from(1u64);
+        let tid2 = TaskID::from(2u64);
+        let tid3 = TaskID::from(3u64);
+
+        runner.execute(tid1, TaskOutcomes::new(), task1)?;
+        runner.execute(tid2, TaskOutcomes::new(), task2)?;
+
+        let result = runner.execute(tid3, TaskOutcomes::new(), task3);
+        assert!(result.is_err());
+
+        let message = format!("{}", result.unwrap_err());
+        assert!(message.contains("workers are busy"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_preemption_interrupts_execution() -> Result<()> {
+        let config = ThreadPoolConfigBuilder::default()
+            .num_threads(1usize)
+            .build()?;
+        let mut runner = ThreadPoolRunner::new(config)?;
+
+        let task_config = TaskNodeBuilder::default()
+            .ticks(10)
+            .release(10)
+            .outcome(TaskOutcome::Success(42))
+            .about("long-task")
+            .build()?;
+
+        let graph = GraphBuilder::new();
+        let mock_task = TaskBuilder::new()
+            .name("long-task")
+            .graph(graph)
+            .source(&task_config)
+            .build()?;
+
+        let tid = TaskID::from(1u64);
+        let executable = mock_task.root_task()?.executable;
+
+        runner.execute(tid, TaskOutcomes::new(), executable)?;
+        assert!(matches!(runner.poll(tid)?, PollStatus::Pending));
+
+        runner.preempt(tid)?;
+
+        let timeout = Duration::from_secs(1);
+        let status = poll_until_ready(&mut runner, tid, timeout)?;
+
+        let ready = matches!(
+            status,
+            PollStatus::Ready(YieldUpdate {
+                intention: YieldIntention::Ready,
+                ..
+            })
+        );
+        assert!(ready, "Expected Ready after preemption");
+
+        let _ = runner.collect(tid)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_error_cases_double_execute_invalid_collect() -> Result<()> {
+        let config = ThreadPoolConfigBuilder::default()
+            .num_threads(2usize)
+            .build()?;
+        let mut runner = ThreadPoolRunner::new(config)?;
+
+        let task_config = TaskNodeBuilder::default()
+            .ticks(10)
+            .release(10)
+            .outcome(TaskOutcome::Success(1))
+            .about("test-task")
+            .build()?;
+
+        let graph = GraphBuilder::new();
+        let mock_task = TaskBuilder::new()
+            .name("test")
+            .graph(graph)
+            .source(&task_config)
+            .build()?;
+
+        let tid = TaskID::from(1u64);
+        let executable = mock_task.root_task()?.executable;
+        runner.execute(tid, TaskOutcomes::new(), executable)?;
+
+        let task_config2 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(2))
+            .about("task2")
+            .build()?;
+
+        let graph2 = GraphBuilder::new();
+        let mock2 = TaskBuilder::new()
+            .name("test2")
+            .graph(graph2)
+            .source(&task_config2)
+            .build()?;
+
+        let executable2 = mock2.root_task()?.executable;
+        let result = runner.execute(tid, TaskOutcomes::new(), executable2);
+        assert!(result.is_err());
+
+        let message = format!("{}", result.unwrap_err());
+        assert!(message.contains("already running"));
+
+        let unknown = TaskID::from(999u64);
+        assert!(runner.poll(unknown).is_err());
+
+        assert!(runner.preempt(unknown).is_err());
+
+        Ok(())
+    }
+
+    /* INTEGRATION TESTS */
+
+    #[test]
+    fn test_integration_concurrent_independent_branches() -> Result<()> {
+        let (mut scheduler, logger_ref) =
+            create_test_scheduler_with_threadpool(2, 1.0)?;
+        let root = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("root")
+            .size(Some(10))
+            .build()?;
+
+        let branch1 = TaskNodeBuilder::default()
+            .ticks(2)
+            .release(1)
+            .outcome(TaskOutcome::Success(1))
+            .about("branch1")
+            .size(Some(20))
+            .build()?;
+
+        let child1 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(2))
+            .about("child1")
+            .size(Some(15))
+            .build()?;
+
+        let branch2 = TaskNodeBuilder::default()
+            .ticks(2)
+            .release(1)
+            .outcome(TaskOutcome::Success(3))
+            .about("branch2")
+            .size(Some(18))
+            .build()?;
+
+        let child2 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(4))
+            .about("child2")
+            .size(Some(12))
+            .build()?;
+
+        let graph = GraphBuilder::new()
+            .edge(&root, &branch1)
+            .edge(&branch1, &child1)
+            .edge(&root, &branch2)
+            .edge(&branch2, &child2);
+
+        let task_graph = TaskBuilder::new()
+            .name("integration-concurrent")
+            .graph(graph)
+            .source(&root)
+            .build()?;
+
+        task_graph.visualize(MODULE)?;
+
+        scheduler.register(task_graph.root_task()?)?;
+        scheduler.run()?;
+
+        let logger = logger_ref.borrow();
+        let snapshots = logger.snapshots();
+
+        let root_tid = find_task_by_name(snapshots, "root");
+        let branch1_tid = find_task_by_name(snapshots, "branch1");
+        let child1_tid = find_task_by_name(snapshots, "child1");
+        let branch2_tid = find_task_by_name(snapshots, "branch2");
+        let child2_tid = find_task_by_name(snapshots, "child2");
+        assert!(
+            logger.before(root_tid, branch1_tid),
+            "root should start before branch1"
+        );
+        assert!(
+            logger.before(branch1_tid, child1_tid),
+            "branch1 should start before child1"
+        );
+        assert!(
+            logger.before(root_tid, branch2_tid),
+            "root should start before branch2"
+        );
+        assert!(
+            logger.before(branch2_tid, child2_tid),
+            "branch2 should start before child2"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_integration_complex_dag_execution() -> Result<()> {
+        // Graph structure:
+        //                      Root
+        //           /          |           \
+        //     FastPath    SlowPath    CriticalPath
+        //       / \          / \            / \
+        //    FC1  FC2     SC1  SC2       CC1  CC2
+        //      \  /         \  /            \  /
+        //     Merger1     Merger2         Merger3
+
+        let (mut scheduler, logger_ref) =
+            create_test_scheduler_with_threadpool(4, 1.0)?;
+        let root = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(0))
+            .about("root")
+            .size(Some(5))
+            .build()?;
+
+        let fast_path = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(1))
+            .about("fast_path")
+            .size(Some(10))
+            .build()?;
+
+        let slow_path = TaskNodeBuilder::default()
+            .ticks(3)
+            .release(1)
+            .outcome(TaskOutcome::Success(2))
+            .about("slow_path")
+            .size(Some(50))
+            .build()?;
+
+        let critical_path = TaskNodeBuilder::default()
+            .ticks(5)
+            .release(1)
+            .outcome(TaskOutcome::Success(3))
+            .about("critical_path")
+            .size(Some(100))
+            .build()?;
+
+        let fast_child1 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(4))
+            .about("fast_child1")
+            .size(Some(10))
+            .build()?;
+
+        let fast_child2 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(5))
+            .about("fast_child2")
+            .size(Some(8))
+            .build()?;
+
+        let slow_child1 = TaskNodeBuilder::default()
+            .ticks(2)
+            .release(1)
+            .outcome(TaskOutcome::Success(6))
+            .about("slow_child1")
+            .size(Some(20))
+            .build()?;
+
+        let slow_child2 = TaskNodeBuilder::default()
+            .ticks(2)
+            .release(1)
+            .outcome(TaskOutcome::Success(7))
+            .about("slow_child2")
+            .size(Some(15))
+            .build()?;
+
+        let critical_child1 = TaskNodeBuilder::default()
+            .ticks(2)
+            .release(1)
+            .outcome(TaskOutcome::Success(8))
+            .about("critical_child1")
+            .size(Some(30))
+            .build()?;
+
+        let critical_child2 = TaskNodeBuilder::default()
+            .ticks(2)
+            .release(1)
+            .outcome(TaskOutcome::Success(9))
+            .about("critical_child2")
+            .size(Some(25))
+            .build()?;
+
+        let merger1 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(10))
+            .about("merger1")
+            .size(Some(5))
+            .build()?;
+
+        let merger2 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(11))
+            .about("merger2")
+            .size(Some(5))
+            .build()?;
+
+        let merger3 = TaskNodeBuilder::default()
+            .ticks(1)
+            .release(1)
+            .outcome(TaskOutcome::Success(12))
+            .about("merger3")
+            .size(Some(5))
+            .build()?;
+
+        let graph = GraphBuilder::new()
+            .edge(&root, &fast_path)
+            .edge(&root, &slow_path)
+            .edge(&root, &critical_path)
+            .edge(&fast_path, &fast_child1)
+            .edge(&fast_path, &fast_child2)
+            .edge(&slow_path, &slow_child1)
+            .edge(&slow_path, &slow_child2)
+            .edge(&critical_path, &critical_child1)
+            .edge(&critical_path, &critical_child2)
+            .edge(&fast_child1, &merger1)
+            .edge(&fast_child2, &merger1)
+            .edge(&slow_child1, &merger2)
+            .edge(&slow_child2, &merger2)
+            .edge(&critical_child1, &merger3)
+            .edge(&critical_child2, &merger3);
+
+        let task_graph = TaskBuilder::new()
+            .name("integration-complex-dag")
+            .graph(graph)
+            .source(&root)
+            .build()?;
+
+        task_graph.visualize(MODULE)?;
+
+        scheduler.register(task_graph.root_task()?)?;
+        scheduler.run()?;
+
+        let logger = logger_ref.borrow();
+        let snapshots = logger.snapshots();
+
+        let root_tid = find_task_by_name(snapshots, "root");
+        let fast_path_tid = find_task_by_name(snapshots, "fast_path");
+        let slow_path_tid = find_task_by_name(snapshots, "slow_path");
+        let critical_path_tid = find_task_by_name(snapshots, "critical_path");
+        let fast_child1_tid = find_task_by_name(snapshots, "fast_child1");
+        let fast_child2_tid = find_task_by_name(snapshots, "fast_child2");
+        let slow_child1_tid = find_task_by_name(snapshots, "slow_child1");
+        let critical_child1_tid =
+            find_task_by_name(snapshots, "critical_child1");
+
+        let merger1_tid = find_task_by_name(snapshots, "merger1");
+        let merger2_tid = find_task_by_name(snapshots, "merger2");
+
+        assert!(
+            logger.before(root_tid, fast_path_tid),
+            "root should start before fast_path"
+        );
+        assert!(
+            logger.before(root_tid, slow_path_tid),
+            "root should start before slow_path"
+        );
+        assert!(
+            logger.before(root_tid, critical_path_tid),
+            "root should start before critical_path"
+        );
+        assert!(
+            logger.before(fast_path_tid, fast_child1_tid),
+            "fast_path should start before fast_child1"
+        );
+        assert!(
+            logger.before(fast_path_tid, fast_child2_tid),
+            "fast_path should start before fast_child2"
+        );
+        assert!(
+            logger.before(slow_path_tid, slow_child1_tid),
+            "slow_path should start before slow_child1"
+        );
+        assert!(
+            logger.before(critical_path_tid, critical_child1_tid),
+            "critical_path should start before critical_child1"
+        );
+        assert!(
+            logger.before(fast_child1_tid, merger1_tid),
+            "fast_child1 should start before merger1"
+        );
+        assert!(
+            logger.before(fast_child2_tid, merger1_tid),
+            "fast_child2 should start before merger1"
+        );
+        assert!(
+            logger.before(slow_child1_tid, merger2_tid),
+            "slow_child1 should start before merger2"
+        );
+
+        Ok(())
+    }
 }

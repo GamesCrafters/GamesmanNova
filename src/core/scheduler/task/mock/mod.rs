@@ -5,6 +5,7 @@
 
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use anyhow::bail;
 use derive_builder::Builder;
 use petgraph::Graph;
@@ -239,7 +240,7 @@ impl Task {
 }
 
 impl Executable for Task {
-    fn tick(&mut self, deps: TaskOutcomes) -> YieldUpdate {
+    fn tick(&mut self, deps: TaskOutcomes) -> Option<YieldUpdate> {
         let children = self.children();
         let num = children.len();
         let remaining = self.remaining();
@@ -249,23 +250,23 @@ impl Executable for Task {
             && remaining == 0
             && let Some(waiting) = self.unsatisfied(&deps)
         {
-            return YieldUpdate::new_waiting(waiting);
+            return Some(YieldUpdate::new_waiting(waiting));
         }
 
         // handle release (before completion check)
         let config = self.config();
         if remaining > 0 && self.progress >= config.release {
-            return self.handle_release(num, children);
+            return Some(self.handle_release(num, children));
         }
 
         // check completion
         if self.progress >= config.ticks {
-            return YieldUpdate::new_suspended(config.outcome, vec![]);
+            return Some(YieldUpdate::new_suspended(config.outcome, vec![]));
         }
 
         // normal tick
         self.progress += 1;
-        YieldUpdate::new_ready()
+        Some(YieldUpdate::new_ready())
     }
 
     fn size(&self) -> Option<u64> {
@@ -320,14 +321,28 @@ impl Display for Task {
             let tid = index.index() as TaskID;
 
             let outcome = format_outcome(&config.outcome);
-            let label = if config.release < config.ticks {
-                format!(
-                    "T{} ({}t r{})\\n{}",
-                    tid, config.ticks, config.release, outcome
-                )
+
+            let timing = if config.release < config.ticks {
+                format!("{}t r{}", config.ticks, config.release)
             } else {
-                format!("T{} ({}t)\\n{}", tid, config.ticks, outcome)
+                format!("{}t", config.ticks)
             };
+
+            let size_str = config
+                .size
+                .map(|s| format!(" s{}", s))
+                .unwrap_or_default();
+
+            let about_str = if config.about.is_empty() {
+                String::new()
+            } else {
+                format!("\\n{}", config.about)
+            };
+
+            let label = format!(
+                "T{} ({}{})\\n{}{}",
+                tid, timing, size_str, outcome, about_str
+            );
 
             let mut attrs = format!("label=\"{}\" style=filled ", label);
 
@@ -780,12 +795,16 @@ mod tests {
         let empty = TaskOutcomes::new();
 
         // First tick: discover first child, return Ready
-        let update1 = executable.tick(empty.clone());
+        let update1 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update1.intention, YieldIntention::Ready));
         assert_eq!(update1.discovered.len(), 1);
 
         // Second tick: discover second child, return Waiting for both
-        let update2 = executable.tick(empty);
+        let update2 = executable
+            .tick(empty)
+            .ok_or(anyhow!(""))?;
         let dep_tids: Vec<TaskID> = match &update2.intention {
             YieldIntention::Waiting(unsatisfied) => {
                 assert_eq!(unsatisfied.len(), 2);
@@ -802,7 +821,9 @@ mod tests {
         let partial: TaskOutcomes = [(dep_tids[0], TaskOutcome::Success(1))]
             .into_iter()
             .collect();
-        let update3 = executable.tick(partial);
+        let update3 = executable
+            .tick(partial)
+            .ok_or(anyhow!(""))?;
 
         match update3.intention {
             YieldIntention::Waiting(ref unsatisfied) => {
@@ -821,21 +842,27 @@ mod tests {
         .collect();
 
         // After all deps satisfied, should return Ready
-        let update4 = executable.tick(full.clone());
+        let update4 = executable
+            .tick(full.clone())
+            .ok_or(anyhow!(""))?;
         match update4.intention {
             YieldIntention::Ready => {},
             _ => panic!("Expected Ready after deps satisfied"),
         }
 
         // Continue execution
-        let update5 = executable.tick(full.clone());
+        let update5 = executable
+            .tick(full.clone())
+            .ok_or(anyhow!(""))?;
         match update5.intention {
             YieldIntention::Ready => {},
             _ => panic!("Expected Ready during execution"),
         }
 
         // Final tick to complete
-        let update6 = executable.tick(full);
+        let update6 = executable
+            .tick(full)
+            .ok_or(anyhow!(""))?;
         match update6.intention {
             YieldIntention::Suspended(TaskOutcome::Success(0)) => {},
             _ => panic!("Expected Suspended after completion"),
@@ -886,23 +913,33 @@ mod tests {
         let mut executable = Box::new(task);
         let empty = TaskOutcomes::new();
 
-        let update1 = executable.tick(empty.clone());
+        let update1 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update1.intention, YieldIntention::Ready));
         assert_eq!(update1.discovered.len(), 0);
 
-        let update2 = executable.tick(empty.clone());
+        let update2 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update2.intention, YieldIntention::Ready));
         assert_eq!(update2.discovered.len(), 0);
 
-        let update3 = executable.tick(empty.clone());
+        let update3 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update3.intention, YieldIntention::Ready));
         assert_eq!(update3.discovered.len(), 1);
 
-        let update4 = executable.tick(empty.clone());
+        let update4 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update4.intention, YieldIntention::Ready));
         assert_eq!(update4.discovered.len(), 1);
 
-        let update5 = executable.tick(empty);
+        let update5 = executable
+            .tick(empty)
+            .ok_or(anyhow!(""))?;
         assert!(matches!(
             update5.intention,
             YieldIntention::Waiting(_)
@@ -954,15 +991,21 @@ mod tests {
         let mut executable = Box::new(task);
         let empty = TaskOutcomes::new();
 
-        let update1 = executable.tick(empty.clone());
+        let update1 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update1.intention, YieldIntention::Ready));
         assert_eq!(update1.discovered.len(), 0);
 
-        let update2 = executable.tick(empty.clone());
+        let update2 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update2.intention, YieldIntention::Ready));
         assert_eq!(update2.discovered.len(), 0);
 
-        let update3 = executable.tick(empty);
+        let update3 = executable
+            .tick(empty)
+            .ok_or(anyhow!(""))?;
         assert!(matches!(
             update3.intention,
             YieldIntention::Waiting(_)
@@ -1007,11 +1050,15 @@ mod tests {
         let mut executable = Box::new(task);
         let empty = TaskOutcomes::new();
 
-        let update1 = executable.tick(empty.clone());
+        let update1 = executable
+            .tick(empty.clone())
+            .ok_or(anyhow!(""))?;
         assert!(matches!(update1.intention, YieldIntention::Ready));
         assert_eq!(update1.discovered.len(), 1);
 
-        let update2 = executable.tick(empty);
+        let update2 = executable
+            .tick(empty)
+            .ok_or(anyhow!(""))?;
         assert_eq!(update2.discovered.len(), 1);
         assert!(matches!(
             update2.intention,

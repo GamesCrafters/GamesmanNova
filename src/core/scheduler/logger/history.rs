@@ -88,28 +88,79 @@ impl HistoryLogger {
             .collect()
     }
 
+    /// Returns true if tid1 started running before tid2.
     pub fn before(&self, tid1: TaskID, tid2: TaskID) -> bool {
-        let t1 = self.running_tick(tid1, &self.snapshots);
-        let t2 = self.running_tick(tid2, &self.snapshots);
-        matches!((t1, t2), (Some(tick1), Some(tick2)) if tick1 < tick2)
+        let relevant = |t: &&Transition| {
+            let running = matches!(t.to, TaskState::Running);
+            running && (t.task == tid1 || t.task == tid2)
+        };
+
+        self.snapshots
+            .iter()
+            .flat_map(|s| &s.transitions)
+            .find(relevant)
+            .map(|t| t.task == tid1)
+            .unwrap_or(false)
+    }
+
+    /// Returns true if task was preempted during execution.
+    pub fn was_preempted(&self, tid: TaskID) -> bool {
+        self.snapshots
+            .iter()
+            .flat_map(|s| &s.transitions)
+            .any(|t| t.task == tid && matches!(t.to, TaskState::Preempting))
+    }
+
+    /// Returns true if tasks started running in the given order.
+    pub fn execution_order(&self, tids: &[TaskID]) -> bool {
+        tids.windows(2)
+            .all(|window| self.before(window[0], window[1]))
+    }
+
+    /// Returns true if tid1 completed before tid2 started running.
+    pub fn completed_before(&self, tid1: TaskID, tid2: TaskID) -> bool {
+        let finished = |s: &TaskState| matches!(s, TaskState::Suspended(_));
+        let running = |s: &TaskState| matches!(s, TaskState::Running);
+
+        let finish1 = self.find_state_transition(tid1, finished);
+        let start2 = self.find_state_transition(tid2, running);
+
+        self.transition_before(finish1, start2)
     }
 
     /* HELPERS */
 
-    fn running_tick(
+    fn find_state_transition<F>(
         &self,
         tid: TaskID,
-        snapshots: &[SchedulerSnapshot],
-    ) -> Option<u64> {
-        snapshots
+        predicate: F,
+    ) -> Option<(u64, usize)>
+    where
+        F: Fn(&TaskState) -> bool,
+    {
+        self.snapshots
             .iter()
             .flat_map(|s| {
                 s.transitions
                     .iter()
-                    .map(move |t| (s.tick, t))
+                    .enumerate()
+                    .map(move |(order, t)| (s.tick, order, t))
             })
-            .find(|(_, t)| t.task == tid && matches!(t.to, TaskState::Running))
-            .map(|(tick, _)| tick)
+            .find(|(_, _, t)| t.task == tid && predicate(&t.to))
+            .map(|(tick, order, _)| (tick, order))
+    }
+
+    fn transition_before(
+        &self,
+        t1: Option<(u64, usize)>,
+        t2: Option<(u64, usize)>,
+    ) -> bool {
+        match (t1, t2) {
+            (Some((tick1, order1)), Some((tick2, order2))) => {
+                tick1 < tick2 || (tick1 == tick2 && order1 < order2)
+            },
+            _ => false,
+        }
     }
 }
 
