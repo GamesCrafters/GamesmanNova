@@ -1,6 +1,7 @@
-//! # Sync Runner Implementation
+//! # Synchronous Runner
 //!
-//! TODO
+//! Single-threaded blocking execution. Tasks run to completion
+//! before returning from execute().
 
 use std::collections::HashMap;
 

@@ -1,28 +1,23 @@
-//! # Mock Task Builder Pattern Implementation
-//!
-//! TODO
+//! Builder pattern for constructing mock task graphs.
 
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
-use petgraph::Direction;
 use petgraph::graph::NodeIndex;
-
-use std::collections::HashMap;
+use petgraph::visit::EdgeRef;
+use std::sync::Arc;
 
 use crate::core::developer::GraphBuilder;
-use crate::core::scheduler::Dependencies;
 use crate::core::scheduler::TaskID;
-use crate::core::scheduler::task::mock::GlobalData;
-use crate::core::scheduler::task::mock::TaskData;
-use crate::core::scheduler::task::mock::TaskGraph;
-use crate::core::scheduler::task::mock::TaskNode;
+use crate::core::scheduler::task::mock::CompiledGraph;
+use crate::core::scheduler::task::mock::Task;
+use crate::core::scheduler::task::mock::TaskConfig;
 
 /* STRUCTURES */
 
 pub struct TaskBuilder<'a> {
-    pub source: Option<&'a TaskNode>,
-    pub graph: Option<GraphBuilder<'a, TaskNode>>,
+    pub source: Option<&'a TaskConfig>,
+    pub graph: Option<GraphBuilder<'a, TaskConfig>>,
     pub name: Option<&'static str>,
 }
 
@@ -42,53 +37,48 @@ impl<'a> TaskBuilder<'a> {
         self
     }
 
-    pub fn graph(mut self, graph: GraphBuilder<'a, TaskNode>) -> Self {
+    pub fn graph(mut self, graph: GraphBuilder<'a, TaskConfig>) -> Self {
         self.graph = Some(graph);
         self
     }
 
-    pub fn source(mut self, node: &'a TaskNode) -> Self {
+    pub fn source(mut self, node: &'a TaskConfig) -> Self {
         self.source = Some(node);
         self
     }
 
-    pub fn build(self) -> Result<TaskGraph<'a>> {
+    pub fn build(self) -> Result<Task> {
         let source = self
             .source
-            .ok_or_else(|| anyhow!("No source node specified"))?;
+            .ok_or_else(|| anyhow!("No source"))?;
 
         let name = self
             .name
-            .ok_or_else(|| anyhow!("No name specified"))?;
+            .ok_or_else(|| anyhow!("No name"))?;
 
-        let mut graph = self
+        let mut input = self
             .graph
-            .ok_or_else(|| anyhow!("No graph specified"))?;
+            .ok_or_else(|| anyhow!("No graph"))?;
 
-        let root = Self::ensure_source(&mut graph, source)?;
-        Self::check_acyclic(&graph.graph)?;
-        Self::validate_configs(&graph)?;
+        let root = Self::ensure_source(&mut input, source)?;
 
-        let compiled = Self::compile(&graph)?;
-        let inserted = graph.inserted;
-        let petgraph = graph.graph;
+        Self::check_acyclic(&input.graph)?;
+        Self::validate_configs(&input)?;
 
-        Ok(TaskGraph {
-            inserted,
-            graph: petgraph,
-            compiled,
-            root: root.index() as TaskID,
-            name,
-        })
+        let compiled = Self::compile(&input, root, name)?;
+
+        let task = Task::new(compiled.root, compiled);
+
+        Ok(task)
     }
 
     /* HELPER METHODS */
 
     fn ensure_source(
-        graph: &mut GraphBuilder<'a, TaskNode>,
-        node: &'a TaskNode,
+        graph: &mut GraphBuilder<'a, TaskConfig>,
+        node: &'a TaskConfig,
     ) -> Result<NodeIndex> {
-        let ptr = node as *const TaskNode;
+        let ptr = node as *const TaskConfig;
 
         if let Some(&index) = graph.inserted.get(&ptr) {
             Ok(index)
@@ -99,78 +89,54 @@ impl<'a> TaskBuilder<'a> {
         }
     }
 
-    fn check_acyclic(graph: &petgraph::Graph<&TaskNode, ()>) -> Result<()> {
-        let cycle = petgraph::algo::toposort(graph, None);
+    fn check_acyclic(graph: &petgraph::Graph<&TaskConfig, ()>) -> Result<()> {
+        let result = petgraph::algo::toposort(graph, None);
 
-        if cycle.is_err() {
-            bail!("Task graph contains dependency cycles");
+        if result.is_err() {
+            bail!("Graph contains cycles");
         }
 
         Ok(())
     }
 
-    fn validate_configs(graph: &GraphBuilder<'a, TaskNode>) -> Result<()> {
+    fn validate_configs(graph: &GraphBuilder<'a, TaskConfig>) -> Result<()> {
         for index in graph.graph.node_indices() {
-            let node = graph.graph[index];
+            let config = graph.graph[index];
 
-            if node.ticks == 0 {
+            if config.ticks == 0 {
                 bail!("Task cannot have zero ticks");
             }
-
-            if node.release > node.ticks {
-                bail!(
-                    "Task release ({}) cannot exceed ticks ({})",
-                    node.release,
-                    node.ticks
-                );
-            }
         }
 
         Ok(())
     }
 
-    fn compile(graph: &GraphBuilder<'a, TaskNode>) -> Result<GlobalData> {
-        let mut data = HashMap::new();
+    fn compile(
+        input: &GraphBuilder<'a, TaskConfig>,
+        root: NodeIndex,
+        name: &'static str,
+    ) -> Result<Arc<CompiledGraph>> {
+        let mut graph = petgraph::Graph::new();
 
-        for index in graph.graph.node_indices() {
-            let tid = index.index() as TaskID;
-            let node = graph.graph[index];
-            let config = node.clone();
-
-            let discovers = Self::extract_discoveries(graph, index);
-            let dependencies = Self::extract_dependencies(graph, index);
-            let task = TaskData {
-                dependencies,
-                discovers,
-                config,
-            };
-
-            data.insert(tid, task);
+        for index in input.graph.node_indices() {
+            let config = input.graph[index].clone();
+            graph.add_node(config);
         }
 
-        Ok(GlobalData::new(data))
-    }
+        for edge in input.graph.edge_references() {
+            let src = edge.source();
+            let dst = edge.target();
+            graph.add_edge(src, dst, ());
+        }
 
-    fn extract_discoveries(
-        graph: &GraphBuilder<'a, TaskNode>,
-        index: NodeIndex,
-    ) -> Vec<TaskID> {
-        graph
-            .graph
-            .neighbors_directed(index, Direction::Outgoing)
-            .map(|n| n.index() as TaskID)
-            .collect()
-    }
+        let compiled = CompiledGraph {
+            graph,
+            name: name.to_string(),
+            root: root.index() as TaskID,
+        };
 
-    fn extract_dependencies(
-        graph: &GraphBuilder<'a, TaskNode>,
-        index: NodeIndex,
-    ) -> Dependencies {
-        graph
-            .graph
-            .neighbors_directed(index, Direction::Incoming)
-            .map(|n| n.index() as TaskID)
-            .collect()
+        let arc = Arc::new(compiled);
+        Ok(arc)
     }
 }
 
@@ -180,9 +146,8 @@ impl<'a> TaskBuilder<'a> {
 mod tests {
     use super::*;
     use crate::core::scheduler::TaskOutcome;
-    use crate::core::scheduler::task::mock::TaskNodeBuilder;
+    use crate::core::scheduler::task::mock::TaskConfigBuilder;
 
-    /// Tests that building without a source node returns an error.
     #[test]
     fn reject_missing_source() -> Result<()> {
         let graph = GraphBuilder::new();
@@ -195,10 +160,9 @@ mod tests {
         Ok(())
     }
 
-    /// Tests that building without a name returns an error.
     #[test]
     fn reject_missing_name() -> Result<()> {
-        let node = TaskNodeBuilder::default()
+        let config = TaskConfigBuilder::default()
             .ticks(1)
             .release(1)
             .outcome(TaskOutcome::Success(0))
@@ -206,7 +170,7 @@ mod tests {
 
         let graph = GraphBuilder::new();
         let result = TaskBuilder::new()
-            .source(&node)
+            .source(&config)
             .graph(graph)
             .build();
 
@@ -214,10 +178,9 @@ mod tests {
         Ok(())
     }
 
-    /// Tests that building without a graph returns an error.
     #[test]
     fn reject_missing_graph() -> Result<()> {
-        let node = TaskNodeBuilder::default()
+        let config = TaskConfigBuilder::default()
             .ticks(1)
             .release(1)
             .outcome(TaskOutcome::Success(0))
@@ -225,90 +188,28 @@ mod tests {
 
         let result = TaskBuilder::new()
             .name("missing-graph")
-            .source(&node)
+            .source(&config)
             .build();
 
         assert!(result.is_err());
         Ok(())
     }
 
-    /// Tests that release exceeding ticks is rejected.
-    #[test]
-    fn reject_release_exceeds_ticks() -> Result<()> {
-        let node = TaskNodeBuilder::default()
-            .ticks(5)
-            .release(10)
-            .outcome(TaskOutcome::Success(0))
-            .build()?;
-
-        let graph = GraphBuilder::new();
-        let result = TaskBuilder::new()
-            .name("invalid-release")
-            .graph(graph)
-            .source(&node)
-            .build();
-
-        assert!(result.is_err());
-        Ok(())
-    }
-
-    /// Tests that dependencies are correctly extracted from incoming edges.
-    #[test]
-    fn extract_dependencies_correctly() -> Result<()> {
-        let dep1 = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(1))
-            .build()?;
-
-        let dep2 = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(2))
-            .build()?;
-
-        let consumer = TaskNodeBuilder::default()
-            .ticks(1)
-            .release(1)
-            .outcome(TaskOutcome::Success(0))
-            .build()?;
-
-        let graph = GraphBuilder::new()
-            .edge(&dep1, &consumer)
-            .edge(&dep2, &consumer);
-
-        let task_graph = TaskBuilder::new()
-            .name("deps-test")
-            .graph(graph)
-            .source(&consumer)
-            .build()?;
-
-        let root_tid = task_graph.root;
-        let consumer_data = task_graph
-            .compiled
-            .get(root_tid)
-            .unwrap();
-
-        assert_eq!(consumer_data.dependencies.len(), 2);
-        Ok(())
-    }
-
-    /// Tests that discoveries are correctly extracted from outgoing edges.
     #[test]
     fn extract_discoveries_correctly() -> Result<()> {
-        let parent = TaskNodeBuilder::default()
+        let parent = TaskConfigBuilder::default()
             .ticks(1)
             .release(1)
             .outcome(TaskOutcome::Success(0))
             .build()?;
 
-        let child1 = TaskNodeBuilder::default()
+        let child1 = TaskConfigBuilder::default()
             .ticks(1)
             .release(1)
             .outcome(TaskOutcome::Success(1))
             .build()?;
 
-        let child2 = TaskNodeBuilder::default()
+        let child2 = TaskConfigBuilder::default()
             .ticks(1)
             .release(1)
             .outcome(TaskOutcome::Success(2))
@@ -318,19 +219,15 @@ mod tests {
             .edge(&parent, &child1)
             .edge(&parent, &child2);
 
-        let task_graph = TaskBuilder::new()
+        let task = TaskBuilder::new()
             .name("discoveries-test")
             .graph(graph)
             .source(&parent)
             .build()?;
 
-        let root_tid = task_graph.root;
-        let parent_data = task_graph
-            .compiled
-            .get(root_tid)
-            .unwrap();
+        let children = task.children();
+        assert_eq!(children.len(), 2);
 
-        assert_eq!(parent_data.discovers.len(), 2);
         Ok(())
     }
 }

@@ -1,6 +1,19 @@
 //! # Scheduler Traits
 //!
-//! TODO
+//! Core extensibility traits for the Nova scheduler system.
+//!
+//! ## Traits
+//!
+//! - **Runner**: Execution backend (sync, threaded, distributed)
+//! - **Policy**: Decision making (execute, preempt, retry)
+//! - **Executable**: Task implementation (tick, size, progress)
+//! - **Logger**: Observability (snapshots, metrics)
+//!
+//! ## Policy Lifetime Parameters
+//!
+//! Policy methods use generic lifetime `<'a>` to allow both
+//! `&mut self` (mutable policy state) and `&DecisionContext<'a>`
+//! (borrowed scheduler state) in the same method signature.
 
 #[cfg(test)]
 use mockall::automock;
@@ -9,8 +22,8 @@ use anyhow::Result;
 use anyhow::bail;
 use std::any::Any;
 
+use crate::core::scheduler::DecisionContext;
 use crate::core::scheduler::PollStatus;
-use crate::core::scheduler::SchedulerState;
 use crate::core::scheduler::TaskID;
 use crate::core::scheduler::TaskOutcomes;
 use crate::core::scheduler::YieldUpdate;
@@ -91,21 +104,22 @@ pub trait Executable: Send + Any {
 
 #[cfg_attr(test, automock)]
 pub trait Policy {
-    /// Identifies a failed task that should be retried. Returns a TaskID with
-    /// TaskState::Error that should transition to Ready, or None if no retries
-    /// are needed. Must be idempotent - repeated calls without state changes
-    /// should return the same result.
-    fn retry(&mut self, state: &SchedulerState) -> Option<TaskID>;
+    /// Identifies a failed task that should be retried. Returns a TaskID from
+    /// the provided candidates (Error tasks), or None if no retries are needed.
+    /// Must be idempotent - repeated calls without state changes should return
+    /// the same result.
+    fn retry<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID>;
 
-    /// Identifies running task that should be preempted. Returns a TaskID with
-    /// TaskState::Running that should be fetched and transitioned to Ready, or
-    /// None if no preemption is needed. Must be idempotent.
-    fn preempt(&mut self, state: &SchedulerState) -> Option<TaskID>;
+    /// Identifies running task that should be preempted. Returns a TaskID from
+    /// the provided candidates (Running tasks), or None if no preemption is
+    /// needed. Must be idempotent.
+    fn preempt<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID>;
 
-    /// Selects the next ready task to execute. Returns TaskID with ready state
-    /// that should be dispatched to the runner, or None if no tasks should run.
-    /// Must be idempotent.
-    fn execute(&mut self, state: &SchedulerState) -> Option<TaskID>;
+    /// Selects the next task to execute from candidates (Ready or satisfied
+    /// Waiting tasks depending on phase). Returns a TaskID that should be
+    /// dispatched to the runner, or None if no tasks should run. Must be
+    /// idempotent.
+    fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID>;
 }
 
 #[cfg_attr(test, automock)]

@@ -1,8 +1,9 @@
-//! # Trivial Policy Implementation
+//! # Trivial Scheduling Policy
 //!
-//! TODO
+//! Simplest possible policy: no preemption, no retries, always
+//! selects task with lowest ID.
 
-use crate::core::scheduler::SchedulerState;
+use crate::core::scheduler::DecisionContext;
 use crate::core::scheduler::TaskID;
 use crate::traits::scheduler::Policy;
 
@@ -15,18 +16,18 @@ pub struct TrivialPolicy;
 /* IMPL TRAIT FOR TYPE */
 
 impl Policy for TrivialPolicy {
-    fn retry(&mut self, _state: &SchedulerState) -> Option<TaskID> {
+    fn retry<'a>(&mut self, _ctx: &DecisionContext<'a>) -> Option<TaskID> {
         None
     }
 
-    fn preempt(&mut self, _state: &SchedulerState) -> Option<TaskID> {
+    fn preempt<'a>(&mut self, _ctx: &DecisionContext<'a>) -> Option<TaskID> {
         None
     }
 
-    fn execute(&mut self, state: &SchedulerState) -> Option<TaskID> {
-        state
-            .tasks_ready()
-            .map(|(tid, _ctx)| *tid)
+    fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
+        ctx.candidates
+            .keys()
+            .copied()
             .min()
     }
 }

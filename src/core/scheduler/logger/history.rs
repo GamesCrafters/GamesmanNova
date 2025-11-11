@@ -1,6 +1,7 @@
 //! # History Logger
 //!
-//! TODO
+//! Records full scheduler snapshots and transitions at each tick
+//! for post-mortem analysis and testing.
 
 use anyhow::Result;
 use derive_builder::Builder;

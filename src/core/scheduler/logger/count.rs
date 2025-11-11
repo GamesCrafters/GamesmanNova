@@ -1,6 +1,6 @@
-//! # Count Logger Implementation
+//! # Count Logger
 //!
-//! TODO
+//! Records task state counts at each scheduler tick for metrics.
 
 use anyhow::Result;
 use derive_builder::Builder;

@@ -1,6 +1,25 @@
-//! # Scheduler Implementations
+//! # Nova Scheduler
 //!
-//! TODO
+//! Cooperative task scheduler for DAG execution using a 5-phase
+//! tick-based system with structural policy enforcement via the
+//! DecisionContext pattern.
+//!
+//! ## Architecture
+//!
+//! Each scheduler tick executes 5 phases sequentially:
+//! 1. Collection - Poll runners, collect completed tasks
+//! 2. Resolution - Execute satisfied Waiting tasks directly
+//! 3. Retry - Move Error tasks back to Ready (policy-driven)
+//! 4. Preemption - Signal running tasks to stop (policy-driven)
+//! 5. Execution - Execute Ready tasks (policy-driven)
+//!
+//! ## DecisionContext Pattern
+//!
+//! Policies receive filtered DecisionContext instead of full state,
+//! ensuring structural enforcement: policy can ONLY select from
+//! valid candidates for each decision type.
+//!
+//! See scheduler_machine.txt for complete specification.
 
 use anyhow::Context;
 use anyhow::Result;
@@ -11,6 +30,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use crate::core::scheduler::utils::find_cycle_path;
+use crate::core::scheduler::utils::format_cycle_path;
 use crate::traits::scheduler::Executable;
 use crate::traits::scheduler::Logger;
 use crate::traits::scheduler::Policy;
@@ -56,7 +76,7 @@ pub type MergeRegistry = HashMap<TaskID, MergeContext>;
 
 /* ENUMERATIONS */
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum TaskOutcome {
     Success(OutcomeCode),
     Failure(OutcomeCode),
@@ -78,6 +98,7 @@ pub struct MergeContext {
     dependencies: Dependencies,
 }
 
+#[derive(Debug)]
 pub enum YieldIntention {
     Suspended(TaskOutcome),
     Waiting(Dependencies),
@@ -165,35 +186,144 @@ pub struct SizeStats {
 
 #[derive(Clone)]
 pub struct SchedulerSnapshot {
-    pub tick: u64,
-    pub tasks: HashMap<TaskID, TaskContextSnapshot>,
     pub transitions: Vec<Transition>,
+    pub tasks: HashMap<TaskID, TaskContextSnapshot>,
+    pub tick: u64,
 }
 
 #[derive(Clone)]
 pub struct TaskContextSnapshot {
     pub retriable: bool,
+    pub progress: Option<u64>,
     pub incoming: Dependencies,
     pub state: TaskState,
     pub about: String,
     pub size: Option<u64>,
-    pub progress: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Transition {
+    pub phase: Phase,
     pub task: TaskID,
     pub from: TaskState,
     pub to: TaskState,
-    pub phase: Phase,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Phase {
     Collection,
-    Retry,
+    Resolution,
     Preemption,
     Execution,
+    Retry,
+}
+
+/// Restricted view of scheduler state for policy decisions.
+/// Contains only tasks valid for the current decision type.
+pub struct DecisionContext<'a> {
+    /// Tasks the policy MUST select from
+    pub candidates: HashMap<TaskID, &'a TaskContext>,
+    /// Full task registry for computing weights/stats (read-only)
+    pub buffer: &'a TaskRegistry,
+    /// Other state fields
+    pub ticks: u64,
+    pub units: usize,
+}
+
+impl<'a> DecisionContext<'a> {
+    fn new(
+        candidates: HashMap<TaskID, &'a TaskContext>,
+        buffer: &'a TaskRegistry,
+        ticks: u64,
+        units: usize,
+    ) -> Self {
+        Self {
+            candidates,
+            buffer,
+            ticks,
+            units,
+        }
+    }
+
+    /// Candidates for resolution phase: Waiting tasks with satisfied deps
+    fn for_resolution(state: &'a SchedulerState) -> Self {
+        let candidates = state
+            .buffer
+            .iter()
+            .filter(|(tid, ctx)| {
+                matches!(ctx.state, TaskState::Waiting(_))
+                    && state.dependencies_satisfied(**tid)
+            })
+            .map(|(tid, ctx)| (*tid, ctx))
+            .collect();
+
+        Self::new(
+            candidates,
+            &state.buffer,
+            state.ticks,
+            state.units,
+        )
+    }
+
+    /// Candidates for execution phase: Ready tasks
+    fn for_execution(state: &'a SchedulerState) -> Self {
+        let candidates = state
+            .buffer
+            .iter()
+            .filter(|(_, ctx)| ctx.ready())
+            .map(|(tid, ctx)| (*tid, ctx))
+            .collect();
+
+        Self::new(
+            candidates,
+            &state.buffer,
+            state.ticks,
+            state.units,
+        )
+    }
+
+    /// Candidates for preemption: Running tasks
+    fn for_preemption(state: &'a SchedulerState) -> Self {
+        let candidates = state
+            .buffer
+            .iter()
+            .filter(|(_, ctx)| ctx.running())
+            .map(|(tid, ctx)| (*tid, ctx))
+            .collect();
+
+        Self::new(
+            candidates,
+            &state.buffer,
+            state.ticks,
+            state.units,
+        )
+    }
+
+    /// Candidates for retry: Error tasks
+    fn for_retry(state: &'a SchedulerState) -> Self {
+        let candidates = state
+            .buffer
+            .iter()
+            .filter(|(_, ctx)| matches!(ctx.state, TaskState::Error))
+            .map(|(tid, ctx)| (*tid, ctx))
+            .collect();
+
+        Self::new(
+            candidates,
+            &state.buffer,
+            state.ticks,
+            state.units,
+        )
+    }
+
+    /// Iterator over valid candidates
+    pub fn candidates(
+        &self,
+    ) -> impl Iterator<Item = (&TaskID, &TaskContext)> + '_ {
+        self.candidates
+            .iter()
+            .map(|(tid, ctx)| (tid, *ctx))
+    }
 }
 
 /* IMPLEMENTATIONS */
@@ -203,16 +333,32 @@ impl Scheduler {
     pub fn new(context: SchedulerContext, mut state: SchedulerState) -> Self {
         state.units = context.runner.units();
         Self {
+            transitions: Vec::new(),
             context,
             state,
-            transitions: Vec::new(),
         }
     }
 
     /* TASK REGISTRATION */
 
-    /// Register a new task with the scheduler. If a task with same ID already
-    /// exists, merges the new task with the existing one.
+    /// Register a new task with the scheduler.
+    ///
+    /// If a task with the same ID already exists, the behavior depends on
+    /// the existing task's state:
+    ///
+    /// - **Offshore tasks** (missing executable): The merge is deferred by
+    ///   storing the new task in the merge registry. When the offshore task
+    ///   returns, pending merges are applied via `merge_pending()`.
+    ///
+    /// - **Other tasks**: Attempts immediate merge via `attempt_merge()`,
+    ///   which merges executables and combines dependencies.
+    ///
+    /// After registration/merge, validates that no dependency cycles were
+    /// introduced.
+    ///
+    /// # Errors
+    /// - Merge fails if executables are incompatible
+    /// - Validation fails if a dependency cycle is detected
     pub fn register(&mut self, task: Task) -> Result<&mut Self> {
         if self
             .state
@@ -220,15 +366,20 @@ impl Scheduler {
             .contains_key(&task.tid)
         {
             if self.should_defer(&task.tid) {
-                self.defer_merge(task.tid, task.executable, task.requires)?;
+                self.defer_merge(task.tid, task.executable, task.requires)
+                    .context("Failed to defer merge on offshore task")?;
             } else {
-                self.attempt_merge(task.tid, task)?;
+                self.attempt_merge(task.tid, task)
+                    .context("Failed to merge discovery with existing task")?;
             }
         } else {
-            self.register_new(task)?;
+            self.register_new(task)
+                .context("Failed to register new task")?;
         }
 
-        self.ensure_acyclic()?;
+        self.ensure_acyclic()
+            .context("Found task cycle among scheduler tasks")?;
+
         Ok(self)
     }
 
@@ -264,7 +415,7 @@ impl Scheduler {
         self.state
             .buffer
             .get(tid)
-            .map(|ctx| ctx.executable.is_none())
+            .map(|ctx| ctx.missing_executable())
             .unwrap_or(false)
     }
 
@@ -316,7 +467,9 @@ impl Scheduler {
         };
 
         if let Some(existing) = self.state.merges.get_mut(&tid) {
-            existing.merge_into(context)?;
+            existing
+                .merge_into(context)
+                .context("Failed to combine pending merge contexts")?;
         } else {
             self.state
                 .merges
@@ -336,7 +489,9 @@ impl Scheduler {
             .values()
             .any(|ctx| ctx.active())
         {
-            let _changed = self.tick()?;
+            let _changed = self
+                .tick()
+                .context("Scheduler failed during an execution tick")?;
         }
 
         Ok(())
@@ -346,18 +501,30 @@ impl Scheduler {
     pub fn tick(&mut self) -> Result<bool> {
         self.transitions.clear();
 
-        self.collect_phase()?;
-        self.restart_phase()?;
-        self.preempt_phase()?;
-        self.execute_phase()?;
+        self.collect_phase()
+            .context("Scheduler collect phase failed")?;
 
-        self.update_progress()?;
+        self.resolve_phase()
+            .context("Scheduler resolution phase failed")?;
+
+        self.restart_phase()
+            .context("Scheduler restart phase failed")?;
+
+        self.preempt_phase()
+            .context("Scheduler preempt phase failed")?;
+
+        self.execute_phase()
+            .context("Scheduler execute phase failed")?;
+
+        self.update_progress()
+            .context("Scheduler failed to update task progress")?;
 
         let changed = !self.transitions.is_empty();
         let snapshot = self.snapshot();
         self.context
             .logger
-            .observe(&snapshot, changed)?;
+            .observe(&snapshot, changed)
+            .context("Scheduler failed to invoke logger component")?;
 
         self.state.ticks += 1;
         Ok(changed)
@@ -366,11 +533,9 @@ impl Scheduler {
     /* COLLECTION PHASE */
 
     fn collect_phase(&mut self) -> Result<()> {
-        let executing = self.state.runner_tasks();
-        let tasks: Vec<TaskID> = executing
-            .map(|(tid, _)| *tid)
-            .collect();
-
+        let tasks = self
+            .state
+            .collect_runner_task_ids();
         for tid in tasks {
             self.collect_task(tid)?;
         }
@@ -378,17 +543,45 @@ impl Scheduler {
         Ok(())
     }
 
+    /// Poll and collect a single task from the runner.
+    ///
+    /// Handles three possible outcomes:
+    /// - **Pending**: Task still running, no action taken
+    /// - **Ready**: Task completed with yield update, processes the update
+    ///   via `handle_yield()` and applies any pending merges
+    /// - **Panic**: Task panicked, transitions to Error state
+    ///
+    /// When a task is Ready, this method:
+    /// 1. Collects the executable from the runner
+    /// 2. Applies any pending merges via `finalize_collection()`
+    /// 3. Handles the yield intention (Ready/Waiting/Suspended)
+    /// 4. Registers any newly discovered tasks
     fn collect_task(&mut self, tid: TaskID) -> Result<()> {
-        match self.context.runner.poll(tid)? {
+        match self
+            .context
+            .runner
+            .poll(tid)
+            .context("Failed to poll runner for task status")?
+        {
             PollStatus::Pending => Ok(()),
             PollStatus::Ready(update) => {
-                let executable = self.context.runner.collect(tid)?;
+                let executable = self
+                    .context
+                    .runner
+                    .collect(tid)
+                    .context("Failed to collect ready task from runner")?;
+
                 let pending_deps = self.finalize_collection(tid, executable)?;
                 self.handle_yield(tid, update, pending_deps)?;
                 Ok(())
             },
             PollStatus::Panic(_) => {
-                let executable = self.context.runner.collect(tid)?;
+                let executable = self
+                    .context
+                    .runner
+                    .collect(tid)
+                    .context("Failed to collect panicked task from runner")?;
+
                 self.finalize_collection(tid, executable)?;
                 self.transition(tid, TaskState::Error, Phase::Collection)?;
                 Ok(())
@@ -405,7 +598,7 @@ impl Scheduler {
         self.state
             .buffer
             .get_mut(&tid)
-            .context("Task not in registry")?
+            .context("Collected non-existent task")?
             .executable = Some(context.executable);
 
         self.update_size(tid)?;
@@ -438,14 +631,61 @@ impl Scheduler {
         }
     }
 
+    /* RESOLUTION PHASE */
+
+    fn resolve_phase(&mut self) -> Result<()> {
+        while let Some(tid) = {
+            let ctx = DecisionContext::for_resolution(&self.state);
+            (!ctx.candidates.is_empty())
+                .then(|| self.context.policy.execute(&ctx))
+                .flatten()
+        } {
+            let ctx = DecisionContext::for_resolution(&self.state);
+            if !ctx.candidates.contains_key(&tid) {
+                bail!(
+                    "Policy selected non-candidate task {} in resolution",
+                    tid
+                );
+            }
+
+            let executable = self
+                .state
+                .buffer
+                .get_mut(&tid)
+                .context("Task not in registry")?
+                .executable
+                .take()
+                .context("Waiting task has no executable")?;
+
+            let awaited = self.collect_awaited(tid)?;
+            self.transition(tid, TaskState::Running, Phase::Resolution)?;
+            self.context
+                .runner
+                .execute(tid, awaited, executable)?;
+
+            if self.state.at_capacity() {
+                break;
+            }
+        }
+
+        Ok(())
+    }
+
     /* RETRY PHASE */
 
     fn restart_phase(&mut self) -> Result<()> {
-        while let Some(tid) = self
-            .context
-            .policy
-            .retry(&self.state)
-        {
+        while let Some(tid) = {
+            let ctx = DecisionContext::for_retry(&self.state);
+            self.context.policy.retry(&ctx)
+        } {
+            let ctx = DecisionContext::for_retry(&self.state);
+            if !ctx.candidates.contains_key(&tid) {
+                bail!(
+                    "Policy selected non-candidate task {} in retry",
+                    tid
+                );
+            }
+
             self.transition(tid, TaskState::Ready, Phase::Retry)?;
         }
 
@@ -455,11 +695,18 @@ impl Scheduler {
     /* PREEMPTION PHASE */
 
     fn preempt_phase(&mut self) -> Result<()> {
-        while let Some(tid) = self
-            .context
-            .policy
-            .preempt(&self.state)
-        {
+        while let Some(tid) = {
+            let ctx = DecisionContext::for_preemption(&self.state);
+            self.context.policy.preempt(&ctx)
+        } {
+            let ctx = DecisionContext::for_preemption(&self.state);
+            if !ctx.candidates.contains_key(&tid) {
+                bail!(
+                    "Policy selected non-candidate task {} in preemption",
+                    tid
+                );
+            }
+
             self.context.runner.preempt(tid)?;
             self.transition(tid, TaskState::Preempting, Phase::Preemption)?;
         }
@@ -470,19 +717,26 @@ impl Scheduler {
     /* EXECUTION PHASE */
 
     fn execute_phase(&mut self) -> Result<()> {
-        while let Some(tid) = self
-            .context
-            .policy
-            .execute(&self.state)
-        {
+        while let Some(tid) = {
+            let ctx = DecisionContext::for_execution(&self.state);
+            self.context.policy.execute(&ctx)
+        } {
+            let ctx = DecisionContext::for_execution(&self.state);
+            if !ctx.candidates.contains_key(&tid) {
+                bail!(
+                    "Policy selected non-candidate task {} in execution",
+                    tid
+                );
+            }
+
             let task = self
                 .state
                 .buffer
                 .get_mut(&tid)
-                .context("Fetched non-existing task from registry.")?
+                .context("Fetched non-existent task from registry")?
                 .executable
                 .take()
-                .context("Task has no executable to execute.")?;
+                .context("Task has no executable to execute")?;
 
             let awaited = self.collect_awaited(tid)?;
             self.transition(tid, TaskState::Running, Phase::Execution)?;
@@ -496,6 +750,22 @@ impl Scheduler {
 
     /* YIELD HANDLING */
 
+    /// Process a task's yield update and transition to appropriate state.
+    ///
+    /// Coordinates the task's state transition based on yield intention:
+    /// - **Suspended(outcome)**: Task completed, to Suspended state
+    /// - **Waiting(deps)**: Task needs dependencies, to Waiting state
+    /// - **Ready**: Task ready to run again, to Ready or Waiting state
+    ///
+    /// Also handles:
+    /// - Registering any newly discovered tasks from the yield update
+    /// - Merging yielded dependencies with pending dependencies from
+    ///   registration
+    /// - Validating no cycles were introduced by new dependencies
+    ///
+    /// # Errors
+    /// - Returns error if task yields TaskOutcome::Error (invalid)
+    /// - Returns error if new dependencies create a cycle
     fn handle_yield(
         &mut self,
         tid: TaskID,
@@ -509,6 +779,9 @@ impl Scheduler {
             bail!("Task {} returned TaskOutcome::Error", tid);
         }
 
+        self.register_discovered(update.discovered)
+            .context("Failed to register newly discovered tasks")?;
+
         match update.intention {
             YieldIntention::Suspended(outcome) => {
                 self.handle_suspension(tid, outcome)?;
@@ -521,7 +794,7 @@ impl Scheduler {
             },
         }
 
-        self.register_discovered(update.discovered)
+        Ok(())
     }
 
     fn handle_suspension(
@@ -542,6 +815,7 @@ impl Scheduler {
             TaskState::Suspended(outcome),
             Phase::Collection,
         )?;
+
         Ok(())
     }
 
@@ -572,7 +846,10 @@ impl Scheduler {
             TaskState::Waiting(new_deps),
             Phase::Collection,
         )?;
-        self.ensure_acyclic()?;
+
+        self.ensure_acyclic()
+            .context("Yielded (waiting) task created deadlock")?;
+
         Ok(())
     }
 
@@ -597,22 +874,21 @@ impl Scheduler {
                 TaskState::Waiting(new_deps),
                 Phase::Collection,
             )?;
-            self.ensure_acyclic()?;
+
+            self.ensure_acyclic()
+                .context("Yielded (ready) task created deadlock")?;
         }
 
         Ok(())
     }
 
     fn register_discovered(&mut self, tasks: Vec<Task>) -> Result<()> {
-        let register = |task| {
+        for task in tasks {
             self.register(task)
-                .context("Failed to register discovered task")
-                .map(|_| ())
-        };
+                .context("Failed to register discovered task")?;
+        }
 
-        tasks
-            .into_iter()
-            .try_for_each(register)
+        Ok(())
     }
 
     /* STATE MANAGEMENT */
@@ -629,13 +905,13 @@ impl Scheduler {
             .get_mut(&tid)
             .context("Task not in registry")?;
 
-        let from = ctx.state.clone();
-        ctx.state = state.clone();
+        let from = std::mem::replace(&mut ctx.state, state);
+        let to = ctx.state.clone();
 
         let transition = Transition {
             task: tid,
             from,
-            to: state,
+            to,
             phase,
         };
 
@@ -654,18 +930,17 @@ impl Scheduler {
     }
 
     fn update_progress(&mut self) -> Result<()> {
-        let running = self.state.runner_tasks();
-        let tasks: Vec<TaskID> = running
-            .map(|(tid, _)| *tid)
-            .collect();
-
+        let tasks = self
+            .state
+            .collect_runner_task_ids();
         for tid in tasks {
             if let Some(value) = self.context.runner.progress(tid) {
                 let ctx = self
                     .state
                     .buffer
                     .get_mut(&tid)
-                    .context("Task not in registry")?;
+                    .context("Task not found in registry")?;
+
                 ctx.progress = Some(value);
             }
         }
@@ -673,7 +948,7 @@ impl Scheduler {
         Ok(())
     }
 
-    fn snapshot(&self) -> SchedulerSnapshot {
+    fn snapshot(&mut self) -> SchedulerSnapshot {
         let convert = |(tid, ctx): (&TaskID, &TaskContext)| {
             let snapshot = TaskContextSnapshot {
                 retriable: ctx.retriable,
@@ -694,7 +969,7 @@ impl Scheduler {
             .collect();
 
         SchedulerSnapshot {
-            transitions: self.transitions.clone(),
+            transitions: std::mem::take(&mut self.transitions),
             tick: self.state.ticks,
             tasks,
         }
@@ -705,7 +980,7 @@ impl Scheduler {
             .state
             .buffer
             .get_mut(&tid)
-            .context("Task not in registry")?;
+            .context("Task not found in registry")?;
 
         let Some(ref executable) = ctx.executable else {
             return Ok(());
@@ -772,6 +1047,15 @@ impl Scheduler {
         Ok(())
     }
 
+    /// Collect outcomes from all dependencies a task is waiting for.
+    ///
+    /// Extracts the outcomes (Success/Failure) from all tasks that this task
+    /// depends on. Only returns outcomes for suspended/completed dependencies;
+    /// filters out any dependencies still in progress.
+    ///
+    /// # Returns
+    /// Map of dependency TaskIDs to their TaskOutcomes, ready to be passed
+    /// to the task's executable when it runs.
     fn collect_awaited(&self, tid: TaskID) -> Result<TaskOutcomes> {
         let dependencies = self
             .state
@@ -791,7 +1075,7 @@ impl Scheduler {
 
             let result = dep_ctx
                 .outcome()
-                .map(|outcome| (dep_tid, outcome.clone()));
+                .map(|outcome| (dep_tid, *outcome));
 
             Ok(result)
         };
@@ -816,22 +1100,7 @@ impl Scheduler {
             return Ok(());
         };
 
-        let message = self.format_cycle_error(&path);
+        let message = format_cycle_path(&path, &self.state.buffer);
         bail!(message)
-    }
-
-    fn format_cycle_error(&self, path: &[TaskID]) -> String {
-        let mut message = format!(
-            "These {} tasks wait for each other cyclically:\n",
-            path.len() - 1
-        );
-
-        for tid in path {
-            if let Some(ctx) = self.state.buffer.get(tid) {
-                message.push_str(&format!("-> {:?}: {}\n", tid, ctx.about));
-            }
-        }
-
-        message
     }
 }

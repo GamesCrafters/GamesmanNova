@@ -1,6 +1,13 @@
-//! # Scheduler Utility Implementations
+//! # Scheduler Utilities
 //!
-//! TODO    
+//! Helper functions for SchedulerState queries and task context
+//! management.
+//!
+//! ## Note on DecisionContext
+//!
+//! The iterator methods here (tasks_ready, tasks_running, etc.)
+//! are for SCHEDULER INTERNALS, not policy decisions. Policies
+//! receive DecisionContext with pre-filtered candidates.
 
 use anyhow::Context;
 use anyhow::Result;
@@ -124,6 +131,17 @@ impl TaskContext {
             TaskState::Suspended(outcome) => Some(outcome),
         }
     }
+
+    /// Check if task is missing its executable (offshore task).
+    /// Used to determine if task merge should be deferred.
+    pub fn missing_executable(&self) -> bool {
+        self.executable.is_none()
+    }
+
+    /// Check if task has pending dependencies to wait for.
+    pub fn has_pending_dependencies(&self) -> bool {
+        matches!(self.state, TaskState::Waiting(_))
+    }
 }
 
 impl SchedulerState {
@@ -179,6 +197,34 @@ impl SchedulerState {
     pub fn take_merge(&mut self, tid: &TaskID) -> Option<MergeContext> {
         self.merges.remove(tid)
     }
+
+    /// Check if a task's dependencies are all satisfied (completed/suspended).
+    /// Returns false if task has no dependencies registered.
+    pub fn dependencies_satisfied(&self, tid: TaskID) -> bool {
+        self.get_dependencies(tid)
+            .is_some_and(|deps| {
+                deps.iter().all(|dep_tid| {
+                    self.buffer
+                        .get(dep_tid)
+                        .and_then(|ctx| ctx.outcome())
+                        .is_some()
+                })
+            })
+    }
+
+    /// Check if scheduler has reached execution unit capacity.
+    /// Returns false if units == 0 (unlimited).
+    pub fn at_capacity(&self) -> bool {
+        self.units > 0 && self.runner_tasks().count() >= self.units
+    }
+
+    /// Collect all currently running/preempting task IDs into a Vec.
+    /// Useful for operations that need to iterate over runner tasks with mutations.
+    pub fn collect_runner_task_ids(&self) -> Vec<TaskID> {
+        self.runner_tasks()
+            .map(|(tid, _)| *tid)
+            .collect()
+    }
 }
 
 impl Display for TaskState {
@@ -197,6 +243,23 @@ impl Display for TaskState {
 }
 
 /* HELPER FUNCTIONS */
+
+/// Format a cycle path into a human-readable error message.
+/// Shows each task ID and its description in the cycle.
+pub fn format_cycle_path(path: &[TaskID], registry: &TaskRegistry) -> String {
+    let mut message = format!(
+        "These {} tasks wait for each other cyclically:\n",
+        path.len() - 1
+    );
+
+    for tid in path {
+        if let Some(ctx) = registry.get(tid) {
+            message.push_str(&format!("-> {:?}: {}\n", tid, ctx.about));
+        }
+    }
+
+    message
+}
 
 // Check each task for connected dependcency cycles using DFS.
 pub fn find_cycle_path(registry: &TaskRegistry) -> Option<Vec<TaskID>> {

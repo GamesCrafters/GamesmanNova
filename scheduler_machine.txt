@@ -1,222 +1,549 @@
-SCHEDULER STATE MACHINE - COMPLETE REFERENCE
-==============================================
+NOVA SCHEDULER STATE MACHINE SPECIFICATION
+===========================================
 
-CORE STATES (6)
----------------
+## OVERVIEW
 
-1. READY - Task has executable and no pending dependencies, ready for execution
-2. WAITING(deps) - Task blocked on unsatisfied dependencies
-3. RUNNING - Task actively executing in a runner (executable moved to runner)
-4. PREEMPTING - Task signaled to stop, still executing
-5. SUSPENDED(outcome) - Task completed with outcome (Success/Failure)
-6. ERROR - Task panicked during execution
+The Nova scheduler is a cooperative task scheduling system that
+executes a DAG of interdependent tasks. It uses a 5-phase tick-based
+execution model with structural policy enforcement through the
+DecisionContext pattern.
 
-State Categories:
-- Active: Ready, Running, Waiting, Preempting (scheduler continues while any active)
-- Inactive: Suspended, Error (terminal unless resurrected)
+### Execution Model
 
+- **Tick-based:** Scheduler executes in discrete ticks, each running
+  all 5 phases
+- **Cooperative:** Tasks voluntarily yield control after bounded work
+- **Policy-driven:** Pluggable policy controls retry, preemption, and
+  execution decisions
+- **Structural enforcement:** Policy can ONLY select from pre-filtered
+  candidates
 
-COMPLETE STATE TRANSITIONS
----------------------------
+### Key Components
 
-Initial Registration:
-  (new) → Ready          [register() with no deps, mod.rs:191]
-  (new) → Waiting        [register() with deps, mod.rs:193]
+**Scheduler**
+- Maintains SchedulerState (task registry, merge registry, tick count)
+- Orchestrates 5-phase execution loop
+- Enforces policy decision validation
+- Manages task lifecycle and state transitions
 
-Normal Execution Flow:
-  Ready → Running        [policy.execute() selects task, mod.rs:444]
-  Running → Preempting   [policy.preempt() signals task, mod.rs:418]
-  Running → Ready        [task yields YieldIntention::Ready, mod.rs:536]
-  Running → Waiting      [task yields YieldIntention::Waiting(deps), mod.rs:524]
-  Running → Suspended    [task yields YieldIntention::Suspended(outcome), mod.rs:498]
-  Running → Error        [runner catches panic, mod.rs:344]
-  Preempting → Ready     [task responds to signal and yields, mod.rs:536]
-  Waiting → Ready        [all dependencies satisfied, mod.rs:536]
+**SchedulerState**
+- `buffer: TaskRegistry` - Maps TaskID to TaskContext (all tasks)
+- `merges: MergeRegistry` - Pending merges for offshore tasks
+- `ticks: u64` - Current tick number
+- `units: usize` - Runner capacity (0 = sync, N = parallel)
 
-RESURRECTION PATHS (Critical):
-  Error → Ready          [policy.retry() for retriable tasks, mod.rs:401]
-  Suspended → Ready      [register() same ID with no deps, mod.rs:252]
-  Suspended → Waiting    [register() same ID with deps, mod.rs:254]
+**TaskContext**
+- `executable: Option<Box<dyn Executable>>` - Task implementation
+  (None when running)
+- `state: TaskState` - Current state in the state machine
+- `incoming: Dependencies` - Tasks that depend on this one
+- `retriable: bool` - Whether task can be retried after Error
+- `progress: Option<u64>` - Current progress value
+- `about: String` - Human-readable description
+- `size: Option<u64>` - Estimated work size
 
-Merge-Induced Transitions:
-  Ready → Waiting        [merge adds dependencies, mod.rs:254]
-  Waiting → Ready        [merge removes all dependencies, mod.rs:252]
-  Waiting → Waiting      [merge changes dependencies, mod.rs:254]
+**DecisionContext<'a>**
+- `candidates: HashMap<TaskID, &'a TaskContext>` - Tasks policy MUST
+  select from
+- `buffer: &'a TaskRegistry` - Full registry for weights/stats
+  (read-only)
+- `ticks: u64` - Current tick number
+- `units: usize` - Runner capacity
 
+### Phase System (5 Phases)
 
-RESURRECTION MECHANISMS
------------------------
+Each tick executes these phases in order:
 
-Path 1: Error Recovery (Policy-Driven)
-  - Error state tasks can be retried if retriable flag is true
-  - Policy's retry() method selects which tasks to retry
-  - Task transitions to Ready and re-enters execution pipeline
-  - No dependencies restored (Error state has no deps)
+1. **Collection Phase:** Poll running tasks, collect completed ones,
+   handle yield updates
+2. **Resolution Phase:** Execute satisfied Waiting tasks (preserves
+   dependency info)
+3. **Retry Phase:** Move Error tasks back to Ready (policy-driven)
+4. **Preemption Phase:** Signal running tasks to stop (policy-driven)
+5. **Execution Phase:** Execute Ready tasks (policy-driven)
 
-Path 2 & 3: Suspended Task Resurrection (Registration-Driven)
-  - Registering a task with the same ID as a Suspended task triggers resurrection
-  - Executables are merged via Executable::merge()
-  - New dependencies replace old (old deps were unlinked during suspension)
-  - **OUTCOME IS LOST** - TaskOutcome discarded, no record of previous completion
-  - Goes to Ready (no deps) or Waiting (with deps)
-  - NO VALIDATION - no check if resurrection is intended
+## PHASE EXECUTION DETAILS
 
-Consequences of Suspended Resurrection:
-  - Same task can complete multiple times with different outcomes
-  - Dependent tasks that already consumed the outcome see inconsistent state
-  - No protection against unintended resurrection
-  - Circular dependencies can be introduced (caught by ensure_acyclic)
+### 1. Collection Phase
 
+**Purpose:** Harvest completed work from the runner and update task
+states.
 
-DEFERRED MERGE FLOW
--------------------
+**Process:**
+1. Get all tasks in runner (Running or Preempting state)
+2. For each task:
+   - Poll runner for status
+   - If Pending: continue
+   - If Ready: collect executable, apply pending merges, handle yield
+   - If Panic: collect executable, apply pending merges, transition
+     to Error
+3. Handle yield intentions:
+   - Suspended(outcome): Transition to Suspended, unlink dependencies
+   - Waiting(deps): Transition to Waiting, link new dependencies
+   - Ready: Transition to Ready (or Waiting if merges added deps)
 
-When registering a task ID that's currently Running or Preempting:
-  1. should_defer() returns true (executable is None - in runner)
-  2. defer_merge() stores MergeContext in state.merges HashMap
-  3. If multiple deferrals occur, they're merged via merge_into()
-  4. During collection phase, finalize_collection() applies pending merge
-  5. Executable is merged: existing.merge(pending)
-  6. Pending dependencies are unioned with yielded dependencies
-  7. Task state recalculated based on total dependencies
+**Key Insight:** This is when tasks "come back" from execution. Yield
+updates may discover new tasks, add dependencies, or complete work.
 
-Note: Merge can modify a task while it's being preempted
+**State Transitions:**
+- Running → Suspended (yielded with outcome)
+- Running → Waiting (yielded with dependencies)
+- Running → Ready (yielded ready to continue)
+- Running → Error (panicked)
+- Preempting → (same as Running)
 
+### 2. Resolution Phase (NEW)
 
-STATE INVARIANTS
-----------------
+**Purpose:** Execute Waiting tasks whose dependencies are now
+satisfied, WITHOUT transitioning them to Ready first. This preserves
+dependency information for critical path calculation.
 
-1. Executable Ownership
-   - Ready, Waiting, Suspended, Error: executable = Some(...)
-   - Running, Preempting: executable = None (moved to runner)
-   - Transferred to runner during Ready → Running
-   - Returned during collection
+**Why it exists:** Before this phase, Waiting tasks would first
+transition to Ready, losing their dependency information. This caused
+critical path policies to make suboptimal decisions because they
+couldn't see which tasks were unblocking which other tasks.
 
-2. Dependency Consistency
-   - Waiting(deps): Bidirectional links maintained (forward in TaskState, backward in incoming)
-   - Suspended: All dependencies unlinked (line 495)
-   - Ready, Running, Preempting, Error: No dependency state
-   - Links validated after every change
+**Process:**
+1. Create DecisionContext with candidates = Waiting tasks with ALL
+   dependencies satisfied
+2. Loop while candidates exist and runner has capacity:
+   - Call policy.execute(&ctx) to select a task
+   - Validate selection (must be in candidates)
+   - Extract executable from task
+   - Collect awaited outcomes (dependency results)
+   - Transition task Waiting → Running with Phase::Resolution
+   - Send task to runner with awaited outcomes
+   - Check runner capacity, break if full
 
-3. Terminal States Are Not Terminal
-   - Suspended can transition to Ready/Waiting (resurrection via registration)
-   - Error can transition to Ready (retry via policy)
-   - Both require external trigger
-   - No true permanent terminal state exists
+**Candidate Filtering:**
+```rust
+fn for_resolution(state: &'a SchedulerState) -> DecisionContext<'a> {
+    let candidates = state.buffer.iter()
+        .filter(|(tid, ctx)| {
+            matches!(ctx.state, TaskState::Waiting(_))
+                && dependencies_satisfied(**tid, state)
+        })
+        .map(|(tid, ctx)| (*tid, ctx))
+        .collect();
+    // ... construct DecisionContext
+}
+```
 
-4. Acyclic Dependency Graph
-   - Validated after EVERY dependency change via ensure_acyclic()
-   - Uses DFS algorithm (utils.rs:202-247)
-   - Scheduler aborts if cycle detected
+**State Transitions:**
+- Waiting(satisfied deps) → Running
 
-5. Outcome Volatility
-   - Suspended(outcome) stores completion result
-   - Result accessible via outcome() method while Suspended
-   - Result is LOST if task is resurrected
-   - No mechanism to preserve or retrieve lost outcomes
+**Key Insight:** This is the ONLY way Waiting tasks with satisfied
+dependencies become Running. They skip Ready state entirely,
+preserving dependency info in TaskContext.
 
+### 3. Retry Phase
 
-EDGE CASES & GOTCHAS
---------------------
+**Purpose:** Give errored tasks another chance to execute
+(policy-driven).
 
-1. Double Completion
-   Task completes → Suspended(Success)
-   Task resurrected → Ready
-   Task completes again → Suspended(Success)
-   Same task generates multiple outcomes over its lifetime.
+**Process:**
+1. Create DecisionContext with candidates = all Error tasks
+2. Loop while policy selects a task:
+   - Call policy.retry(&ctx)
+   - If None: break
+   - Validate selection (must be in candidates)
+   - Transition Error → Ready with Phase::Retry
 
-2. Dependent Task Race
-   T1: Task A completes → Suspended(result)
-   T2: Task B collects result from A
-   T3: Task A resurrected → Ready (result lost)
-   T4: Task C tries to depend on A → sees Ready state, not Suspended
-   Dependent tasks observe inconsistent states.
+**Candidate Filtering:**
+```rust
+fn for_retry(state: &'a SchedulerState) -> DecisionContext<'a> {
+    let candidates = state.buffer.iter()
+        .filter(|(_, ctx)| matches!(ctx.state, TaskState::Error))
+        .map(|(tid, ctx)| (*tid, ctx))
+        .collect();
+    // ... construct DecisionContext
+}
+```
 
-3. Merge with Error Task
-   Attempting to register task with ID in Error state:
-   - attempt_merge() called but executable is None
-   - Returns error: "Cannot merge with currently running task"
-   - **Misleading error message** - task is in Error, not Running
+**State Transitions:**
+- Error → Ready
 
-4. Preemption + Deferred Merge
-   Task Running → Preempting → New registration → defer_merge()
-   Task yields → Merge applied → State recalculated
-   Preempted task can be modified mid-preemption.
+**Policy Contract:** Only errored tasks are candidates. Policy returns
+None (no retries) or a TaskID to retry.
 
-5. Circular Resurrection
-   Task A depends on Task B
-   Task B completes → Suspended
-   Task B resurrected with dependency on A
-   Cycle created, ensure_acyclic() catches it, scheduler aborts.
+### 4. Preemption Phase
 
+**Purpose:** Stop running tasks to make room for higher-priority work
+(policy-driven).
 
-TICK EXECUTION PHASES
----------------------
+**Process:**
+1. Create DecisionContext with candidates = all Running tasks
+2. Loop while policy selects a task:
+   - Call policy.preempt(&ctx)
+   - If None: break
+   - Validate selection (must be in candidates)
+   - Call runner.preempt(tid) to signal task
+   - Transition Running → Preempting with Phase::Preemption
 
-Each scheduler tick processes 4 phases sequentially:
+**Candidate Filtering:**
+```rust
+fn for_preemption(state: &'a SchedulerState) -> DecisionContext<'a> {
+    let candidates = state.buffer.iter()
+        .filter(|(_, ctx)| ctx.running())
+        .map(|(tid, ctx)| (*tid, ctx))
+        .collect();
+    // ... construct DecisionContext
+}
+```
 
-1. Collection Phase (collect_phase)
-   - Poll all runners for task status
-   - Collect completed/panicked tasks (executables returned)
-   - Process YieldIntentions and update states
-   - Apply pending deferred merges
-   - Register newly discovered tasks
+**State Transitions:**
+- Running → Preempting
 
-2. Retry Phase (retry_phase)
-   - Policy identifies Error tasks to retry
-   - Error → Ready transition
+**Policy Contract:** Only running tasks are candidates. Policy returns
+None (no preemption) or a TaskID to preempt.
 
-3. Preemption Phase (preempt_phase)
-   - Policy identifies Running tasks to preempt
-   - Running → Preempting transition
-   - Signal sent to runner
+**Note:** Preempted tasks will later yield (usually with Ready
+intention) in Collection phase.
 
-4. Execution Phase (execute_phase)
-   - Policy selects Ready task for execution
-   - Ready → Running transition
-   - Executable transferred to runner
+### 5. Execution Phase
 
-Changes are logged only if any phase modified state.
+**Purpose:** Start Ready tasks on the runner (policy-driven).
 
+**Process:**
+1. Create DecisionContext with candidates = all Ready tasks
+2. Loop while policy selects a task and runner has capacity:
+   - Call policy.execute(&ctx)
+   - If None: break
+   - Validate selection (must be in candidates)
+   - Extract executable from task
+   - Collect awaited outcomes (empty for Ready tasks)
+   - Transition Ready → Running with Phase::Execution
+   - Send task to runner
 
-CONCURRENCY MODEL
------------------
+**Candidate Filtering:**
+```rust
+fn for_execution(state: &'a SchedulerState) -> DecisionContext<'a> {
+    let candidates = state.buffer.iter()
+        .filter(|(_, ctx)| ctx.ready())
+        .map(|(tid, ctx)| (*tid, ctx))
+        .collect();
+    // ... construct DecisionContext
+}
+```
 
-SyncRunner (0 parallel units):
-  - Synchronous execution, blocks on execute() until task yields
-  - No true preemption (signal ignored, checked after full execution)
+**State Transitions:**
+- Ready → Running
 
-ThreadPoolRunner (N parallel units):
-  - Asynchronous execution across thread pool
-  - Non-blocking execute() dispatches to worker threads
-  - True preemption via atomic signals (checked at checkpoints)
-  - Workers run task until yield or preemption signal
+**Policy Contract:** Only Ready tasks are candidates. This phase does
+NOT see Waiting tasks (they're handled in Resolution).
 
+## DECISIONCONTEXT PATTERN
 
-KEY INSIGHTS
-------------
+### Purpose
+Enforce structural invariants: policy can ONLY select from tasks valid
+for the current decision type.
 
-1. "Completed" does not mean "done forever" - Suspended tasks can be resurrected
-2. Task outcomes are ephemeral - lost during resurrection with no recovery mechanism
-3. State transitions happen both inside and outside the tick loop (registration-time)
-4. Dependencies are fluid - can change through merges, yields, and resurrections
-5. The system prioritizes flexibility over guarantees - no protection against:
-   - Unintended resurrections
-   - Outcome loss
-   - Dependent task inconsistencies
-6. Merging is the most complex mechanism - affects executables, dependencies, and state
-7. Policy has significant control - selects what executes, preempts, and retries
-8. All state changes maintain acyclic dependency invariant (enforced, not assumed)
+### Structure
+```rust
+pub struct DecisionContext<'a> {
+    // Policy MUST choose from this
+    pub candidates: HashMap<TaskID, &'a TaskContext>,
+    // Read-only for weights/stats
+    pub buffer: &'a TaskRegistry,
+    // Current tick
+    pub ticks: u64,
+    // Runner capacity
+    pub units: usize,
+}
+```
 
+### Factory Methods
+- `for_resolution(state)` → Waiting tasks with satisfied deps
+- `for_execution(state)` → Ready tasks
+- `for_preemption(state)` → Running tasks
+- `for_retry(state)` → Error tasks
 
-IMPLEMENTATION NOTES
---------------------
+### Validation
+After policy returns a TaskID, scheduler validates:
+```rust
+if !ctx.candidates.contains_key(&tid) {
+    bail!("Policy selected non-candidate task {} in {}", tid, phase);
+}
+```
 
-- File locations: src/core/scheduler/mod.rs, utils.rs, traits/scheduler.rs
-- TaskState enum defined at mod.rs:63-70
-- Main tick loop at mod.rs:298-314
-- Registration logic at mod.rs:170-187
-- Merge logic at mod.rs:224-280
-- Yield handling at mod.rs:456-550
-- Cycle detection at mod.rs:687-693 and utils.rs:202-247
-- Bug: MergeContext::merge_into() references non-existent 'pending' field (should be 'dependencies')
+### Lifetime Handling
+- Generic lifetime `'a` allows policies to be both `&mut self` and
+  accept `&DecisionContext<'a>`
+- Policy trait uses `for<'a>` syntax:
+  `fn execute<'a>(&mut self, ctx: &DecisionContext<'a>)`
+- Closures use `for<'a> FnMut(&DecisionContext<'a>)` for retry
+  policies
+
+## TASK STATES AND TRANSITIONS
+
+### State Enum
+```rust
+pub enum TaskState {
+    Ready,                    // Ready to execute, no dependencies
+    Running,                  // Currently executing on runner
+    Preempting,              // Signaled to stop, still executing
+    Waiting(Dependencies),   // Blocked on dependencies
+    Suspended(TaskOutcome),  // Completed with outcome
+    Error,                   // Panicked or failed
+}
+```
+
+### Complete Transition Table
+
+| From        | To        | Phase      | Trigger                  |
+|-------------|-----------|------------|--------------------------|
+| (new)       | Ready     | Register   | No dependencies          |
+| (new)       | Waiting   | Register   | With dependencies        |
+| Running     | Suspended | Collection | Yielded with outcome     |
+| Running     | Waiting   | Collection | Yielded with deps        |
+| Running     | Ready     | Collection | Yielded ready (no deps)  |
+| Running     | Error     | Collection | Task panicked            |
+| Preempting  | (same)    | Collection | Preempted task yields    |
+| Waiting     | Running   | Resolution | Deps satisfied, selected |
+| Ready       | Running   | Execution  | Policy selected          |
+| Running     | Preempting| Preemption | Policy selected          |
+| Error       | Ready     | Retry      | Policy selected          |
+
+### Active vs Inactive States
+
+**Active** (scheduler keeps running):
+- Ready, Running, Preempting, Waiting
+
+**Inactive** (scheduler can finish):
+- Suspended, Error
+
+Scheduler runs until no active tasks remain.
+
+### Special Transition: Waiting → Running (Resolution)
+
+**Why it's special:** This is the ONLY state transition that preserves
+dependency information.
+
+**Before Resolution phase (hypothetical old system):**
+1. Waiting task's dependencies satisfy
+2. Scheduler transitions Waiting → Ready (loses dependency info!)
+3. Policy selects from Ready tasks (can't see original dependencies)
+4. Ready → Running
+
+**With Resolution phase (current system):**
+1. Waiting task's dependencies satisfy
+2. Policy selects directly from Waiting tasks (can see dependencies!)
+3. Waiting → Running (dependencies preserved in incoming edges)
+
+**Impact:** Critical path policies can compute accurate weights
+because they can see which Ready/Running tasks are blocking which
+Waiting tasks.
+
+## POLICY CONTRACT
+
+### Trait Definition
+```rust
+pub trait Policy {
+    fn retry<'a>(&mut self, ctx: &DecisionContext<'a>)
+        -> Option<TaskID>;
+    fn preempt<'a>(&mut self, ctx: &DecisionContext<'a>)
+        -> Option<TaskID>;
+    fn execute<'a>(&mut self, ctx: &DecisionContext<'a>)
+        -> Option<TaskID>;
+}
+```
+
+### Method Signatures with Lifetimes
+- Generic lifetime `'a` parameterizes each method
+- Allows `&mut self` (mutable policy state) and
+  `&DecisionContext<'a>` (borrowed scheduler state)
+- Scheduler creates fresh DecisionContext per call with new lifetime
+
+### What Candidates Policy Receives
+
+**retry():** Error tasks only
+- All tasks in TaskState::Error
+- Only retriable tasks should be considered (check
+  ctx.candidates[tid].retriable)
+
+**preempt():** Running tasks only
+- All tasks in TaskState::Running
+- Can access buffer to see Ready tasks for comparison (critical path
+  logic)
+
+**execute():** Depends on phase
+- **Resolution phase:** Waiting tasks with satisfied dependencies
+- **Execution phase:** Ready tasks
+- Policy doesn't know which phase; just selects best from candidates
+
+### Structural Guarantees
+1. Policy CANNOT select tasks not in candidates (enforced by
+   validation)
+2. Policy CANNOT modify scheduler state (receives &DecisionContext)
+3. Policy CAN read full buffer for weight calculations (buffer field)
+4. Policy CAN maintain internal state (closure captures, struct
+   fields)
+
+### Idempotence Requirement
+Policy methods must be idempotent: repeated calls with same
+DecisionContext should return same result. This ensures predictable
+behavior when scheduler calls policy multiple times.
+
+## RUNNER INTERFACE
+
+### Purpose
+Abstract execution backend (synchronous, thread pool, async,
+distributed, etc.)
+
+### Key Methods
+- `units() -> usize` - Capacity (0 = sync, N = parallel slots)
+- `execute(tid, awaited, executable)` - Start task execution
+- `poll(tid) -> PollStatus` - Check if task completed
+- `preempt(tid)` - Signal task to stop
+- `collect(tid) -> Box<dyn Executable>` - Retrieve completed task
+- `progress(tid) -> Option<u64>` - Sample current progress
+
+### Execution Flow
+1. Scheduler calls `execute(tid, awaited, executable)` - transfers
+   ownership
+2. Runner executes task asynchronously (or synchronously)
+3. Scheduler polls `poll(tid)` each Collection phase
+4. When Ready, scheduler calls `collect(tid)` to get executable back
+5. Scheduler owns executable again, applies merges, handles yield
+
+## KEY INSIGHTS
+
+### Why Resolution Phase Was Added
+**Problem:** Waiting → Ready → Running loses dependency info, making
+critical path calculation impossible.
+
+**Solution:** Waiting → Running (via Resolution) preserves
+dependencies, enabling optimal scheduling.
+
+**Trade-off:** More complex phase system, but significantly better
+scheduling decisions for DAG workloads.
+
+### Why DecisionContext Was Added
+**Problem:** Policies could access any task in buffer, leading to bugs
+where policies selected invalid tasks.
+
+**Solution:** Structural enforcement through filtered candidates.
+Policy can only select from valid tasks for current phase.
+
+**Trade-off:** More ceremony (factory methods, validation), but
+eliminates entire class of bugs.
+
+### How Deadlock Was Fixed
+**Old behavior (hypothetical):**
+1. Task A waits for Task B
+2. Waiting → Ready transition loses this info
+3. Scheduler sees only "Task A is ready"
+4. If Task B isn't scheduled, A waits forever
+
+**New behavior:**
+1. Task A waits for Task B
+2. Resolution phase sees "Task A waits for [B]"
+3. If B not satisfied, A stays Waiting
+4. If B satisfies, A transitions directly to Running with B's outcome
+5. No deadlock possible (dependencies explicit)
+
+### Critical Path Calculation
+With Resolution phase, policies can compute:
+```
+critical_weight(task) = task.size + max(
+    critical_weight(child) for child in task.incoming
+)
+```
+
+Because `incoming` edges are preserved when Waiting tasks become
+Running, the policy can see the full dependency DAG and compute
+optimal priorities.
+
+### Phase Ordering Rationale
+1. **Collection first:** Get completed work before making decisions
+2. **Resolution before Execution:** Give blocked tasks priority
+   (they're unblocking others)
+3. **Retry before Preemption:** Give failed tasks a chance before
+   stopping running ones
+4. **Preemption before Execution:** Make room before starting new work
+5. **Execution last:** Fill available slots with new work
+
+## IMPLEMENTATION NOTES
+
+### Merge System
+When task discovered multiple times:
+1. If executable present: immediate merge via `executable.merge(other)`
+2. If offshore (running): defer merge via MergeRegistry
+3. On collection: apply deferred merge, combine dependencies
+
+### Dependency Linking
+- Forward edges stored in `TaskState::Waiting(deps)`
+- Reverse edges stored in `TaskContext.incoming`
+- Both maintained for efficient traversal
+
+### Progress Tracking
+- Runner samples `executable.progress()` periodically
+- Stored in runner's progress registry
+- Scheduler queries via `runner.progress(tid)` each tick
+- Used for logging and estimation only, not scheduling
+
+### Acyclic Validation
+- Checked on task registration
+- Checked after yielding with new dependencies
+- Uses DFS cycle detection in dependency graph
+- Fails fast with human-readable error showing cycle path
+
+## EXAMPLE EXECUTION TRACE
+
+### Scenario
+- Task A (ready)
+- Task B (waits for A)
+- Task C (waits for A)
+- Critical path policy (higher weight = higher priority)
+
+### Trace
+
+**Tick 0:**
+- Collection: (empty)
+- Resolution: (no satisfied waiting tasks)
+- Retry: (no errors)
+- Preemption: (nothing running)
+- Execution: Policy selects A, A → Running
+- Logger: Records transition
+
+**Tick 1:**
+- Collection: Poll A → Pending (still running)
+- Resolution: (no satisfied waiting tasks)
+- Retry: (no errors)
+- Preemption: (policy doesn't preempt)
+- Execution: (A still running, no capacity)
+- Logger: No transitions
+
+**Tick 2:**
+- Collection: Poll A → Ready(Suspended(Success)), A → Suspended
+- Resolution:
+  - Candidates: B (waits for [A]), C (waits for [A])
+  - Policy calculates: weight(B) = size(B) + max(incoming),
+    weight(C) = size(C) + max(incoming)
+  - Policy selects higher weight task (say B)
+  - B → Running via Resolution phase
+- Retry: (no errors)
+- Preemption: (policy doesn't preempt)
+- Execution: (B running, but capacity available)
+  - No Ready tasks (C is still Waiting, not Ready!)
+- Logger: Records A→Suspended, B→Running(Resolution)
+
+**Tick 3:**
+- Collection: Poll B → Ready(Suspended(Success)), B → Suspended
+- Resolution:
+  - Candidates: C (waits for [A], A is Suspended so satisfied)
+  - Policy selects C
+  - C → Running via Resolution phase
+- Retry: (no errors)
+- Preemption: (nothing to preempt)
+- Execution: (C running, no Ready tasks)
+- Logger: Records B→Suspended, C→Running(Resolution)
+
+**Tick 4:**
+- Collection: Poll C → Ready(Suspended(Success)), C → Suspended
+- No active tasks remain
+- Scheduler terminates
+
+**Key observation:** B and C never transitioned to Ready. They went
+directly Waiting → Running via Resolution phase, preserving dependency
+info for critical path calculation.

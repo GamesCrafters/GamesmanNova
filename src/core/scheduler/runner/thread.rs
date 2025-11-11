@@ -1,6 +1,7 @@
-//! # Thread Pool Runner Implementation
+//! # Thread Pool Runner
 //!
-//! TODO
+//! Concurrent execution across worker threads with true
+//! preemption via atomic signals.
 
 use std::any::Any;
 use std::collections::HashMap;
