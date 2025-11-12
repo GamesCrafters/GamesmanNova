@@ -8,14 +8,14 @@ use anyhow::bail;
 use std::collections::HashSet;
 use std::hash::Hash;
 
-use crate::game::IUtility;
-use crate::game::PlayerCount;
-use crate::game::SUtility;
 use crate::database::traits::ClassicUtilityRecord;
 use crate::database::traits::IntegerUtilityRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::PuzzleUtilityRecord;
 use crate::database::traits::SimpleUtilityRecord;
+use crate::game::IUtility;
+use crate::game::PlayerCount;
+use crate::game::SUtility;
 
 /* SUBMODULES */
 

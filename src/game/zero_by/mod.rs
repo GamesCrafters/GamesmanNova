@@ -17,6 +17,11 @@ use rusqlite::params_from_iter;
 
 use crate::database::InsertQuery;
 use crate::database::Schema;
+use crate::database::traits::DrawRecord;
+use crate::database::traits::PlayerRecord;
+use crate::database::traits::RemotenessRecord;
+use crate::database::traits::SQLiteWriter;
+use crate::database::traits::SimpleUtilityRecord;
 use crate::frontend::IOMode;
 use crate::game::GameData;
 use crate::game::Player;
@@ -25,12 +30,6 @@ use crate::game::Remoteness;
 use crate::game::SUtility;
 use crate::game::State;
 use crate::game::Variant;
-use crate::game::util::min_ubits;
-use crate::database::traits::DrawRecord;
-use crate::database::traits::PlayerRecord;
-use crate::database::traits::RemotenessRecord;
-use crate::database::traits::SQLiteWriter;
-use crate::database::traits::SimpleUtilityRecord;
 use crate::game::traits::Codec;
 use crate::game::traits::Forward;
 use crate::game::traits::Implicit;
@@ -38,6 +37,7 @@ use crate::game::traits::Information;
 use crate::game::traits::Sequential;
 use crate::game::traits::SimpleUtility;
 use crate::game::traits::Variable;
+use crate::game::util::min_ubits;
 
 /* SUBMODULES */
 

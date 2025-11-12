@@ -108,9 +108,9 @@ mod test {
 
     use anyhow::Result;
 
-    use crate::game::zero_by::STATE_DEFAULT;
     use crate::game::traits::Forward;
     use crate::game::traits::Variable;
+    use crate::game::zero_by::STATE_DEFAULT;
 
     use super::*;
 

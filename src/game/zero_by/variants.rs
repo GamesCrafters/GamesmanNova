@@ -126,8 +126,8 @@ fn parse_player_count(params: &[u64]) -> Result<Player, GameError> {
 #[cfg(test)]
 mod test {
 
-    use crate::game::zero_by::VARIANT_DEFAULT;
     use crate::game::traits::Variable;
+    use crate::game::zero_by::VARIANT_DEFAULT;
 
     use super::*;
 

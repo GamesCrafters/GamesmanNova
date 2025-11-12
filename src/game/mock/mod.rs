@@ -31,6 +31,11 @@ use std::fmt::Display;
 
 use crate::database::InsertQuery;
 use crate::database::Schema;
+use crate::database::traits::DrawRecord;
+use crate::database::traits::IntegerUtilityRecord;
+use crate::database::traits::PlayerRecord;
+use crate::database::traits::RemotenessRecord;
+use crate::database::traits::SQLiteWriter;
 use crate::developer::visualize_graph;
 use crate::frontend::IOMode;
 use crate::game::IUtility;
@@ -38,15 +43,10 @@ use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::Remoteness;
 use crate::game::State;
-use crate::game::util::min_ubits;
-use crate::database::traits::DrawRecord;
-use crate::database::traits::IntegerUtilityRecord;
-use crate::database::traits::PlayerRecord;
-use crate::database::traits::RemotenessRecord;
-use crate::database::traits::SQLiteWriter;
 use crate::game::traits::Implicit;
 use crate::game::traits::IntegerUtility;
 use crate::game::traits::Sequential;
+use crate::game::util::min_ubits;
 
 /* RE-EXPORTS */
 
