@@ -21,23 +21,16 @@ use crate::game::mock::Session;
 
 /* STRUCTURES */
 
+#[derive(Default)]
 pub struct SessionBuilder<'a> {
-    pub source: Option<&'a Node>,
-    pub graph: Option<GraphBuilder<'a, Node>>,
-    pub name: Option<&'static str>,
+    source: Option<&'a Node>,
+    graph: Option<GraphBuilder<'a, Node>>,
+    name: Option<&'static str>,
 }
 
 /* IMPLEMENTATIONS */
 
 impl<'a> SessionBuilder<'a> {
-    pub fn new() -> Self {
-        SessionBuilder {
-            source: None,
-            graph: None,
-            name: None,
-        }
-    }
-
     pub fn name(mut self, name: &'static str) -> Self {
         self.name = Some(name);
         self
@@ -346,7 +339,7 @@ mod tests {
             .edge(&m1, &t1)
             .edge(&m1, &t2);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("bad utility 1")
             .graph(graph1)
             .source(&m1)
@@ -358,7 +351,7 @@ mod tests {
             .edge(&m1, &m2)
             .edge(&m2, &t1);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("bad utility 2")
             .graph(graph2)
             .source(&m1)
@@ -370,7 +363,7 @@ mod tests {
             .edge(&m1, &m3)
             .edge(&m3, &t3);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("bad utility 3")
             .graph(graph3)
             .source(&m1)
@@ -394,7 +387,7 @@ mod tests {
             .edge(&m1, &t2)
             .edge(&m1, &m2);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("bad turn")
             .graph(graph)
             .source(&m1)
@@ -417,7 +410,7 @@ mod tests {
             .edge(&m1, &t1)
             .edge(&m1, &t2);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("bad turn")
             .graph(graph)
             .source(&m1)
@@ -440,7 +433,7 @@ mod tests {
             .edge(&m1, &t1)
             .edge(&m1, &t2);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("bad turn")
             .graph(graph)
             .source(&m1)
@@ -467,7 +460,7 @@ mod tests {
             .edge(&t1, &m2)
             .edge(&m1, &m2);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("edge from terminal node")
             .graph(graph)
             .source(&m1)
@@ -481,14 +474,14 @@ mod tests {
         let m1 = node!(0);
         let t1 = node![0; 1, 2];
 
-        let game1 = SessionBuilder::new()
+        let game1 = SessionBuilder::default()
             .name("no source state 1")
             .build();
 
         assert!(game1.is_err());
 
         let graph2 = GraphBuilder::new().edge(&m1, &t1);
-        let game2 = SessionBuilder::new()
+        let game2 = SessionBuilder::default()
             .name("no source state 2")
             .graph(graph2)
             .build();
@@ -512,7 +505,7 @@ mod tests {
             .edge(&c, &d)
             .edge(&d, &sink);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("no sink")
             .graph(graph)
             .source(&a)
@@ -539,7 +532,7 @@ mod tests {
             .edge(&d, &sink)
             .edge(&b, &trap);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("trap game")
             .graph(graph)
             .source(&a)
@@ -572,7 +565,7 @@ mod tests {
             .edge(&c, &t1)
             .edge(&f, &t2);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("acyclic")
             .graph(graph)
             .source(&a)
@@ -607,7 +600,7 @@ mod tests {
             .edge(&e, &f)
             .edge(&f, &t2);
 
-        let game = SessionBuilder::new()
+        let game = SessionBuilder::default()
             .name("cyclic")
             .graph(graph)
             .source(&a)

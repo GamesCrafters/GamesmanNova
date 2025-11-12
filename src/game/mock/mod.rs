@@ -5,7 +5,6 @@
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
-use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 use bitvec::array::BitArray;
@@ -23,21 +22,19 @@ use petgraph::dot::Config;
 use petgraph::dot::Dot;
 use petgraph::graph::NodeIndex;
 use rusqlite::Statement;
-use rusqlite::Transaction;
 use rusqlite::params_from_iter;
 
 use std::collections::HashMap;
 use std::fmt::Display;
 
-use crate::database::InsertQuery;
 use crate::database::Schema;
 use crate::database::traits::DrawRecord;
 use crate::database::traits::IntegerUtilityRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::RemotenessRecord;
+use crate::database::traits::SQLiteTable;
 use crate::database::traits::SQLiteWriter;
 use crate::developer::visualize_graph;
-use crate::frontend::IOMode;
 use crate::game::IUtility;
 use crate::game::Player;
 use crate::game::PlayerCount;
@@ -54,13 +51,13 @@ pub use builder::SessionBuilder;
 
 /* SUBMODULES */
 
-pub mod builder;
+mod builder;
 
 /* TYPE ALIASES */
 
-pub type RemotenessStorage = B32;
-pub type PlayerStorage = B15;
-pub type DrawStorage = bool;
+type RemotenessStorage = B32;
+type PlayerStorage = B15;
+type DrawStorage = bool;
 
 /* ENUMERATIONS */
 
@@ -74,32 +71,30 @@ pub enum Node {
     Medial(Player),
 }
 
-/* STRUCTURES */
+/* API STRUCTURES */
 
-/// Represents an initialized session of an abstract graph game. This can be
-/// constructed using `SessionBuilder`.
 pub struct Session<'a> {
-    pub inserted: HashMap<*const Node, NodeIndex>,
-    pub players: PlayerCount,
-    pub source: NodeIndex,
-    pub schema: Schema,
-    pub game: Graph<&'a Node, ()>,
-    pub name: &'static str,
+    inserted: HashMap<*const Node, NodeIndex>,
+    players: PlayerCount,
+    source: NodeIndex,
+    schema: Schema,
+    game: Graph<&'a Node, ()>,
+    name: &'static str,
 }
 
-/// Sled database record header
+pub struct Record<const N: PlayerCount> {
+    features: RecordFeatures,
+    utility: [IUtility; N],
+}
+
+/* PRIVATE STRUCTURES */
+
 #[derive(Clone, Copy)]
 #[bitfield]
-pub struct RecordHeader {
-    pub remoteness: RemotenessStorage,
-    pub player: PlayerStorage,
-    pub draw: DrawStorage,
-}
-
-/// Sled database record
-pub struct Record<const N: PlayerCount> {
-    pub header: RecordHeader,
-    pub utility: [IUtility; N],
+struct RecordFeatures {
+    remoteness: RemotenessStorage,
+    player: PlayerStorage,
+    draw: DrawStorage,
 }
 
 /* IMPLEMENTATIONS */
@@ -208,33 +203,18 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
     }
 }
 
-impl<const N: PlayerCount> SQLiteWriter<N> for Session<'_> {
-    type Solution = Record<N>;
-    fn prepare(
-        &mut self,
-        tx: &mut Transaction,
-        mode: IOMode,
-    ) -> Result<InsertQuery> {
-        let drop_sql = self.schema.drop_table_query();
-        let create_sql = self.schema.create_table_query();
-        match mode {
-            IOMode::Constructive | IOMode::Forgetful => (),
-            IOMode::Overwrite => {
-                tx.execute(&drop_sql, [])
-                    .context("Failed to drop existing table")?;
-            },
-        }
-
-        tx.execute(&create_sql, [])
-            .context("Failed to create table")?;
-
-        Ok(self.schema.insert_query())
+impl<const N: PlayerCount> SQLiteTable<N> for Session<'_> {
+    type SolutionRecord = Record<N>;
+    fn schema(&self) -> &Schema {
+        &self.schema
     }
+}
 
+impl<const N: PlayerCount> SQLiteWriter<Record<N>, N> for Session<'_> {
     fn insert(
         &mut self,
         state: &State,
-        solution: &Self::Solution,
+        solution: &Self::SolutionRecord,
         statement: &mut Statement,
     ) -> Result<()> {
         let values = [
@@ -256,14 +236,14 @@ impl<const N: PlayerCount> RemotenessRecord for Record<N> {
             bail!("Remoteness {value} would not fit in Sled DB record.")
         }
 
-        self.header
+        self.features
             .set_remoteness(value as u32);
 
         Ok(self)
     }
 
     fn remoteness(&self) -> Remoteness {
-        self.header.remoteness() as u64
+        self.features.remoteness() as u64
     }
 }
 
@@ -284,25 +264,25 @@ impl<const N: PlayerCount> PlayerRecord for Record<N> {
             bail!("Remoteness {value} would not fit in Sled DB record.")
         }
 
-        self.header
+        self.features
             .set_player(value as u16);
 
         Ok(self)
     }
 
     fn player(&self) -> Player {
-        self.header.player() as usize
+        self.features.player() as usize
     }
 }
 
 impl<const N: PlayerCount> DrawRecord for Record<N> {
     fn set_draw(&mut self, value: bool) -> Result<&mut Self> {
-        self.header.set_draw(value);
+        self.features.set_draw(value);
         Ok(self)
     }
 
     fn draw(&self) -> bool {
-        self.header.draw()
+        self.features.draw()
     }
 }
 
@@ -376,7 +356,7 @@ mod tests {
             .edge(&s4, &t1)
             .edge(&s5, &t2);
 
-        let g = SessionBuilder::new()
+        let g = SessionBuilder::default()
             .name("sample1")
             .graph(graph)
             .source(&s1)
@@ -425,7 +405,7 @@ mod tests {
             .edge(&s2, &t1)
             .edge(&s3, &t2);
 
-        let g = SessionBuilder::new()
+        let g = SessionBuilder::default()
             .name("sample2")
             .graph(graph)
             .source(&s1)
@@ -457,7 +437,7 @@ mod tests {
             .edge(&s2, &t1)
             .edge(&s3, &t2);
 
-        let g = SessionBuilder::new()
+        let g = SessionBuilder::default()
             .name("sample3")
             .graph(graph)
             .source(&s1)
@@ -498,7 +478,7 @@ mod tests {
             .edge(&s1, &s2)
             .edge(&s2, &t1);
 
-        let g = SessionBuilder::new()
+        let g = SessionBuilder::default()
             .name("interesting name")
             .graph(graph)
             .source(&s1)
@@ -519,7 +499,7 @@ mod tests {
             .edge(&s1, &s2)
             .edge(&s2, &t1);
 
-        let g = SessionBuilder::new()
+        let g = SessionBuilder::default()
             .name("7 player game")
             .graph(graph)
             .source(&s1)

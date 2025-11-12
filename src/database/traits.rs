@@ -4,11 +4,8 @@
 
 use anyhow::Result;
 use rusqlite::Statement;
-use rusqlite::Transaction;
 
-use crate::database::InsertQuery;
-use crate::database::SelectQuery;
-use crate::frontend::IOMode;
+use crate::database::Schema;
 use crate::game::DEFAULT_STATE_BYTES;
 use crate::game::IUtility;
 use crate::game::Player;
@@ -19,41 +16,38 @@ use crate::game::State;
 
 /* SQLITE INTERFACES */
 
+pub trait SQLiteTable<const N: PlayerCount> {
+    type SolutionRecord;
+    fn schema(&self) -> &Schema;
+}
+
 pub trait SQLiteWriter<
+    SolutionRecord,
     const N: PlayerCount,
     const B: usize = DEFAULT_STATE_BYTES,
->
+> where
+    Self: SQLiteTable<N, SolutionRecord = SolutionRecord>,
 {
-    type Solution;
-
-    fn prepare(
-        &mut self,
-        tx: &mut Transaction,
-        mode: IOMode,
-    ) -> Result<InsertQuery>;
-
     fn insert(
         &mut self,
         state: &State<B>,
-        solution: &Self::Solution,
+        solution: &SolutionRecord,
         statement: &mut Statement,
     ) -> Result<()>;
 }
 
 pub trait SQLiteReader<
+    SolutionRecord,
     const N: PlayerCount,
     const B: usize = DEFAULT_STATE_BYTES,
->
+> where
+    Self: SQLiteTable<N>,
 {
-    type Solution;
-
-    fn prepare(&mut self, tx: &mut Transaction) -> Result<SelectQuery>;
-
-    fn insert(
+    fn select(
         &mut self,
         state: &State<B>,
         statement: &mut Statement,
-    ) -> Result<Self::Solution>;
+    ) -> Result<SolutionRecord>;
 }
 
 /* SLED INTERFACES */
