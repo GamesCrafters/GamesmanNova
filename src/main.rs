@@ -1,4 +1,4 @@
-#![warn(missing_docs, deprecated)]
+#![warn(deprecated)]
 //! # Nova
 //!
 //! TODO
@@ -9,31 +9,22 @@ use clap::Parser;
 
 use std::process;
 
-use crate::core::frontend::cli;
-use crate::core::game::GameModule;
-use crate::core::game::zero_by;
-use crate::traits::game::Forward;
-use crate::traits::game::Information;
+use crate::frontend::cli;
+use crate::game::GameModule;
+use crate::game::traits::Forward;
+use crate::game::traits::Information;
+use crate::game::zero_by;
 
 /* MODULES */
 
-mod core {
-    #[cfg(test)]
-    pub mod developer;
-    pub mod scheduler;
-    pub mod frontend;
-    pub mod database;
-    pub mod error;
-    pub mod game;
-}
-
-mod traits {
-    pub mod scheduler;
-    pub mod database;
-    pub mod game;
-}
-
-mod macros;
+#[cfg(test)]
+pub mod developer;
+pub mod scheduler;
+pub mod frontend;
+pub mod database;
+pub mod macros;
+pub mod error;
+pub mod game;
 
 /* PROGRAM ENTRY */
 
