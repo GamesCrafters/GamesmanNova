@@ -31,8 +31,8 @@ use crate::scheduler::util::format_cycle_path;
 
 pub use logger::compose::ComposedLogger;
 pub use logger::count::CountLogger;
+pub use logger::dashboard::DashboardLogger;
 pub use logger::history::HistoryLogger;
-pub use logger::tui::TuiLogger;
 
 pub use policy::critical::CriticalPathPolicy;
 pub use policy::critical::RetryPolicy;
@@ -47,10 +47,10 @@ pub use runner::thread::ThreadPoolRunner;
 mod util;
 mod traits;
 mod logger {
+    pub mod dashboard;
     pub mod history;
     pub mod compose;
     pub mod count;
-    pub mod tui;
 }
 
 mod policy {

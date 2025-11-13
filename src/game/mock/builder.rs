@@ -335,7 +335,7 @@ mod tests {
         let t2 = node![2; 3, 2, 1];
         let t3 = Node::Terminal(1, vec![]);
 
-        let graph1 = GraphBuilder::new()
+        let graph1 = GraphBuilder::default()
             .edge(&m1, &t1)
             .edge(&m1, &t2);
 
@@ -347,7 +347,7 @@ mod tests {
 
         assert!(game.is_err());
 
-        let graph2 = GraphBuilder::new()
+        let graph2 = GraphBuilder::default()
             .edge(&m1, &m2)
             .edge(&m2, &t1);
 
@@ -359,7 +359,7 @@ mod tests {
 
         assert!(game.is_err());
 
-        let graph3 = GraphBuilder::new()
+        let graph3 = GraphBuilder::default()
             .edge(&m1, &m3)
             .edge(&m3, &t3);
 
@@ -382,7 +382,7 @@ mod tests {
         let t1 = node![0; 1, -2];
         let t2 = node![1; -1, 2];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&m1, &t1)
             .edge(&m1, &t2)
             .edge(&m1, &m2);
@@ -405,7 +405,7 @@ mod tests {
         let t1 = node![0; 1, -2];
         let t2 = node![2; -1, 2];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&m1, &m2)
             .edge(&m1, &t1)
             .edge(&m1, &t2);
@@ -428,7 +428,7 @@ mod tests {
         let t1 = node![0; 1, -2];
         let t2 = node![1; -1];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&m1, &m2)
             .edge(&m1, &t1)
             .edge(&m1, &t2);
@@ -450,7 +450,7 @@ mod tests {
 
         let t1 = node![2; 1, 2, 3, 4];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&t1, &m1)
             .edge(&m1, &m2)
             .edge(&t1, &m2)
@@ -480,7 +480,7 @@ mod tests {
 
         assert!(game1.is_err());
 
-        let graph2 = GraphBuilder::new().edge(&m1, &t1);
+        let graph2 = GraphBuilder::default().edge(&m1, &t1);
         let game2 = SessionBuilder::default()
             .name("no source state 2")
             .graph(graph2)
@@ -500,7 +500,7 @@ mod tests {
 
         let sink = node![1; 1, 2, 3];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&a, &b)
             .edge(&c, &d)
             .edge(&d, &sink);
@@ -525,7 +525,7 @@ mod tests {
         let trap = node!(0);
         let sink = node![0; 1, 2, 3];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&a, &b)
             .edge(&b, &c)
             .edge(&c, &d)
@@ -554,7 +554,7 @@ mod tests {
         let t1 = node![1; 1, 2];
         let t2 = node![0; 2, 1];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&a, &b)
             .edge(&b, &c)
             .edge(&a, &c)
@@ -589,7 +589,7 @@ mod tests {
         let t1 = node![2; 1, 2, -1, 4];
         let t2 = node![3; 2, 1, 9, -6];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&a, &b)
             .edge(&b, &c)
             .edge(&c, &a)

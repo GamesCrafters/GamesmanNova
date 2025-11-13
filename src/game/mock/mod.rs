@@ -32,7 +32,7 @@ use crate::database::traits::DrawRecord;
 use crate::database::traits::IntegerUtilityRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::RemotenessRecord;
-use crate::database::traits::SQLiteTable;
+use crate::database::traits::SQLiteManager;
 use crate::database::traits::SQLiteWriter;
 use crate::developer::visualize_graph;
 use crate::game::IUtility;
@@ -160,6 +160,12 @@ impl<'a> Session<'a> {
 
 /* IMPL TRAIT FOR TYPE */
 
+impl Default for Node {
+    fn default() -> Self {
+        Self::Medial(0usize)
+    }
+}
+
 impl Implicit for Session<'_> {
     fn adjacent(&self, state: &State) -> Vec<State> {
         self.adjacent(state, Direction::Outgoing)
@@ -203,7 +209,7 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
     }
 }
 
-impl<const N: PlayerCount> SQLiteTable<N> for Session<'_> {
+impl<const N: PlayerCount> SQLiteManager<N> for Session<'_> {
     type SolutionRecord = Record<N>;
     fn schema(&self) -> &Schema {
         &self.schema
@@ -219,8 +225,8 @@ impl<const N: PlayerCount> SQLiteWriter<Record<N>, N> for Session<'_> {
     ) -> Result<()> {
         let values = [
             i64::from_be_bytes(*state),
-            solution.remoteness() as i64,
-            solution.player() as i64,
+            solution.get_remoteness() as i64,
+            solution.get_player() as i64,
         ]
         .into_iter()
         .chain(solution.utility);
@@ -242,7 +248,7 @@ impl<const N: PlayerCount> RemotenessRecord for Record<N> {
         Ok(self)
     }
 
-    fn remoteness(&self) -> Remoteness {
+    fn get_remoteness(&self) -> Remoteness {
         self.features.remoteness() as u64
     }
 }
@@ -253,7 +259,7 @@ impl<const N: PlayerCount> IntegerUtilityRecord<N> for Record<N> {
         Ok(self)
     }
 
-    fn utility(&self) -> [IUtility; N] {
+    fn get_utility(&self) -> [IUtility; N] {
         self.utility
     }
 }
@@ -270,7 +276,7 @@ impl<const N: PlayerCount> PlayerRecord for Record<N> {
         Ok(self)
     }
 
-    fn player(&self) -> Player {
+    fn get_player(&self) -> Player {
         self.features.player() as usize
     }
 }
@@ -281,7 +287,7 @@ impl<const N: PlayerCount> DrawRecord for Record<N> {
         Ok(self)
     }
 
-    fn draw(&self) -> bool {
+    fn get_draw(&self) -> bool {
         self.features.draw()
     }
 }
@@ -329,11 +335,13 @@ impl Display for Session<'_> {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
+    use anyhow::Result;
+
     use crate::developer::GraphBuilder;
     use crate::game::mock::SessionBuilder;
     use crate::node;
-    use anyhow::Result;
+
+    use super::*;
 
     const MODULE_NAME: &str = "mock-game-tests";
 
@@ -348,7 +356,7 @@ mod tests {
         let t1 = node![0; 1, 2, 3];
         let t2 = node![1; 3, 2, 1];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&s1, &s2)
             .edge(&s2, &s3)
             .edge(&s3, &s4)
@@ -399,7 +407,7 @@ mod tests {
         let t1 = node![2; 1, 2, 3];
         let t2 = node![1; 3, 2, 1];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&s1, &s2)
             .edge(&s2, &s3)
             .edge(&s2, &t1)
@@ -431,7 +439,7 @@ mod tests {
         let t1 = node![1; 1, 2, 3];
         let t2 = node![2; 3, 2, 1];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&s1, &s2)
             .edge(&s1, &s3)
             .edge(&s2, &t1)
@@ -474,7 +482,7 @@ mod tests {
         let s2 = node!(1);
         let t1 = node![1; -1, 2];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&s1, &s2)
             .edge(&s2, &t1);
 
@@ -495,7 +503,7 @@ mod tests {
         let s2 = node!(5);
         let t1 = node![4; 1, -2, 3, -4, 5, -6, 7];
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&s1, &s2)
             .edge(&s2, &t1);
 

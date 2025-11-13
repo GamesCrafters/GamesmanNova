@@ -54,6 +54,7 @@ pub enum TestSetting {
 /// In Nova, many objects (namely game states and scheduler tasks) are organized
 /// as graphs. For testing purposes, it is useful to have an abstraction to make
 /// graph structures out of these objects for testing in an ergonomic fashion.
+#[derive(Default)]
 pub struct GraphBuilder<'a, T> {
     pub inserted: HashMap<*const T, NodeIndex>,
     pub graph: Graph<&'a T, ()>,
@@ -62,13 +63,6 @@ pub struct GraphBuilder<'a, T> {
 /* IMPLEMENTATIONS */
 
 impl<'a, T> GraphBuilder<'a, T> {
-    pub fn new() -> Self {
-        Self {
-            inserted: HashMap::new(),
-            graph: Graph::new(),
-        }
-    }
-
     pub fn edge(mut self, from: &'a T, to: &'a T) -> Self {
         let i = *self
             .inserted

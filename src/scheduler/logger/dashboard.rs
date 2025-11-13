@@ -152,7 +152,7 @@ struct BarSegments {
 /// TUI logger that displays beautiful real-time scheduler state.
 #[derive(Builder)]
 #[builder(pattern = "owned", setter(into))]
-pub struct TuiLogger {
+pub struct DashboardLogger {
     config: TuiLoggerConfig,
 
     #[builder(default)]
@@ -162,7 +162,7 @@ pub struct TuiLogger {
 
 /* IMPLEMENTATIONS */
 
-impl Logger for TuiLogger {
+impl Logger for DashboardLogger {
     fn observe(
         &mut self,
         snapshot: &SchedulerSnapshot,
@@ -187,7 +187,7 @@ impl Logger for TuiLogger {
     }
 }
 
-impl Drop for TuiLogger {
+impl Drop for DashboardLogger {
     fn drop(&mut self) {
         if let Some(state) = &mut self.state {
             let _ = Self::restore_terminal(&mut state.terminal);
@@ -195,7 +195,7 @@ impl Drop for TuiLogger {
     }
 }
 
-impl TuiLogger {
+impl DashboardLogger {
     /// Initialize the terminal for TUI mode.
     fn init_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
         enable_raw_mode()?;
@@ -462,7 +462,7 @@ fn collect_tasks<'a>(
     filters: &[TaskFilter],
 ) -> Vec<(TaskID, &'a TaskContextSnapshot)> {
     let matches = |(_, ctx): &(&TaskID, &TaskContextSnapshot)| {
-        TuiLogger::matches_filter(&ctx.state, filters)
+        DashboardLogger::matches_filter(&ctx.state, filters)
     };
 
     snapshot
@@ -657,15 +657,15 @@ fn task_header(
     ctx: &TaskContextSnapshot,
     spinner: usize,
 ) -> Line<'_> {
-    let (mut icon, color) = TuiLogger::task_icon(&ctx.state);
+    let (mut icon, color) = DashboardLogger::task_icon(&ctx.state);
     if matches!(
         ctx.state,
         TaskState::Running | TaskState::Preempting
     ) {
-        icon = TuiLogger::spinner_char(spinner);
+        icon = DashboardLogger::spinner_char(spinner);
     }
 
-    let (badge, badge_color) = TuiLogger::task_badge(&ctx.state);
+    let (badge, badge_color) = DashboardLogger::task_badge(&ctx.state);
     Line::from(vec![
         Span::raw(" "),
         Span::styled(icon, Style::default().fg(color)),

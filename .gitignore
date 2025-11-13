@@ -29,3 +29,6 @@ flamegraph.svg
 # Environment setup
 /env.sh
 
+# AI
+/.claude
+

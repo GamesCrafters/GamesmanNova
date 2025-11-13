@@ -669,7 +669,7 @@ mod tests {
             .about("simple task")
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let mock_task = TaskBuilder::new()
             .name("test-execute-poll")
             .graph(graph)
@@ -737,9 +737,9 @@ mod tests {
             .about("task3")
             .build()?;
 
-        let graph1 = GraphBuilder::new();
-        let graph2 = GraphBuilder::new();
-        let graph3 = GraphBuilder::new();
+        let graph1 = GraphBuilder::default();
+        let graph2 = GraphBuilder::default();
+        let graph3 = GraphBuilder::default();
 
         let mock1 = TaskBuilder::new()
             .name("test-task1")
@@ -852,21 +852,21 @@ mod tests {
             .about("quick")
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let mock1 = TaskBuilder::new()
             .name("long1")
             .graph(graph)
             .source(&config1)
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let mock2 = TaskBuilder::new()
             .name("long2")
             .graph(graph)
             .source(&config2)
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let mock3 = TaskBuilder::new()
             .name("quick")
             .graph(graph)
@@ -907,7 +907,7 @@ mod tests {
             .about("long-task")
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let mock_task = TaskBuilder::new()
             .name("long-task")
             .graph(graph)
@@ -953,7 +953,7 @@ mod tests {
             .about("test-task")
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let mock_task = TaskBuilder::new()
             .name("test")
             .graph(graph)
@@ -971,7 +971,7 @@ mod tests {
             .about("task2")
             .build()?;
 
-        let graph2 = GraphBuilder::new();
+        let graph2 = GraphBuilder::default();
         let mock2 = TaskBuilder::new()
             .name("test2")
             .graph(graph2)
@@ -1039,7 +1039,7 @@ mod tests {
             .size(Some(12))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&root, &branch1)
             .edge(&branch1, &child1)
             .edge(&root, &branch2)
@@ -1195,7 +1195,7 @@ mod tests {
             .size(Some(5))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&root, &fast_path)
             .edge(&root, &slow_path)
             .edge(&root, &critical_path)

@@ -279,8 +279,8 @@ where
         self.set_utility(sutility)
     }
 
-    fn utility(&self) -> [IUtility; N] {
-        let sutility = self.utility();
+    fn get_utility(&self) -> [IUtility; N] {
+        let sutility = self.get_utility();
         let mut iutility = [0; N];
         iutility
             .iter_mut()
@@ -297,14 +297,14 @@ where
     R: PlayerRecord,
 {
     fn set_utility(&mut self, value: [SUtility; 2]) -> Result<&mut Self> {
-        let turn = self.player();
+        let turn = self.get_player();
         self.set_utility(value[turn])
     }
 
-    fn utility(&self) -> [SUtility; 2] {
+    fn get_utility(&self) -> [SUtility; 2] {
         let mut sutility = [SUtility::Tie; 2];
-        let utility = self.utility();
-        let turn = self.player();
+        let utility = self.get_utility();
+        let turn = self.get_player();
         let them = (turn + 1) % 2;
         sutility[them] = !utility;
         sutility[turn] = utility;
@@ -320,8 +320,8 @@ where
         self.set_utility(value[0])
     }
 
-    fn utility(&self) -> [SUtility; 1] {
-        [self.utility()]
+    fn get_utility(&self) -> [SUtility; 1] {
+        [self.get_utility()]
     }
 }
 

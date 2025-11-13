@@ -353,7 +353,7 @@ mod tests {
             .size(Some(5))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&root, &a)
             .edge(&root, &b)
             .edge(&root, &c)
@@ -421,7 +421,7 @@ mod tests {
             .size(Some(10))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&root, &a)
             .edge(&a, &b);
 
@@ -496,7 +496,7 @@ mod tests {
             .size(Some(5))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&root, &left)
             .edge(&root, &right)
             .edge(&left, &bottom)

@@ -18,9 +18,10 @@ use crate::database::Schema;
 use crate::database::traits::DrawRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::RemotenessRecord;
-use crate::database::traits::SQLiteTable;
+use crate::database::traits::SQLiteManager;
 use crate::database::traits::SQLiteWriter;
 use crate::database::traits::SimpleUtilityRecord;
+use crate::game::Component;
 use crate::game::GameData;
 use crate::game::Player;
 use crate::game::PlayerCount;
@@ -32,6 +33,7 @@ use crate::game::traits::Codec;
 use crate::game::traits::Forward;
 use crate::game::traits::Implicit;
 use crate::game::traits::Information;
+use crate::game::traits::Partition;
 use crate::game::traits::Sequential;
 use crate::game::traits::SimpleUtility;
 use crate::game::traits::Variable;
@@ -171,6 +173,7 @@ impl Implicit for Session {
                 self.encode_state((turn + 1) % self.players, elements - choice)
             })
             .collect::<Vec<State>>();
+
         next.sort();
         next.dedup();
         next
@@ -203,6 +206,12 @@ impl Forward for Session {
     }
 }
 
+impl Partition for Session {
+    fn component(&self, _state: &State) -> Component {
+        0
+    }
+}
+
 impl<const N: PlayerCount> Sequential<N> for Session {
     fn turn(&self, state: &State) -> Player {
         let (turn, _) = self.decode_state(*state);
@@ -219,7 +228,7 @@ impl<const N: PlayerCount> SimpleUtility<N> for Session {
     }
 }
 
-impl<const N: PlayerCount> SQLiteTable<N> for Session {
+impl<const N: PlayerCount> SQLiteManager<N> for Session {
     type SolutionRecord = Record<N>;
     fn schema(&self) -> &Schema {
         &self.schema
@@ -235,8 +244,8 @@ impl<const N: PlayerCount> SQLiteWriter<Record<N>, N> for Session {
     ) -> Result<()> {
         let values = [
             i64::from_be_bytes(*state),
-            solution.remoteness() as i64,
-            solution.player() as i64,
+            solution.get_remoteness() as i64,
+            solution.get_player() as i64,
         ]
         .into_iter()
         .chain(
@@ -264,7 +273,7 @@ impl<const N: usize> RemotenessRecord for Record<N> {
         Ok(self)
     }
 
-    fn remoteness(&self) -> Remoteness {
+    fn get_remoteness(&self) -> Remoteness {
         self.features.remoteness() as u64
     }
 }
@@ -275,7 +284,7 @@ impl<const N: usize> SimpleUtilityRecord<N> for Record<N> {
         Ok(self)
     }
 
-    fn utility(&self) -> [SUtility; N] {
+    fn get_utility(&self) -> [SUtility; N] {
         self.utility
     }
 }
@@ -291,7 +300,7 @@ impl<const N: usize> PlayerRecord for Record<N> {
         Ok(self)
     }
 
-    fn player(&self) -> Player {
+    fn get_player(&self) -> Player {
         self.features.player() as usize
     }
 }
@@ -301,7 +310,7 @@ impl<const N: usize> DrawRecord for Record<N> {
         Ok(self)
     }
 
-    fn draw(&self) -> bool {
+    fn get_draw(&self) -> bool {
         false
     }
 }

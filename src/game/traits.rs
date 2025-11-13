@@ -292,7 +292,12 @@ pub trait Sequential<const N: PlayerCount, const B: usize = DEFAULT_STATE_BYTES>
 }
 
 pub trait Partition<const B: usize = DEFAULT_STATE_BYTES> {
-    /// TODO
+    /// Returns the ID of the component that contains `state`.
+    ///
+    /// # Warning
+    ///
+    /// The component graph (with an edge component(a) -> component(b) for each
+    /// pair (a, b) where b is in Sequential::transition(a)) should be acyclic.
     fn component(&self, state: &State<B>) -> Component;
 }
 

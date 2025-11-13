@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn reject_missing_source() -> Result<()> {
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let result = TaskBuilder::new()
             .name("missing-source")
             .graph(graph)
@@ -168,7 +168,7 @@ mod tests {
             .outcome(TaskOutcome::Success(0))
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let result = TaskBuilder::new()
             .source(&config)
             .graph(graph)
@@ -215,7 +215,7 @@ mod tests {
             .outcome(TaskOutcome::Success(2))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&parent, &child1)
             .edge(&parent, &child2);
 

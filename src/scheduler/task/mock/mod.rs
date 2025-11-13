@@ -239,6 +239,19 @@ impl Task {
     }
 }
 
+impl Default for TaskConfig {
+    fn default() -> Self {
+        Self {
+            outcome: TaskOutcome::Success(0u64),
+            retriable: false,
+            release: 10,
+            about: String::new(),
+            ticks: 100,
+            size: None,
+        }
+    }
+}
+
 impl Executable for Task {
     fn tick(&mut self, deps: TaskOutcomes) -> Option<YieldUpdate> {
         let children = self.children();
@@ -461,7 +474,7 @@ mod tests {
             .about("root task")
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let task = TaskBuilder::new()
             .name("single")
             .graph(graph)
@@ -495,7 +508,7 @@ mod tests {
             .outcome(TaskOutcome::Success(2))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&t1, &t2)
             .edge(&t2, &t3);
 
@@ -543,7 +556,7 @@ mod tests {
             .outcome(TaskOutcome::Success(4))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&root, &left)
             .edge(&root, &right)
             .edge(&left, &leaf1)
@@ -587,7 +600,7 @@ mod tests {
             .outcome(TaskOutcome::Success(3))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&start, &left)
             .edge(&start, &right)
             .edge(&left, &end)
@@ -626,7 +639,7 @@ mod tests {
             .outcome(TaskOutcome::Success(2))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&t1, &shared)
             .edge(&t2, &shared);
 
@@ -662,7 +675,7 @@ mod tests {
             .outcome(TaskOutcome::Success(2))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&t1, &t2)
             .edge(&t2, &t3)
             .edge(&t3, &t1);
@@ -685,7 +698,7 @@ mod tests {
             .outcome(TaskOutcome::Success(0))
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let result = TaskBuilder::new()
             .name("zero-ticks")
             .graph(graph)
@@ -710,7 +723,7 @@ mod tests {
             .outcome(TaskOutcome::Success(1))
             .build()?;
 
-        let graph = GraphBuilder::new().edge(&t1, &t2);
+        let graph = GraphBuilder::default().edge(&t1, &t2);
         let isolated = TaskConfigBuilder::default()
             .ticks(5)
             .release(5)
@@ -739,7 +752,7 @@ mod tests {
             .retriable(true)
             .build()?;
 
-        let graph = GraphBuilder::new();
+        let graph = GraphBuilder::default();
         let task = TaskBuilder::new()
             .name("root-test")
             .graph(graph)
@@ -778,7 +791,7 @@ mod tests {
             .about("consumer")
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&consumer, &dep1)
             .edge(&consumer, &dep2);
 
@@ -897,7 +910,7 @@ mod tests {
             .outcome(TaskOutcome::Success(0))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&parent, &child1)
             .edge(&parent, &child2)
             .edge(&parent, &child3);
@@ -975,7 +988,7 @@ mod tests {
             .outcome(TaskOutcome::Success(0))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&parent, &child1)
             .edge(&parent, &child2)
             .edge(&parent, &child3);
@@ -1035,7 +1048,7 @@ mod tests {
             .outcome(TaskOutcome::Success(0))
             .build()?;
 
-        let graph = GraphBuilder::new()
+        let graph = GraphBuilder::default()
             .edge(&parent, &child1)
             .edge(&parent, &child2);
 
