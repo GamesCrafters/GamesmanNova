@@ -14,7 +14,6 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use anyhow::bail;
 use crossbeam_channel::Receiver;
 use crossbeam_channel::Sender;
@@ -47,19 +46,17 @@ enum RunningTaskState {
 
 /* API STRUCTURES */
 
-/// Thread pool runner configuration.
-#[derive(Clone, DeriveBuilder)]
+/// Concurrent runner that executes tasks across a pool of worker threads.
+#[derive(DeriveBuilder)]
 #[builder(pattern = "owned", setter(into))]
-pub struct ThreadPoolConfig {
-    #[builder(default = "num_cpus::get()")]
+#[builder(build_fn(skip))]
+pub struct ThreadPoolRunner {
+    /// Number of worker threads
     threads: usize,
 
-    #[builder(default = "Duration::from_millis(100)")]
+    /// Timeout for polling operations
     timeout: Duration,
-}
 
-/// Concurrent runner that executes tasks across a pool of worker threads.
-pub struct ThreadPoolRunner {
     /// Worker thread handles
     workers: Vec<JoinHandle<()>>,
 
@@ -83,9 +80,6 @@ pub struct ThreadPoolRunner {
 
     /// Progress samples from running tasks
     progress: Arc<RwLock<HashMap<TaskID, u64>>>,
-
-    /// Configuration
-    config: ThreadPoolConfig,
 
     /// Shutdown signal for all workers
     shutdown: Arc<AtomicBool>,
@@ -112,8 +106,16 @@ struct CompletionPacket {
 
 /* IMPLEMENTATIONS */
 
-impl ThreadPoolRunner {
-    pub fn new(config: ThreadPoolConfig) -> Result<Self> {
+impl ThreadPoolRunnerBuilder {
+    pub fn build(self) -> Result<ThreadPoolRunner> {
+        let threads = self
+            .threads
+            .unwrap_or_else(num_cpus::get);
+
+        let timeout = self
+            .timeout
+            .unwrap_or_else(|| Duration::from_millis(100));
+
         let (work_tx, work_rx) = unbounded();
         let (result_tx, result_rx) = unbounded();
         let shutdown = Arc::new(AtomicBool::new(false));
@@ -127,11 +129,12 @@ impl ThreadPoolRunner {
                 .context(format!("Failed to spawn worker thread {}", i))
         };
 
-        let workers = (0..config.threads)
+        let workers = (0..threads)
             .map(spawn)
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>>>()
+            .context("Failed to spawn worker threads for ThreadPoolRunner")?;
 
-        Ok(Self {
+        Ok(ThreadPoolRunner {
             progress: Arc::new(RwLock::new(HashMap::new())),
             completed: HashMap::new(),
             running: HashMap::new(),
@@ -141,10 +144,13 @@ impl ThreadPoolRunner {
             shutdown,
             work_tx,
             workers,
-            config,
+            timeout,
+            threads,
         })
     }
+}
 
+impl ThreadPoolRunner {
     /// Receive completed task results and drain their metadata.
     fn process_completed(&mut self) {
         while let Ok(completion) = self.result_rx.try_recv() {
@@ -163,7 +169,7 @@ impl ThreadPoolRunner {
 
     /// Check if runner has capacity for new tasks.
     fn available(&self) -> bool {
-        self.running.len() < self.config.threads
+        self.running.len() < self.threads
     }
 
     /// Set preemption signal for a task.
@@ -294,11 +300,11 @@ impl RunningTaskState {
     }
 }
 
-/* IMPL TRAIT FOR TYPE */
+/* TRAIT IMPLEMENTATIONS */
 
 impl Runner for ThreadPoolRunner {
     fn capacity(&self) -> Option<usize> {
-        Some(self.config.threads)
+        Some(self.threads)
     }
 
     fn execute(
@@ -314,7 +320,7 @@ impl Runner for ThreadPoolRunner {
         if !self.available() {
             bail!(
                 "All {} workers are busy (task {} cannot be dispatched)",
-                self.config.threads,
+                self.threads,
                 tid
             );
         }
@@ -339,7 +345,9 @@ impl Runner for ThreadPoolRunner {
 
         self.work_tx
             .send(packet)
-            .map_err(|_| anyhow!("Failed to dispatch task to worker"))?;
+            .map_err(|_| {
+                anyhow::anyhow!("Failed to dispatch task to worker thread pool")
+            })?;
 
         Ok(())
     }
@@ -422,8 +430,6 @@ impl Runner for ThreadPoolRunner {
     }
 }
 
-/* IMPL EXTERNAL TRAIT */
-
 impl Drop for ThreadPoolRunner {
     fn drop(&mut self) {
         self.shutdown
@@ -436,15 +442,6 @@ impl Drop for ThreadPoolRunner {
 
         while let Some(handle) = self.workers.pop() {
             let _ = handle.join();
-        }
-    }
-}
-
-impl Default for ThreadPoolConfig {
-    fn default() -> Self {
-        Self {
-            timeout: Duration::from_millis(100),
-            threads: num_cpus::get(),
         }
     }
 }
@@ -526,11 +523,14 @@ mod tests {
     use std::rc::Rc;
 
     use crate::developer::GraphBuilder;
+    use crate::game::Component;
     use crate::scheduler::Scheduler;
     use crate::scheduler::SchedulerBuilder;
     use crate::scheduler::SchedulerContextBuilder;
     use crate::scheduler::SchedulerSnapshot;
     use crate::scheduler::SchedulerState;
+    use crate::scheduler::TaskCategory;
+    use crate::scheduler::TaskIDBuilder;
     use crate::scheduler::TaskOutcome;
     use crate::scheduler::logger::history::HistoryLogger;
     use crate::scheduler::logger::history::HistoryLoggerBuilder;
@@ -545,6 +545,15 @@ mod tests {
     /* HELPER FUNCTIONS */
 
     const MODULE: &str = "threadpool-runner";
+
+    /// Helper to create TaskID from component for tests (always uses Mock category)
+    fn tid(component: u64) -> TaskID {
+        TaskIDBuilder::default()
+            .category(TaskCategory::Mock)
+            .component(component as Component)
+            .build()
+            .expect("TaskID builder should not fail")
+    }
 
     /// Helper: Poll until task is no longer Pending, or timeout.
     fn poll_until_ready(
@@ -592,14 +601,14 @@ mod tests {
     }
 
     impl Logger for SharedLogger {
-        fn observe(
+        fn report(
             &mut self,
             snapshot: &SchedulerSnapshot,
             changed: bool,
         ) -> Result<()> {
             self.inner
                 .borrow_mut()
-                .observe(snapshot, changed)
+                .report(snapshot, changed)
         }
     }
 
@@ -614,11 +623,9 @@ mod tests {
 
         let (logger, logger_ref) = SharedLogger::new(history);
 
-        let config = ThreadPoolConfigBuilder::default()
+        let runner = ThreadPoolRunnerBuilder::default()
             .threads(num_threads)
             .build()?;
-
-        let runner = ThreadPoolRunner::new(config)?;
 
         let policy = CriticalPathPolicyBuilder::default()
             .sigma(sigma)
@@ -657,11 +664,10 @@ mod tests {
 
     #[test]
     fn test_execute_and_poll_simple_task() -> Result<()> {
-        let config = ThreadPoolConfigBuilder::default()
+        let mut runner = ThreadPoolRunnerBuilder::default()
             .threads(2usize)
             .build()?;
 
-        let mut runner = ThreadPoolRunner::new(config)?;
         let task_config = TaskNodeBuilder::default()
             .ticks(1)
             .release(1)
@@ -676,7 +682,7 @@ mod tests {
             .source(&task_config)
             .build()?;
 
-        let tid = TaskID::from(0u64);
+        let tid = tid(0);
         let executable = mock_task.root_task()?.executable;
         let awaited = TaskOutcomes::new();
 
@@ -712,10 +718,10 @@ mod tests {
 
     #[test]
     fn test_concurrent_execution_multiple_tasks() -> Result<()> {
-        let config = ThreadPoolConfigBuilder::default()
+        let mut runner = ThreadPoolRunnerBuilder::default()
             .threads(3usize)
             .build()?;
-        let mut runner = ThreadPoolRunner::new(config)?;
+
         let config1 = TaskNodeBuilder::default()
             .ticks(1)
             .release(1)
@@ -763,9 +769,9 @@ mod tests {
         let task2 = mock2.root_task()?.executable;
         let task3 = mock3.root_task()?.executable;
 
-        let tid1 = TaskID::from(1u64);
-        let tid2 = TaskID::from(2u64);
-        let tid3 = TaskID::from(3u64);
+        let tid1 = tid(1);
+        let tid2 = tid(2);
+        let tid3 = tid(3);
 
         runner.execute(tid1, TaskOutcomes::new(), task1)?;
         runner.execute(tid2, TaskOutcomes::new(), task2)?;
@@ -827,10 +833,10 @@ mod tests {
 
     #[test]
     fn test_capacity_enforcement_when_saturated() -> Result<()> {
-        let config = ThreadPoolConfigBuilder::default()
+        let mut runner = ThreadPoolRunnerBuilder::default()
             .threads(2usize)
             .build()?;
-        let mut runner = ThreadPoolRunner::new(config)?;
+
         let config1 = TaskNodeBuilder::default()
             .ticks(5)
             .release(5)
@@ -877,9 +883,9 @@ mod tests {
         let task2 = mock2.root_task()?.executable;
         let task3 = mock3.root_task()?.executable;
 
-        let tid1 = TaskID::from(1u64);
-        let tid2 = TaskID::from(2u64);
-        let tid3 = TaskID::from(3u64);
+        let tid1 = tid(1);
+        let tid2 = tid(2);
+        let tid3 = tid(3);
 
         runner.execute(tid1, TaskOutcomes::new(), task1)?;
         runner.execute(tid2, TaskOutcomes::new(), task2)?;
@@ -895,10 +901,9 @@ mod tests {
 
     #[test]
     fn test_preemption_interrupts_execution() -> Result<()> {
-        let config = ThreadPoolConfigBuilder::default()
+        let mut runner = ThreadPoolRunnerBuilder::default()
             .threads(1usize)
             .build()?;
-        let mut runner = ThreadPoolRunner::new(config)?;
 
         let task_config = TaskNodeBuilder::default()
             .ticks(10)
@@ -914,7 +919,7 @@ mod tests {
             .source(&task_config)
             .build()?;
 
-        let tid = TaskID::from(1u64);
+        let tid = tid(1);
         let executable = mock_task.root_task()?.executable;
 
         runner.execute(tid, TaskOutcomes::new(), executable)?;
@@ -941,10 +946,9 @@ mod tests {
 
     #[test]
     fn test_error_cases_double_execute_invalid_collect() -> Result<()> {
-        let config = ThreadPoolConfigBuilder::default()
+        let mut runner = ThreadPoolRunnerBuilder::default()
             .threads(2usize)
             .build()?;
-        let mut runner = ThreadPoolRunner::new(config)?;
 
         let task_config = TaskNodeBuilder::default()
             .ticks(10)
@@ -960,9 +964,9 @@ mod tests {
             .source(&task_config)
             .build()?;
 
-        let tid = TaskID::from(1u64);
+        let task_id = tid(1);
         let executable = mock_task.root_task()?.executable;
-        runner.execute(tid, TaskOutcomes::new(), executable)?;
+        runner.execute(task_id, TaskOutcomes::new(), executable)?;
 
         let task_config2 = TaskNodeBuilder::default()
             .ticks(1)
@@ -979,13 +983,13 @@ mod tests {
             .build()?;
 
         let executable2 = mock2.root_task()?.executable;
-        let result = runner.execute(tid, TaskOutcomes::new(), executable2);
+        let result = runner.execute(task_id, TaskOutcomes::new(), executable2);
         assert!(result.is_err());
 
         let message = format!("{}", result.unwrap_err());
         assert!(message.contains("already running"));
 
-        let unknown = TaskID::from(999u64);
+        let unknown = tid(999);
         assert!(runner.poll(unknown).is_err());
 
         assert!(runner.preempt(unknown).is_err());

@@ -108,7 +108,7 @@ mod test {
 
     use anyhow::Result;
 
-    use crate::game::traits::Forward;
+    use crate::game::traits::Advance;
     use crate::game::traits::Variable;
     use crate::game::zero_by::STATE_DEFAULT;
 
@@ -128,18 +128,18 @@ mod test {
     }
 
     #[test]
-    fn no_state_equals_default_state() {
-        let with_none = Session::default();
-        let with_default = Session::default();
-
+    fn no_state_equals_default_state() -> Result<()> {
+        let with_none = Session::variant(None)?;
         assert_eq!(
             with_none.start_state,
-            parse_state(&with_default, STATE_DEFAULT.to_string()).unwrap()
+            parse_state(&with_none, STATE_DEFAULT.to_string()).unwrap()
         );
+
+        Ok(())
     }
 
     #[test]
-    fn malformed_states_fail_checks() {
+    fn malformed_states_fail_checks() -> Result<()> {
         let s1 = "-8-1".to_owned();
         let s2 = "10-2".to_owned();
         let s3 = "5-2".to_owned();
@@ -148,22 +148,24 @@ mod test {
         let s6 = "7-".to_owned();
         let s7 = "11-0".to_owned();
 
-        fn f() -> Session {
+        fn f() -> Result<Session> {
             // 2-player 10-to-zero by 1 or 2
-            Session::default()
+            Session::variant(None)
         }
 
-        assert!(parse_state(&f(), s1).is_err());
-        assert!(parse_state(&f(), s2).is_err());
-        assert!(parse_state(&f(), s3).is_err());
-        assert!(parse_state(&f(), s4).is_err());
-        assert!(parse_state(&f(), s5).is_err());
-        assert!(parse_state(&f(), s6).is_err());
-        assert!(parse_state(&f(), s7).is_err());
+        assert!(parse_state(&f()?, s1).is_err());
+        assert!(parse_state(&f()?, s2).is_err());
+        assert!(parse_state(&f()?, s3).is_err());
+        assert!(parse_state(&f()?, s4).is_err());
+        assert!(parse_state(&f()?, s5).is_err());
+        assert!(parse_state(&f()?, s6).is_err());
+        assert!(parse_state(&f()?, s7).is_err());
+
+        Ok(())
     }
 
     #[test]
-    fn well_formed_states_pass_checks() {
+    fn well_formed_states_pass_checks() -> Result<()> {
         let s1 = "10-0".to_owned();
         let s2 = "9-1".to_owned();
         let s3 = "0-0".to_owned();
@@ -172,17 +174,19 @@ mod test {
         let s6 = "10-1".to_owned(); // <-- Impossible but well formed
         let s7 = "1-0".to_owned();
 
-        fn f() -> Session {
-            Session::default()
+        fn f() -> Result<Session> {
+            Session::variant(None)
         }
 
-        assert!(parse_state(&f(), s1).is_ok());
-        assert!(parse_state(&f(), s2).is_ok());
-        assert!(parse_state(&f(), s3).is_ok());
-        assert!(parse_state(&f(), s4).is_ok());
-        assert!(parse_state(&f(), s5).is_ok());
-        assert!(parse_state(&f(), s6).is_ok());
-        assert!(parse_state(&f(), s7).is_ok());
+        assert!(parse_state(&f()?, s1).is_ok());
+        assert!(parse_state(&f()?, s2).is_ok());
+        assert!(parse_state(&f()?, s3).is_ok());
+        assert!(parse_state(&f()?, s4).is_ok());
+        assert!(parse_state(&f()?, s5).is_ok());
+        assert!(parse_state(&f()?, s6).is_ok());
+        assert!(parse_state(&f()?, s7).is_ok());
+
+        Ok(())
     }
 
     #[test]
@@ -212,7 +216,7 @@ mod test {
     /* GAME HISTORY VERIFICATION */
 
     #[test]
-    fn verify_incorrect_default_zero_by_history_fails() {
+    fn verify_incorrect_default_zero_by_history_fails() -> Result<()> {
         let i1 = vec!["10-0", "9-1", "8-0", "5-1"]; // Illegal move
         let i2 = vec!["10-0", "8-0", "7-0", "5-1"]; // Turns don't switch
         let i3 = vec!["10-1", "8-0", "7-1", "5-0"]; // Starting turn wrong
@@ -222,50 +226,52 @@ mod test {
         let i7 = vec![""]; // Empty string
 
         assert!(
-            Session::default()
-                .forward(owned(i1))
+            Session::variant(None)?
+                .advance(owned(i1))
                 .is_err()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(i2))
+            Session::variant(None)?
+                .advance(owned(i2))
                 .is_err()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(i3))
+            Session::variant(None)?
+                .advance(owned(i3))
                 .is_err()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(i4))
+            Session::variant(None)?
+                .advance(owned(i4))
                 .is_err()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(i5))
+            Session::variant(None)?
+                .advance(owned(i5))
                 .is_err()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(i6))
+            Session::variant(None)?
+                .advance(owned(i6))
                 .is_err()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(i7))
+            Session::variant(None)?
+                .advance(owned(i7))
                 .is_err()
         );
+
+        Ok(())
     }
 
     #[test]
-    fn verify_correct_default_zero_by_history_passes() {
+    fn verify_correct_default_zero_by_history_passes() -> Result<()> {
         let c1 = vec!["10-0", "8-1", " ", "6-0", "4-1", "2-0", "0-1"];
         let c2 = vec!["", "10-0", "8-1", "6-0", "4-1", "2-0"];
         let c3 = vec!["10-0", "9-1", "", "", "7-0", "6-1"];
@@ -274,40 +280,42 @@ mod test {
         let c6 = vec!["", "10-0", " "];
 
         assert!(
-            Session::default()
-                .forward(owned(c1))
+            Session::variant(None)?
+                .advance(owned(c1))
                 .is_ok()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(c2))
+            Session::variant(None)?
+                .advance(owned(c2))
                 .is_ok()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(c3))
+            Session::variant(None)?
+                .advance(owned(c3))
                 .is_ok()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(c4))
+            Session::variant(None)?
+                .advance(owned(c4))
                 .is_ok()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(c5))
+            Session::variant(None)?
+                .advance(owned(c5))
                 .is_ok()
         );
 
         assert!(
-            Session::default()
-                .forward(owned(c6))
+            Session::variant(None)?
+                .advance(owned(c6))
                 .is_ok()
         );
+
+        Ok(())
     }
 
     #[test]
@@ -325,13 +333,13 @@ mod test {
 
         assert!(
             &variant(v)?
-                .forward(owned(c1))
+                .advance(owned(c1))
                 .is_ok()
         );
 
         assert!(
             &variant(v)?
-                .forward(owned(c2))
+                .advance(owned(c2))
                 .is_ok()
         );
 
@@ -342,25 +350,25 @@ mod test {
 
         assert!(
             &variant(v)?
-                .forward(owned(i1))
+                .advance(owned(i1))
                 .is_err()
         );
 
         assert!(
             &variant(v)?
-                .forward(owned(i2))
+                .advance(owned(i2))
                 .is_err()
         );
 
         assert!(
             &variant(v)?
-                .forward(owned(i3))
+                .advance(owned(i3))
                 .is_err()
         );
 
         assert!(
             &variant(v)?
-                .forward(owned(i4))
+                .advance(owned(i4))
                 .is_err()
         );
 
@@ -370,7 +378,7 @@ mod test {
     /* UTILITIES */
 
     fn variant(v: &str) -> Result<Session> {
-        Session::variant(v.to_string())
+        Session::variant(Some(v.to_string()))
     }
 
     fn owned(v: Vec<&'static str>) -> Vec<String> {

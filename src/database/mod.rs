@@ -22,11 +22,13 @@ use crate::game::SUtility;
 pub mod traits;
 pub mod sqlite;
 pub mod sled;
+pub mod util;
 
 /* API STRUCTURES */
 
 /// A database table schema containing a collection of columns (with a set
 /// amount of utility entries), a table name, and a primary key specification.
+#[derive(Clone)]
 pub struct Schema {
     columns: Vec<Column>,
     players: PlayerCount,

@@ -105,7 +105,7 @@ pub trait Variable {
     /// Fails if `variant` does not conform to the game's protocol of encoding
     /// variants as strings, or if the game does not support variants in the
     /// first place (but has a placeholder [`Variable`] implementation).
-    fn variant(variant: Variant) -> Result<Self>
+    fn variant(variant: Option<Variant>) -> Result<Self>
     where
         Self: Sized;
 
@@ -142,7 +142,7 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// If the implementation fails to decode the provided `state`, there are no
     /// behavior guarantees (this many or may not panic).
-    fn adjacent(&self, state: &State<B>) -> Vec<State<B>>;
+    fn outgoing(&self, state: &State<B>) -> Vec<State<B>>;
 
     /// Returns one node within the implicit graph.  
     ///
@@ -187,19 +187,19 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
 
 pub trait Transpose<const B: usize = DEFAULT_STATE_BYTES> {
     /// TODO
-    fn adjacent(&self, state: &State<B>) -> Vec<State<B>>;
+    fn incoming(&self, state: &State<B>) -> Vec<State<B>>;
 }
 
 /* UTILILITY INTERFACES */
 
-pub trait Forward<const B: usize = DEFAULT_STATE_BYTES>
+pub trait Advance<const B: usize = DEFAULT_STATE_BYTES>
 where
     Self: Information + Codec<B> + Implicit<B> + Sized,
 {
     /// Sets the game's starting state to a pre-verified `state`.
     ///
-    /// This function is an auxiliary item for [`Forward::forward`]. While it
-    /// needs to be implemented for [`Forward::forward`] to work, there should
+    /// This function is an auxiliary item for [`Advance::forward`]. While it
+    /// needs to be implemented for [`Advance::forward`] to work, there should
     /// never be a need to call this directly from any other place. This would
     /// produce potentially incorrect behavior, as it is not possible to verify
     /// whether a state encoding is valid statically (in the general case).
@@ -224,7 +224,7 @@ where
     /// ```
     #[deprecated(
         note = "This function should not be used directly; any modification of \
-        initial states should be done through [`Forward::forward`], which is \
+        initial states should be done through [`Advance::forward`], which is \
         fallible and provides verification for game states."
     )]
     fn set_verified_start(&mut self, state: &State<B>);
@@ -235,7 +235,7 @@ where
     ///
     /// This can be useful for skipping a significant amount of computation in
     /// the process of performing subgame analysis. Requires an implementation
-    /// of [`Forward::set_verified_start`] to ultimately change the starting
+    /// of [`Advance::set_verified_start`] to ultimately change the starting
     /// state after `history` is verified.
     ///
     /// # Example
@@ -266,7 +266,7 @@ where
     /// * A state encoding in `history` is not valid.
     /// * `history` is empty.
     #[allow(deprecated)]
-    fn forward(&mut self, history: Vec<String>) -> Result<()> {
+    fn advance(&mut self, history: Vec<String>) -> Result<()> {
         let to = crate::game::util::verify_state_history(self, history)
             .context("Specified invalid state history.")?;
         self.set_verified_start(&to);

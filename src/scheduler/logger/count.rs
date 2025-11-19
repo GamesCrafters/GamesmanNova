@@ -29,7 +29,7 @@ pub struct CountLogger {
 /* IMPL TRAIT FOR TYPE */
 
 impl Logger for CountLogger {
-    fn observe(
+    fn report(
         &mut self,
         snapshot: &SchedulerSnapshot,
         changed: bool,

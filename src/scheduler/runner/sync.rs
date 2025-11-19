@@ -25,7 +25,7 @@ pub struct SyncRunner {
     results: HashMap<TaskID, Result<YieldUpdate>>,
 }
 
-/* IMPL TRAIT FOR TYPE */
+/* TRAIT IMPLEMENTATIONS */
 
 impl Runner for SyncRunner {
     fn capacity(&self) -> Option<usize> {
@@ -48,7 +48,6 @@ impl Runner for SyncRunner {
         }
 
         let result = result.expect("guaranteed");
-
         self.running
             .insert(tid, executable);
 

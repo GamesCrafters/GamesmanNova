@@ -5,6 +5,7 @@
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
+use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 use bitvec::array::BitArray;
@@ -17,14 +18,12 @@ use modular_bitfield::prelude::B32;
 use petgraph::Direction;
 use petgraph::Graph;
 use petgraph::csr::DefaultIx;
-use petgraph::csr::IndexType;
 use petgraph::dot::Config;
 use petgraph::dot::Dot;
 use petgraph::graph::NodeIndex;
 use rusqlite::Statement;
 use rusqlite::params_from_iter;
 
-use std::collections::HashMap;
 use std::fmt::Display;
 
 use crate::database::Schema;
@@ -33,16 +32,20 @@ use crate::database::traits::IntegerUtilityRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::RemotenessRecord;
 use crate::database::traits::SQLiteManager;
-use crate::database::traits::SQLiteWriter;
+use crate::database::traits::SledManager;
 use crate::developer::visualize_graph;
 use crate::game::IUtility;
 use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::Remoteness;
 use crate::game::State;
+use crate::game::Variant;
 use crate::game::traits::Implicit;
 use crate::game::traits::IntegerUtility;
+use crate::game::traits::Partition;
 use crate::game::traits::Sequential;
+use crate::game::traits::Transpose;
+use crate::game::traits::Variable;
 use crate::game::util::min_ubits;
 
 /* RE-EXPORTS */
@@ -65,7 +68,7 @@ type DrawStorage = bool;
 /// or edges) or medial (it is possible to transition out of it). Nodes in the
 /// terminal stage have an associated utility vector, and medial nodes have a
 /// turn encoding whose player's action is pending.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Node {
     Terminal(Player, Vec<IUtility>),
     Medial(Player),
@@ -73,12 +76,13 @@ pub enum Node {
 
 /* API STRUCTURES */
 
-pub struct Session<'a> {
-    inserted: HashMap<*const Node, NodeIndex>,
+#[derive(Clone)]
+pub struct Session {
     players: PlayerCount,
+    sled_db: sled::Db,
     source: NodeIndex,
     schema: Schema,
-    game: Graph<&'a Node, ()>,
+    game: Graph<Node, ()>,
     name: &'static str,
 }
 
@@ -89,8 +93,8 @@ pub struct Record<const N: PlayerCount> {
 
 /* PRIVATE STRUCTURES */
 
-#[derive(Clone, Copy)]
 #[bitfield]
+#[derive(Clone, Copy, Default)]
 struct RecordFeatures {
     remoteness: RemotenessStorage,
     player: PlayerStorage,
@@ -99,9 +103,9 @@ struct RecordFeatures {
 
 /* IMPLEMENTATIONS */
 
-impl<'a> Session<'a> {
+impl Session {
     /// Return a name or identifier corresponding to this game.
-    pub fn name(&self) -> &'a str {
+    pub fn name(&self) -> &str {
         self.name
     }
 
@@ -110,19 +114,8 @@ impl<'a> Session<'a> {
         self.players
     }
 
-    /// Return the state hash being internally used for `node`.
-    pub fn state(&self, node: &Node) -> Option<State> {
-        self.inserted
-            .get(&(node as *const Node))
-            .map(|idx| {
-                let mut state = BitArray::<_, Msb0>::ZERO;
-                state.store_be::<DefaultIx>(idx.index() as DefaultIx);
-                state.data
-            })
-    }
-
     /// Return an immutable borrow of the graph underlying the game.
-    pub fn graph(&self) -> &Graph<&Node, ()> {
+    pub fn graph(&self) -> &Graph<Node, ()> {
         &self.game
     }
 
@@ -135,7 +128,7 @@ impl<'a> Session<'a> {
 
     /* PRIVATE HELPERS */
 
-    fn adjacent(&self, state: &State, dir: Direction) -> Vec<State> {
+    fn neighbors(&self, state: &State, dir: Direction) -> Vec<State> {
         self.game
             .neighbors_directed(
                 NodeIndex::from(
@@ -152,7 +145,7 @@ impl<'a> Session<'a> {
     }
 
     fn node(&self, state: &State) -> &Node {
-        self.game[NodeIndex::from(
+        &self.game[NodeIndex::from(
             BitArray::<_, Msb0>::from(*state).load_be::<DefaultIx>(),
         )]
     }
@@ -166,9 +159,9 @@ impl Default for Node {
     }
 }
 
-impl Implicit for Session<'_> {
-    fn adjacent(&self, state: &State) -> Vec<State> {
-        self.adjacent(state, Direction::Outgoing)
+impl Implicit for Session {
+    fn outgoing(&self, state: &State) -> Vec<State> {
+        self.neighbors(state, Direction::Outgoing)
     }
 
     fn source(&self) -> State {
@@ -185,7 +178,29 @@ impl Implicit for Session<'_> {
     }
 }
 
-impl<const N: PlayerCount> Sequential<N> for Session<'_> {
+impl Transpose for Session {
+    fn incoming(&self, state: &State) -> Vec<State> {
+        self.neighbors(state, Direction::Incoming)
+    }
+}
+
+impl Variable for Session {
+    fn variant(_variant: Option<Variant>) -> Result<Self> {
+        anyhow::bail!("Mock games cannot be created from variant strings")
+    }
+
+    fn name(&self) -> &str {
+        self.name
+    }
+}
+
+impl Partition for Session {
+    fn component(&self, _state: &State) -> crate::game::Component {
+        0
+    }
+}
+
+impl<const N: PlayerCount> Sequential<N> for Session {
     fn turn(&self, state: &State) -> Player {
         match self.node(state) {
             Node::Terminal(player, _) => *player,
@@ -194,7 +209,7 @@ impl<const N: PlayerCount> Sequential<N> for Session<'_> {
     }
 }
 
-impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
+impl<const N: PlayerCount> IntegerUtility<N> for Session {
     fn utility(&self, state: &State) -> [IUtility; N] {
         match self.node(state) {
             Node::Terminal(_, payoffs) => {
@@ -209,18 +224,25 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session<'_> {
     }
 }
 
-impl<const N: PlayerCount> SQLiteManager<N> for Session<'_> {
-    type SolutionRecord = Record<N>;
-    fn schema(&self) -> &Schema {
-        &self.schema
+impl<const N: PlayerCount> SledManager<N> for Session {
+    type Record = self::Record<N>;
+
+    fn sled_transaction(&self) -> Result<sled::Tree> {
+        self.sled_db
+            .open_tree(self.name)
+            .context("Failed to open Sled tree for transaction")
     }
 }
 
-impl<const N: PlayerCount> SQLiteWriter<Record<N>, N> for Session<'_> {
-    fn insert(
+impl<const N: PlayerCount> SQLiteManager<N> for Session {
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    fn store_lift(
         &mut self,
         state: &State,
-        solution: &Self::SolutionRecord,
+        solution: &Self::Record,
         statement: &mut Statement,
     ) -> Result<()> {
         let values = [
@@ -233,6 +255,26 @@ impl<const N: PlayerCount> SQLiteWriter<Record<N>, N> for Session<'_> {
         let params = params_from_iter(values);
         statement.execute(params)?;
         Ok(())
+    }
+}
+
+impl<const N: PlayerCount> Default for Record<N> {
+    fn default() -> Self {
+        Self {
+            features: Default::default(),
+            utility: [Default::default(); N],
+        }
+    }
+}
+
+impl<const N: PlayerCount> From<Record<N>> for sled::IVec {
+    fn from(val: Record<N>) -> Self {
+        let mut bytes = val.features.into_bytes().to_vec();
+        for util in val.utility {
+            bytes.extend_from_slice(&util.to_be_bytes());
+        }
+
+        bytes.into()
     }
 }
 
@@ -294,7 +336,7 @@ impl<const N: PlayerCount> DrawRecord for Record<N> {
 
 /* IMPL EXTERNAL TRAIT */
 
-impl Display for Session<'_> {
+impl Display for Session {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -304,13 +346,13 @@ impl Display for Session<'_> {
                 &[Config::EdgeNoLabel, Config::NodeNoLabel],
                 &|_, _| String::new(),
                 &|_, n| {
-                    let (_, node) = n;
+                    let (index, node) = n;
                     let mut attrs = String::new();
                     match node {
                         Node::Medial(turn) => {
                             attrs += &format!("label=P{turn} ");
                             attrs += "style=filled  ";
-                            if self.source() == self.state(node).unwrap() {
+                            if index == self.source {
                                 attrs += "shape=doublecircle ";
                                 attrs += "fillcolor=navajowhite3 ";
                             } else {
@@ -335,10 +377,13 @@ impl Display for Session<'_> {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::HashSet;
+
     use anyhow::Result;
 
     use crate::developer::GraphBuilder;
     use crate::game::mock::SessionBuilder;
+    use crate::game::traits::Implicit;
     use crate::node;
 
     use super::*;
@@ -371,30 +416,18 @@ mod tests {
             .build()?;
 
         g.visualize(MODULE_NAME)?;
-        let states = [
-            g.state(&s1),
-            g.state(&s2),
-            g.state(&s3),
-            g.state(&s4),
-            g.state(&s5),
-            g.state(&t1),
-            g.state(&t2),
-        ];
 
-        let contains_none = states.iter().any(Option::is_none);
-        assert!(!contains_none);
+        let mut visited = HashSet::new();
+        let mut stack = vec![g.source()];
 
-        let states: Vec<State> = states
-            .iter()
-            .map(|s| s.unwrap())
-            .collect();
+        while let Some(state) = stack.pop() {
+            if visited.insert(state) {
+                stack.extend(g.outgoing(&state));
+            }
+        }
 
-        let repeats = states.iter().any(|&i| {
-            states[(1 + BitArray::<_, Msb0>::from(i).load_be::<usize>())..]
-                .contains(&i)
-        });
+        assert_eq!(visited.len(), 7);
 
-        assert!(!repeats);
         Ok(())
     }
 
@@ -420,13 +453,26 @@ mod tests {
             .build()?;
 
         g.visualize(MODULE_NAME)?;
-        let source = g.state(&s1).unwrap();
-        let sink1 = g.state(&t1).unwrap();
-        let sink2 = g.state(&t2).unwrap();
 
-        assert_eq!(g.source(), source);
-        assert!(g.sink(&sink1));
-        assert!(g.sink(&sink2));
+        let source = g.source();
+        assert!(!g.sink(&source));
+
+        let mut visited = HashSet::new();
+        let mut stack = vec![source];
+        let mut sinks = Vec::new();
+
+        while let Some(state) = stack.pop() {
+            if visited.insert(state) {
+                if g.sink(&state) {
+                    sinks.push(state);
+                } else {
+                    stack.extend(g.outgoing(&state));
+                }
+            }
+        }
+
+        assert_eq!(sinks.len(), 2);
+
         Ok(())
     }
 
@@ -452,26 +498,19 @@ mod tests {
             .build()?;
 
         g.visualize(MODULE_NAME)?;
-        let s1_state = g.state(&s1).unwrap();
-        let s2_state = g.state(&s2).unwrap();
-        let s3_state = g.state(&s3).unwrap();
 
-        let t1_state = g.state(&t1).unwrap();
-        let t2_state = g.state(&t2).unwrap();
+        let source = g.source();
+        let children = g.outgoing(&source);
 
-        let s1_pro = g.adjacent(&s1_state, Direction::Outgoing);
-        let s2_pro = g.adjacent(&s2_state, Direction::Outgoing);
-        let t2_ret = g.adjacent(&t2_state, Direction::Incoming);
+        assert_eq!(children.len(), 2);
 
-        assert!(s1_pro.len() == 2);
-        assert!(s2_pro.len() == 1);
-        assert!(t2_ret.len() == 1);
+        for child in &children {
+            assert!(!g.sink(child));
+            let grandchildren = g.outgoing(child);
 
-        assert!(s1_pro.contains(&s3_state));
-        assert!(s1_pro.contains(&s2_state));
-
-        assert!(s2_pro.contains(&t1_state));
-        assert!(t2_ret.contains(&s3_state));
+            assert_eq!(grandchildren.len(), 1);
+            assert!(g.sink(&grandchildren[0]));
+        }
 
         Ok(())
     }

@@ -9,6 +9,7 @@ use anyhow::bail;
 use petgraph::Direction;
 use petgraph::Graph;
 use petgraph::graph::NodeIndex;
+use petgraph::visit::EdgeRef;
 
 use std::collections::HashSet;
 
@@ -46,7 +47,7 @@ impl<'a> SessionBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> Result<Session<'a>> {
+    pub fn build(self) -> Result<Session> {
         let source_node = self
             .source
             .ok_or_else(|| anyhow!("No source node specified for game"))?;
@@ -55,27 +56,44 @@ impl<'a> SessionBuilder<'a> {
             .name
             .ok_or_else(|| anyhow!("No name specified for game"))?;
 
-        let graph = self
+        let input = self
             .graph
             .ok_or_else(|| anyhow!("No graph specified for game"))?;
 
-        let players = Self::validate_player_counts(&graph, name)?;
-        let source = Self::check_source_state(&graph, source_node, name)?;
-        Self::check_terminal_state(&graph.graph, source, name)?;
-        Self::check_outgoing_edges(&graph.graph, name)?;
-
+        let players = Self::validate_player_counts(&input, name)?;
+        let source = Self::check_source_state(&input, source_node, name)?;
         let schema = Self::schema(players, name)?;
-        let inserted = graph.inserted;
-        let game = graph.graph;
 
-        Ok(Session {
-            inserted,
+        Self::check_terminal_state(&input.graph, source, name)?;
+        Self::check_outgoing_edges(&input.graph, name)?;
+
+        let mut game = Graph::new();
+        for index in input.graph.node_indices() {
+            let node = input.graph[index].clone();
+            game.add_node(node);
+        }
+
+        for edge in input.graph.edge_references() {
+            let src = edge.source();
+            let dst = edge.target();
+            game.add_edge(src, dst, ());
+        }
+
+        let sled_db = sled::Config::new()
+            .temporary(true)
+            .open()
+            .expect("Failed to create temporary Sled database for mock game");
+
+        let session = Session {
             players,
+            sled_db,
             schema,
             source,
             game,
             name,
-        })
+        };
+
+        Ok(session)
     }
 
     /* HELPER METHODS */

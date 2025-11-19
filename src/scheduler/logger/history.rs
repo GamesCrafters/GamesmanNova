@@ -32,7 +32,7 @@ pub struct HistoryLogger {
 /* IMPLEMENTATIONS */
 
 impl Logger for HistoryLogger {
-    fn observe(
+    fn report(
         &mut self,
         snapshot: &SchedulerSnapshot,
         changed: bool,
@@ -94,7 +94,8 @@ pub mod test_utils {
             &self,
             tid: TaskID,
         ) -> Vec<Transition> {
-            let filter = |t: &Transition| t.task == tid;
+            let component = tid.component;
+            let filter = |t: &Transition| t.task == component;
             self.snapshots
                 .iter()
                 .flat_map(|s| s.transitions.iter())
@@ -143,25 +144,30 @@ pub mod test_utils {
             tid1: TaskID,
             tid2: TaskID,
         ) -> bool {
+            let comp1 = tid1.component;
+            let comp2 = tid2.component;
             let relevant = |t: &&Transition| {
                 let running = matches!(t.to, TaskState::Running);
-                running && (t.task == tid1 || t.task == tid2)
+                running && (t.task == comp1 || t.task == comp2)
             };
 
             self.snapshots
                 .iter()
                 .flat_map(|s| &s.transitions)
                 .find(relevant)
-                .map(|t| t.task == tid1)
+                .map(|t| t.task == comp1)
                 .unwrap_or(false)
         }
 
         /// Returns true if task was preempted during execution.
         pub(in crate::scheduler) fn was_preempted(&self, tid: TaskID) -> bool {
+            let component = tid.component;
             self.snapshots
                 .iter()
                 .flat_map(|s| &s.transitions)
-                .any(|t| t.task == tid && matches!(t.to, TaskState::Preempting))
+                .any(|t| {
+                    t.task == component && matches!(t.to, TaskState::Preempting)
+                })
         }
 
         /// Returns true if tasks started running in the given order.
@@ -196,6 +202,7 @@ pub mod test_utils {
         where
             F: Fn(&TaskState) -> bool,
         {
+            let component = tid.component;
             self.snapshots
                 .iter()
                 .flat_map(|s| {
@@ -204,7 +211,7 @@ pub mod test_utils {
                         .enumerate()
                         .map(move |(order, t)| (s.tick, order, t))
                 })
-                .find(|(_, _, t)| t.task == tid && predicate(&t.to))
+                .find(|(_, _, t)| t.task == component && predicate(&t.to))
                 .map(|(tick, order, _)| (tick, order))
         }
 

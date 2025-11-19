@@ -18,10 +18,13 @@ use std::fmt::Display;
 use std::sync::Arc;
 
 use crate::developer::visualize_graph;
+use crate::game::Component;
 use crate::scheduler::Dependencies;
 use crate::scheduler::Task as SchedulerTask;
 use crate::scheduler::TaskBuilder as SchedulerTaskBuilder;
+use crate::scheduler::TaskCategory;
 use crate::scheduler::TaskID;
+use crate::scheduler::TaskIDBuilder;
 use crate::scheduler::TaskOutcome;
 use crate::scheduler::TaskOutcomes;
 use crate::scheduler::YieldIntention;
@@ -82,6 +85,24 @@ pub(crate) struct CompiledGraph {
 
 /// Lightweight executable task handle.
 pub struct Task {
+    /// The outcome this task returns when complete
+    outcome: TaskOutcome,
+
+    /// The tick at which this task starts releasing children
+    release: usize,
+
+    /// Total ticks this task runs for before completion
+    ticks: usize,
+
+    /// Whether this task can be retried after Error state
+    retriable: bool,
+
+    /// Human-readable description
+    about: String,
+
+    /// Estimated size for scheduler policy
+    size: Option<u64>,
+
     /// Unique task identifier
     tid: TaskID,
 
@@ -95,39 +116,71 @@ pub struct Task {
     graph: Arc<CompiledGraph>,
 }
 
+/* HELPER FUNCTIONS */
+
+/// Convert Component (node index) to TaskID struct
+fn component_to_tid(component: Component) -> TaskID {
+    TaskIDBuilder::default()
+        .category(TaskCategory::Mock)
+        .component(component)
+        .build()
+        .expect("TaskID builder should not fail with all fields provided")
+}
+
+/// Extract Component from TaskID struct
+fn tid_to_component(tid: &TaskID) -> Component {
+    tid.component
+}
+
 /* IMPLEMENTATIONS */
 
 impl CompiledGraph {
-    fn config(&self, tid: TaskID) -> &TaskConfig {
-        let index = NodeIndex::new(tid as usize);
+    fn config(&self, tid: &TaskID) -> &TaskConfig {
+        let component = tid_to_component(tid);
+        let index = NodeIndex::new(component as usize);
         &self.graph[index]
     }
 
-    fn children(&self, tid: TaskID) -> Vec<TaskID> {
-        let index = NodeIndex::new(tid as usize);
+    fn children(&self, tid: &TaskID) -> Vec<TaskID> {
+        let component = tid_to_component(tid);
+        let index = NodeIndex::new(component as usize);
         self.graph
             .neighbors(index)
-            .map(|n| n.index() as TaskID)
+            .map(|n| component_to_tid(n.index() as Component))
             .collect()
     }
 }
 
 impl Task {
     pub fn new(tid: TaskID, graph: Arc<CompiledGraph>) -> Self {
+        let config = graph.config(&tid);
         Self {
-            tid,
+            outcome: config.outcome,
+            release: config.release,
+            ticks: config.ticks,
+            retriable: config.retriable,
+            about: config.about.clone(),
+            size: config.size,
             progress: 0,
             released: 0,
             graph,
+            tid,
         }
     }
 
-    fn config(&self) -> &TaskConfig {
-        self.graph.config(self.tid)
+    fn config(&self) -> TaskConfig {
+        TaskConfig {
+            outcome: self.outcome,
+            release: self.release,
+            ticks: self.ticks,
+            retriable: self.retriable,
+            about: self.about.clone(),
+            size: self.size,
+        }
     }
 
     fn children(&self) -> Vec<TaskID> {
-        self.graph.children(self.tid)
+        self.graph.children(&self.tid)
     }
 
     fn remaining(&self) -> usize {
@@ -167,13 +220,10 @@ impl Task {
 
     fn build_child(&self, tid: TaskID) -> SchedulerTask {
         let child = Task::new(tid, Arc::clone(&self.graph));
-        let config = self.graph.config(tid);
-
+        let config = self.graph.config(&tid);
         let requires: Dependencies = Dependencies::new();
-
         SchedulerTaskBuilder::default()
-            .tid(tid)
-            .executable(Box::new(child) as Box<dyn Executable>)
+            .executable(child)
             .retriable(config.retriable)
             .about(config.about.clone())
             .size(config.size)
@@ -189,8 +239,7 @@ impl Task {
     ) -> YieldUpdate {
         self.progress += 1;
 
-        let config = self.config();
-        let last = self.progress >= config.ticks;
+        let last = self.progress >= self.ticks;
 
         if last {
             let all = self.discover_all();
@@ -221,13 +270,11 @@ impl Task {
     pub fn root_task(&self) -> Result<SchedulerTask> {
         let root_tid = self.graph.root;
         let root = Task::new(root_tid, Arc::clone(&self.graph));
-        let config = self.graph.config(root_tid);
-
+        let config = self.graph.config(&root_tid);
         let requires: Dependencies = Dependencies::new();
 
         let task = SchedulerTaskBuilder::default()
-            .tid(root_tid)
-            .executable(Box::new(root) as Box<dyn Executable>)
+            .executable(root)
             .retriable(config.retriable)
             .about(config.about.clone())
             .size(config.size)
@@ -267,14 +314,13 @@ impl Executable for Task {
         }
 
         // handle release (before completion check)
-        let config = self.config();
-        if remaining > 0 && self.progress >= config.release {
+        if remaining > 0 && self.progress >= self.release {
             return Some(self.handle_release(num, children));
         }
 
         // check completion
-        if self.progress >= config.ticks {
-            return Some(YieldUpdate::new_suspended(config.outcome, vec![]));
+        if self.progress >= self.ticks {
+            return Some(YieldUpdate::new_suspended(self.outcome, vec![]));
         }
 
         // normal tick
@@ -283,7 +329,7 @@ impl Executable for Task {
     }
 
     fn size(&self) -> Option<u64> {
-        self.config().size
+        self.size
     }
 
     fn progress(&self) -> Option<u64> {
@@ -300,10 +346,7 @@ impl Executable for Task {
             bail!("Cannot merge different task IDs");
         }
 
-        let compat = outcomes_compatible(
-            &self.config().outcome,
-            &other.config().outcome,
-        );
+        let compat = outcomes_compatible(&self.outcome, &other.outcome);
 
         if !compat {
             bail!("Incompatible outcomes");
@@ -314,11 +357,21 @@ impl Executable for Task {
 
         Ok(())
     }
+
+    fn id(&self) -> TaskID {
+        self.tid
+    }
 }
 
 impl Clone for Task {
     fn clone(&self) -> Self {
         Self {
+            outcome: self.outcome,
+            release: self.release,
+            ticks: self.ticks,
+            retriable: self.retriable,
+            about: self.about.clone(),
+            size: self.size,
             tid: self.tid,
             progress: self.progress,
             released: self.released,
@@ -331,7 +384,8 @@ impl Display for Task {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let format = |_, n: (NodeIndex, &TaskConfig)| {
             let (index, config) = n;
-            let tid = index.index() as TaskID;
+            let component = index.index() as Component;
+            let tid = component_to_tid(component);
 
             let outcome = format_outcome(&config.outcome);
 
@@ -483,7 +537,7 @@ mod tests {
 
         task.visualize(MODULE)?;
         assert_eq!(task.name(), "single");
-        assert_eq!(task.tid, 0);
+        assert_eq!(task.tid.component, 0);
 
         Ok(())
     }
@@ -613,7 +667,8 @@ mod tests {
             .build()?;
 
         task.visualize(MODULE)?;
-        let end_children = task.graph.children(3);
+        let end_tid = component_to_tid(3);
+        let end_children = task.graph.children(&end_tid);
 
         assert_eq!(end_children.len(), 0);
         Ok(())
@@ -760,10 +815,10 @@ mod tests {
             .build()?;
 
         task.visualize(MODULE)?;
-        assert_eq!(task.tid, 0);
-        assert_eq!(task.config().about, "test task");
-        assert_eq!(task.config().size, Some(100));
-        assert!(task.config().retriable);
+        assert_eq!(task.tid.component, 0);
+        assert_eq!(task.about, "test task");
+        assert_eq!(task.size, Some(100));
+        assert!(task.retriable);
 
         Ok(())
     }

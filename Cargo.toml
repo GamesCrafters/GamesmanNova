@@ -25,6 +25,7 @@ lto = "fat"
 [dependencies]
 rusqlite = { version = "0.34.0", features = ["bundled"] }
 clap = { version = "^4", features = ["derive"] }
+crossbeam-channel = "0.5.15"
 modular-bitfield = "^0.13"
 derive_builder = "^0.20"
 async-trait = "^0.1"
@@ -40,7 +41,6 @@ anyhow = "^1"
 bitvec = "^1"
 regex = "^1"
 sled = "^0.34"
-crossbeam-channel = "0.5.15"
 ratatui = "0.28"
 crossterm = "0.28"
 

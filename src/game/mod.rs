@@ -70,9 +70,10 @@ pub enum GameModule {
     ZeroBy,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 #[repr(u8)]
 pub enum SUtility {
+    #[default]
     Lose = 0,
     Tie = 1,
     Win = 2,

@@ -2,6 +2,7 @@
 //!
 //! TODO
 
+use anyhow::Context;
 use anyhow::Result;
 use bitvec::array::BitArray;
 use bitvec::field::BitField;
@@ -42,14 +43,20 @@ pub fn parse_variant(variant: String) -> Result<Session> {
         .column("player", "INTEGER")
         .build()?;
 
+    let sled_db = sled::Config::new()
+        .temporary(true)
+        .open()
+        .context("Failed to create temporary Sled DB during variant parsing")?;
+
     Ok(Session {
         start_state: start_state.data,
-        start_elems,
-        player_bits,
-        players,
-        schema,
         name: variant,
         by: Vec::from(&params[2..]),
+        start_elems,
+        player_bits,
+        sled_db,
+        players,
+        schema,
     })
 }
 
@@ -143,18 +150,8 @@ mod test {
     }
 
     #[test]
-    fn initialization_success_with_no_variant() {
-        let _ = Session::default();
-        let with_default = Session::variant(VARIANT_DEFAULT.to_owned());
-        assert!(with_default.is_ok());
-    }
-
-    #[test]
-    fn no_variant_equals_default_variant() -> Result<()> {
-        let with_none = Session::default();
-        let with_default = Session::variant(VARIANT_DEFAULT.to_owned())?;
-        assert_eq!(with_none.start_state, with_default.start_state);
-        assert_eq!(with_none.by, with_default.by);
+    fn initialization_success_with_no_variant() -> Result<()> {
+        let _ = Session::variant(None)?;
         Ok(())
     }
 

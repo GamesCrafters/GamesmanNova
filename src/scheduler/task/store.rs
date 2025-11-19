@@ -1,3 +1,0 @@
-//! # Sotre Scheduler Task
-//!
-//! TODO

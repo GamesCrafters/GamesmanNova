@@ -1,3 +1,0 @@
-//! # Solve Scheduler Task
-//!
-//! TODO

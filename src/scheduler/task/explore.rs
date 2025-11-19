@@ -1,3 +1,0 @@
-//! # Explore Scheduler Task
-//!
-//! TODO

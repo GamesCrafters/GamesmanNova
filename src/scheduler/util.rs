@@ -11,12 +11,14 @@
 
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
+use crate::game::Component;
 use crate::scheduler::DecisionContext;
 use crate::scheduler::Dependencies;
 use crate::scheduler::Logger;
@@ -27,13 +29,37 @@ use crate::scheduler::SchedulerContextBuilder;
 use crate::scheduler::SchedulerState;
 use crate::scheduler::SchedulerStateBuilder;
 use crate::scheduler::Task;
+use crate::scheduler::TaskBuilder;
 use crate::scheduler::TaskContext;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskOutcome;
 use crate::scheduler::TaskRegistry;
 use crate::scheduler::TaskState;
+use crate::scheduler::traits::Executable;
 
 /* BUILDER PATTERN */
+
+#[allow(private_bounds)]
+impl TaskBuilder {
+    pub fn executable(mut self, executable: impl Executable + 'static) -> Self {
+        self.executable = Some(Box::new(executable));
+        self
+    }
+
+    pub fn build(self) -> Result<Task> {
+        let executable = self
+            .executable
+            .ok_or_else(|| anyhow!("executable is required for TaskBuilder"))?;
+
+        Ok(Task {
+            retriable: self.retriable.unwrap_or_default(),
+            requires: self.requires.unwrap_or_default(),
+            about: self.about.unwrap_or_default(),
+            size: self.size.unwrap_or_default(),
+            executable,
+        })
+    }
+}
 
 impl SchedulerStateBuilder {
     pub fn task(mut self, task: Task) -> Self {
@@ -47,6 +73,7 @@ impl SchedulerStateBuilder {
             .buffer
             .get_or_insert_with(TaskRegistry::new);
 
+        let id = task.id();
         let ctx = TaskContext {
             executable: Some(task.executable),
             retriable: task.retriable,
@@ -57,7 +84,7 @@ impl SchedulerStateBuilder {
             state,
         };
 
-        buffer.insert(task.tid, ctx);
+        buffer.insert(id, ctx);
         self
     }
 }
@@ -81,6 +108,12 @@ impl SchedulerContextBuilder {
 }
 
 /* UTILITY IMPLEMENTATIONS */
+
+impl Task {
+    pub(super) fn id(&self) -> TaskID {
+        self.executable.id()
+    }
+}
 
 impl MergeContext {
     pub fn merge_into(&mut self, other: MergeContext) -> Result<()> {
@@ -122,11 +155,11 @@ impl<'a> DecisionContext<'a> {
         let candidates = state
             .buffer
             .iter()
-            .filter(|(tid, ctx)| {
+            .filter(|(id, ctx)| {
                 matches!(ctx.state, TaskState::Waiting(_))
-                    && state.dependencies_satisfied(**tid)
+                    && state.dependencies_satisfied(id)
             })
-            .map(|(tid, ctx)| (*tid, ctx))
+            .map(|(id, ctx)| (*id, ctx))
             .collect();
 
         Self::new(candidates, &state.buffer, state.ticks, capacity)
@@ -141,7 +174,7 @@ impl<'a> DecisionContext<'a> {
             .buffer
             .iter()
             .filter(|(_, ctx)| ctx.ready())
-            .map(|(tid, ctx)| (*tid, ctx))
+            .map(|(id, ctx)| (*id, ctx))
             .collect();
 
         Self::new(candidates, &state.buffer, state.ticks, capacity)
@@ -156,7 +189,7 @@ impl<'a> DecisionContext<'a> {
             .buffer
             .iter()
             .filter(|(_, ctx)| ctx.running())
-            .map(|(tid, ctx)| (*tid, ctx))
+            .map(|(id, ctx)| (*id, ctx))
             .collect();
 
         Self::new(candidates, &state.buffer, state.ticks, capacity)
@@ -171,7 +204,7 @@ impl<'a> DecisionContext<'a> {
             .buffer
             .iter()
             .filter(|(_, ctx)| matches!(ctx.state, TaskState::Error))
-            .map(|(tid, ctx)| (*tid, ctx))
+            .map(|(id, ctx)| (*id, ctx))
             .collect();
 
         Self::new(candidates, &state.buffer, state.ticks, capacity)
@@ -183,7 +216,7 @@ impl<'a> DecisionContext<'a> {
     ) -> impl Iterator<Item = (&TaskID, &TaskContext)> + '_ {
         self.candidates
             .iter()
-            .map(|(tid, ctx)| (tid, *ctx))
+            .map(|(id, ctx)| (id, *ctx))
     }
 }
 
@@ -277,6 +310,58 @@ impl TaskContext {
 }
 
 impl SchedulerState {
+    /// Get task context by TaskID (exact match with category + component).
+    pub(super) fn get_context_by_id(
+        &self,
+        id: &TaskID,
+    ) -> Option<&TaskContext> {
+        self.buffer.get(id)
+    }
+
+    /// Get mutable task context by TaskID (exact match with category + component).
+    pub(super) fn get_context_by_id_mut(
+        &mut self,
+        id: &TaskID,
+    ) -> Option<&mut TaskContext> {
+        self.buffer.get_mut(id)
+    }
+
+    /// Get first task context matching Component (any category).
+    /// Used for dependency checking where category doesn't matter.
+    pub(super) fn get_context_by_component(
+        &self,
+        component: Component,
+    ) -> Option<&TaskContext> {
+        self.buffer
+            .iter()
+            .find(|(id, _)| id.component == component)
+            .map(|(_, ctx)| ctx)
+    }
+
+    /// Get mutable task context by Component (any category).
+    /// Used when runner returns Component and we need to update context.
+    pub(super) fn get_context_by_component_mut(
+        &mut self,
+        component: Component,
+    ) -> Option<&mut TaskContext> {
+        self.buffer
+            .iter_mut()
+            .find(|(id, _)| id.component == component)
+            .map(|(_, ctx)| ctx)
+    }
+
+    /// Find TaskID matching a Component (any category).
+    /// Used when runner returns Component and we need the full ID.
+    pub(super) fn find_id_by_component(
+        &self,
+        component: Component,
+    ) -> Option<TaskID> {
+        self.buffer
+            .keys()
+            .find(|id| id.component == component)
+            .copied()
+    }
+
     pub(super) fn tasks_active(
         &self,
     ) -> impl Iterator<Item = (&TaskID, &TaskContext)> {
@@ -324,25 +409,24 @@ impl SchedulerState {
 
     pub(super) fn get_dependencies(
         &self,
-        tid: TaskID,
+        id: &TaskID,
     ) -> Option<&Dependencies> {
-        self.buffer
-            .get(&tid)?
+        self.get_context_by_id(id)?
             .dependencies()
     }
 
-    pub(super) fn take_merge(&mut self, tid: &TaskID) -> Option<MergeContext> {
-        self.merges.remove(tid)
+    pub(super) fn take_merge(&mut self, id: &TaskID) -> Option<MergeContext> {
+        self.merges.remove(id)
     }
 
     /// Check if a task's dependencies are all satisfied (completed/suspended).
     /// Returns false if task has no dependencies registered.
-    pub fn dependencies_satisfied(&self, tid: TaskID) -> bool {
-        self.get_dependencies(tid)
+    /// Dependencies are satisfied when specific tasks complete.
+    pub fn dependencies_satisfied(&self, id: &TaskID) -> bool {
+        self.get_dependencies(id)
             .is_some_and(|deps| {
-                deps.iter().all(|dep_tid| {
-                    self.buffer
-                        .get(dep_tid)
+                deps.iter().all(|dep_id| {
+                    self.get_context_by_id(dep_id)
                         .and_then(|ctx| ctx.outcome())
                         .is_some()
                 })
@@ -351,9 +435,9 @@ impl SchedulerState {
 
     /// Collect all currently running/preempting task IDs into a Vec.
     /// For operations that need to iterate over runner tasks with mutations.
-    pub fn collect_runner_task_ids(&self) -> Vec<TaskID> {
+    pub fn collect_runner_ids(&self) -> Vec<TaskID> {
         self.runner_tasks()
-            .map(|(tid, _)| *tid)
+            .map(|(id, _)| *id)
             .collect()
     }
 }
@@ -375,6 +459,14 @@ impl Display for TaskState {
 
 /* HELPER FUNCTIONS */
 
+/// Helper to find any context matching a TaskID.
+fn get_context_by_id_from_registry<'a>(
+    registry: &'a TaskRegistry,
+    id: &TaskID,
+) -> Option<&'a TaskContext> {
+    registry.get(id)
+}
+
 /// Format a cycle path into a human-readable error message.
 /// Shows each task ID and its description in the cycle.
 pub fn format_cycle_path(path: &[TaskID], registry: &TaskRegistry) -> String {
@@ -383,9 +475,9 @@ pub fn format_cycle_path(path: &[TaskID], registry: &TaskRegistry) -> String {
         path.len() - 1
     );
 
-    for tid in path {
-        if let Some(ctx) = registry.get(tid) {
-            message.push_str(&format!("-> {:?}: {}\n", tid, ctx.about));
+    for id in path {
+        if let Some(ctx) = get_context_by_id_from_registry(registry, id) {
+            message.push_str(&format!("-> {:?}: {}\n", id, ctx.about));
         }
     }
 
@@ -397,10 +489,10 @@ pub fn find_cycle_path(registry: &TaskRegistry) -> Option<Vec<TaskID>> {
     let mut seen = HashSet::new();
     registry
         .keys()
-        .find_map(|tid| {
-            (!seen.contains(tid)).then(|| {
+        .find_map(|id| {
+            (!seen.contains(id)).then(|| {
                 let mut stack = Vec::new();
-                find_cycle(*tid, registry, &mut seen, &mut stack)
+                find_cycle(*id, registry, &mut seen, &mut stack)
             })
         })
         .flatten()
@@ -415,8 +507,7 @@ fn find_cycle(
 ) -> Option<Vec<TaskID>> {
     stack.push(start);
     seen.insert(start);
-    let cycle = registry
-        .get(&start)
+    let cycle = get_context_by_id_from_registry(registry, &start)
         .and_then(TaskContext::dependencies)
         .and_then(|deps| {
             deps.iter().find_map(|dep| {
@@ -425,7 +516,7 @@ fn find_cycle(
                 } else if stack.contains(dep) {
                     let cycle_start = stack
                         .iter()
-                        .position(|tid| tid == dep)
+                        .position(|id| id == dep)
                         .unwrap();
                     let mut cycle = stack[cycle_start..].to_vec();
                     cycle.push(*dep);

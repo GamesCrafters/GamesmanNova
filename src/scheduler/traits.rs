@@ -29,7 +29,7 @@ use crate::scheduler::TaskID;
 use crate::scheduler::TaskOutcomes;
 use crate::scheduler::YieldUpdate;
 
-/* INTERFACES */
+/* SCHEDULER INTERFACES */
 
 #[cfg_attr(test, automock)]
 pub(super) trait Runner {
@@ -43,7 +43,7 @@ pub(super) trait Runner {
     /// until first yield (synchronous execution).
     fn execute(
         &mut self,
-        tid: TaskID,
+        id: TaskID,
         awaited: TaskOutcomes,
         executable: Box<dyn Executable>,
     ) -> Result<()>;
@@ -52,24 +52,24 @@ pub(super) trait Runner {
     /// if still executing, Ready if completed with update, or Panic if the task
     /// panicked. This method must not block. Returns error for runner failures
     /// (invalid task ID, etc).
-    fn poll(&mut self, tid: TaskID) -> Result<PollStatus>;
+    fn poll(&mut self, id: TaskID) -> Result<PollStatus>;
 
     /// Signals a running task to preempt (stop execution and yield control).
     /// For synchronous runners, this may be a no-op. For concurrent runners,
     /// this sets the preemption signal. Does not block. Returns an error for
     /// infrastructure failures (task not found, not running, etc).
-    fn preempt(&mut self, tid: TaskID) -> Result<()>;
+    fn preempt(&mut self, id: TaskID) -> Result<()>;
 
     /// Retrieves a completed task's executable. Only succeeds if the task has
     /// finished executing (poll returned Ready or Panic). Returns an error if
     /// the task is not found, still executing, or not ready to collect.
-    fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>>;
+    fn collect(&mut self, id: TaskID) -> Result<Box<dyn Executable>>;
 
     /// Samples the progress of a running task. Returns None if the task is not
     /// found, not running, or doesn't report progress. This method queries the
     /// last known progress value without blocking. For concurrent runners, this
     /// reflects progress sampled after the most recent tick() call.
-    fn progress(&self, tid: TaskID) -> Option<u64>;
+    fn progress(&self, id: TaskID) -> Option<u64>;
 }
 
 #[cfg_attr(test, automock)]
@@ -104,6 +104,13 @@ pub(super) trait Executable: Send + Any {
     fn merge(&mut self, _other: Box<dyn Executable>) -> Result<()> {
         bail!("Merging not supported for this task type")
     }
+
+    /// Returns the unique identifier of this task. The ID includes both the
+    /// task category (type) and component, uniquely identifying the task within
+    /// the scheduler. Used to namespace tasks by type and prevent inappropriate
+    /// merging between different task types operating on the same component.
+    /// Must be implemented by all task types.
+    fn id(&self) -> TaskID;
 }
 
 #[cfg_attr(test, automock)]
@@ -130,7 +137,7 @@ pub(super) trait Policy {
 pub(super) trait Logger {
     /// Observes a scheduler snapshot at each tick. The `changed` flag indicates
     /// whether any state transitions occurred during the tick.
-    fn observe(
+    fn report(
         &mut self,
         snapshot: &SchedulerSnapshot,
         changed: bool,

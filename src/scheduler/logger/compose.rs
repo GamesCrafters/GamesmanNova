@@ -12,21 +12,21 @@ use crate::scheduler::traits::Logger;
 
 #[derive(Builder)]
 #[builder(pattern = "owned", setter(into))]
-pub struct ComposedLogger {
+pub struct ComposeLogger {
     #[builder(setter(each = "logger"))]
     loggers: Vec<Box<dyn Logger>>,
 }
 
 /* IMPLEMENTATIONS */
 
-impl Logger for ComposedLogger {
-    fn observe(
+impl Logger for ComposeLogger {
+    fn report(
         &mut self,
         snapshot: &SchedulerSnapshot,
         changed: bool,
     ) -> Result<()> {
         for logger in &mut self.loggers {
-            logger.observe(snapshot, changed)?;
+            logger.report(snapshot, changed)?;
         }
 
         Ok(())

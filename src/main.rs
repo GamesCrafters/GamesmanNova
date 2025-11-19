@@ -3,6 +3,7 @@
 //!
 //! TODO
 
+use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 
@@ -10,7 +11,9 @@ use std::process;
 
 use crate::frontend::cli;
 use crate::game::GameModule;
+use crate::game::traits::Advance;
 use crate::game::traits::Information;
+use crate::game::traits::Variable;
 use crate::game::zero_by;
 
 /* MODULES */
@@ -43,6 +46,19 @@ fn main() -> Result<()> {
 /* SUBCOMMAND EXECUTORS */
 
 fn build(args: cli::BuildArgs) -> Result<()> {
+    match args.target {
+        GameModule::ZeroBy => {
+            let mut game = zero_by::Session::variant(args.variant)?;
+            if args.advance {
+                let history = cli::stdin_lines()?;
+                game.advance(history)
+                    .context("Failed to forward game via history")?;
+            }
+
+            game.build(args.mode)?;
+        },
+    };
+
     Ok(())
 }
 
@@ -50,6 +66,16 @@ fn info(args: cli::InfoArgs) -> Result<()> {
     let data = match args.target {
         GameModule::ZeroBy => zero_by::Session::info(),
     };
-    cli::format_and_output_game_attributes(data, args.attributes, args.output)?;
+
+    let attrs = if !args.attributes.is_empty() {
+        args.attributes
+    } else {
+        frontend::GAME_ATTRIBUTES.to_vec()
+    };
+
+    let out = cli::aggregate_and_format_attributes(data, attrs, args.output)
+        .context("Failed format specified game data attributes.")?;
+
+    print!("{out}");
     Ok(())
 }

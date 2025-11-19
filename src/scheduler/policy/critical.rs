@@ -36,7 +36,7 @@ use crate::scheduler::traits::Policy;
 /* TYPE ALIASES */
 
 /// Generic component of a scheduler policy in charge of retrying tasks.
-pub type RetryPolicy = Box<dyn FnMut(&[TaskID]) -> Option<TaskID>>;
+type RetryPolicy = Box<dyn FnMut(&[TaskID]) -> Option<TaskID>>;
 
 /* STRUCTURES */
 
@@ -77,26 +77,23 @@ impl Policy for CriticalPathPolicy {
 
         let stats = compute_size_stats(ctx.buffer);
         let threshold = (self.sigma * stats.stddev) as u64;
-
-        // Find max critical weight among ready tasks (need to check buffer)
         let max_ready_depth = ctx
             .buffer
             .iter()
             .filter(|(_, task_ctx)| {
                 matches!(task_ctx.state, crate::scheduler::TaskState::Ready)
             })
-            .map(|(tid, _)| critical_weight(*tid, ctx.buffer))
+            .map(|(id, _)| critical_weight(*id, ctx.buffer))
             .max()?;
 
-        // Find minimum critical weight among running tasks (candidates)
-        let (min_running_tid, min_running_depth) = ctx
+        let (min_running_id, min_running_depth) = ctx
             .candidates
             .keys()
-            .map(|tid| (*tid, critical_weight(*tid, ctx.buffer)))
+            .map(|id| (*id, critical_weight(*id, ctx.buffer)))
             .min_by_key(|(_, depth)| *depth)?;
 
         if max_ready_depth > min_running_depth + threshold {
-            Some(min_running_tid)
+            Some(min_running_id)
         } else {
             None
         }
@@ -105,9 +102,9 @@ impl Policy for CriticalPathPolicy {
     fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
         ctx.candidates
             .keys()
-            .map(|tid| (*tid, critical_weight(*tid, ctx.buffer)))
+            .map(|id| (*id, critical_weight(*id, ctx.buffer)))
             .max_by_key(|(_, depth)| *depth)
-            .map(|(tid, _)| tid)
+            .map(|(id, _)| id)
     }
 }
 
@@ -218,6 +215,7 @@ mod tests {
     use std::rc::Rc;
 
     use crate::developer::GraphBuilder;
+    use crate::game::Component;
     use crate::scheduler::DecisionContext;
     use crate::scheduler::Dependencies;
     use crate::scheduler::Scheduler;
@@ -225,7 +223,9 @@ mod tests {
     use crate::scheduler::SchedulerContextBuilder;
     use crate::scheduler::SchedulerSnapshot;
     use crate::scheduler::SchedulerState;
+    use crate::scheduler::TaskCategory;
     use crate::scheduler::TaskContextBuilder;
+    use crate::scheduler::TaskIDBuilder;
     use crate::scheduler::TaskOutcome;
     use crate::scheduler::TaskState;
     use crate::scheduler::logger::history::HistoryLogger;
@@ -241,6 +241,15 @@ mod tests {
     /* TEST UTILITIES */
 
     const MODULE: &str = "critical-policy";
+
+    /// Helper to create TaskID from component for tests (always uses Mock category)
+    fn tid(component: u64) -> TaskID {
+        TaskIDBuilder::default()
+            .category(TaskCategory::Mock)
+            .component(component as Component)
+            .build()
+            .expect("TaskID builder should not fail")
+    }
 
     /// Wrapper for HistoryLogger that allows shared access in tests
     struct SharedLogger {
@@ -258,14 +267,14 @@ mod tests {
     }
 
     impl Logger for SharedLogger {
-        fn observe(
+        fn report(
             &mut self,
             snapshot: &SchedulerSnapshot,
             changed: bool,
         ) -> Result<()> {
             self.inner
                 .borrow_mut()
-                .observe(snapshot, changed)
+                .report(snapshot, changed)
         }
     }
 
@@ -541,8 +550,8 @@ mod tests {
             .sigma(1.0)
             .build()?;
 
-        let tid_low = TaskID::from(1u64);
-        let tid_high = TaskID::from(2u64);
+        let tid_low = tid(1);
+        let tid_high = tid(2);
 
         // Task A: running, weight 50
         let ctx_low = TaskContextBuilder::default()
@@ -613,10 +622,38 @@ mod tests {
         let mut buffer = HashMap::new();
         buffer.insert(tid_low, ctx_low);
         buffer.insert(tid_high, ctx_high);
-        buffer.insert(TaskID::from(3u64), ctx_other1);
-        buffer.insert(TaskID::from(4u64), ctx_other2);
-        buffer.insert(TaskID::from(5u64), ctx_other3);
-        buffer.insert(TaskID::from(6u64), ctx_other4);
+        buffer.insert(
+            TaskIDBuilder::default()
+                .category(TaskCategory::Mock)
+                .component(3u64)
+                .build()
+                .unwrap(),
+            ctx_other1,
+        );
+        buffer.insert(
+            TaskIDBuilder::default()
+                .category(TaskCategory::Mock)
+                .component(4u64)
+                .build()
+                .unwrap(),
+            ctx_other2,
+        );
+        buffer.insert(
+            TaskIDBuilder::default()
+                .category(TaskCategory::Mock)
+                .component(5u64)
+                .build()
+                .unwrap(),
+            ctx_other3,
+        );
+        buffer.insert(
+            TaskIDBuilder::default()
+                .category(TaskCategory::Mock)
+                .component(6u64)
+                .build()
+                .unwrap(),
+            ctx_other4,
+        );
 
         // Candidates for preemption are the running tasks
         let mut candidates = HashMap::new();
@@ -645,8 +682,8 @@ mod tests {
             .sigma(1.0)
             .build()?;
 
-        let tid_low = TaskID::from(1u64);
-        let tid_high = TaskID::from(2u64);
+        let tid_low = tid(1);
+        let tid_high = tid(2);
 
         // Task A: running, low weight (size 10)
         let ctx_low = TaskContextBuilder::default()
@@ -702,10 +739,10 @@ mod tests {
             .sigma(1.0)
             .build()?;
 
-        let tid_low = TaskID::from(1u64);
-        let tid_med = TaskID::from(2u64);
-        let tid_high = TaskID::from(3u64);
-        let tid_ready = TaskID::from(4u64);
+        let tid_low = tid(1);
+        let tid_med = tid(2);
+        let tid_high = tid(3);
+        let tid_ready = tid(4);
 
         // Three running tasks with different weights
         let ctx_low = TaskContextBuilder::default()
@@ -787,8 +824,8 @@ mod tests {
             .sigma(1.0)
             .build()?;
 
-        let tid_running = TaskID::from(1u64);
-        let tid_ready = TaskID::from(2u64);
+        let tid_running = tid(1);
+        let tid_ready = tid(2);
 
         let ctx_running = TaskContextBuilder::default()
             .executable(None)
@@ -840,8 +877,8 @@ mod tests {
             .sigma(1.0)
             .build()?;
 
-        let tid_running = TaskID::from(1u64);
-        let tid_ready = TaskID::from(2u64);
+        let tid_running = tid(1);
+        let tid_ready = tid(2);
 
         let ctx_running = TaskContextBuilder::default()
             .executable(None)
@@ -893,7 +930,7 @@ mod tests {
             .sigma(1.0)
             .build()?;
 
-        let tid_running = TaskID::from(1u64);
+        let tid_running = tid(1);
 
         let ctx_running = TaskContextBuilder::default()
             .executable(None)
@@ -933,8 +970,8 @@ mod tests {
             .sigma(1.0)
             .build()?;
 
-        let tid_running = TaskID::from(1u64);
-        let tid_ready = TaskID::from(2u64);
+        let tid_running = tid(1);
+        let tid_ready = tid(2);
 
         // Running task has high weight
         let ctx_running = TaskContextBuilder::default()

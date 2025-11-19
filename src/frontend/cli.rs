@@ -13,7 +13,6 @@ use serde_json::Value;
 
 use std::io::BufRead;
 
-use crate::frontend::GAME_ATTRIBUTES;
 use crate::frontend::GameAttribute;
 use crate::frontend::IOMode;
 use crate::frontend::InfoFormat;
@@ -65,7 +64,7 @@ pub struct BuildArgs {
 
     /// Compute solution starting after a state history read from STDIN.
     #[arg(short, long)]
-    pub forward: bool,
+    pub advance: bool,
 }
 
 /// Arguments to the `nova info` subcommand.
@@ -98,26 +97,6 @@ pub fn stdin_lines() -> Result<Vec<String>> {
 
 /* STANDARD OUTPUT */
 
-/// Collects the attributes specified in `attrs` from the provided game `data`
-/// into a specific `format`, and prints them to STDOUT. If `attrs` is `None`,
-/// all possible game attributes are sent to STDOUT.
-pub fn format_and_output_game_attributes(
-    data: GameData,
-    attrs: Vec<GameAttribute>,
-    format: InfoFormat,
-) -> Result<()> {
-    let attrs =
-        if !attrs.is_empty() { attrs } else { GAME_ATTRIBUTES.to_vec() };
-
-    let out = aggregate_and_format_attributes(data, attrs, format)
-        .context("Failed format specified game data attributes.")?;
-
-    print!("{out}");
-    Ok(())
-}
-
-/* HELPER FUNCTIONS */
-
 /// Collects the attributes specified in `attr` from the provided game `data`
 /// to a single string in a specific `format`.
 pub fn aggregate_and_format_attributes(
@@ -147,7 +126,7 @@ pub fn aggregate_and_format_attributes(
 #[cfg(test)]
 mod tests {
 
-    use super::*;
+    use crate::frontend::GAME_ATTRIBUTES;
 
     #[test]
     fn no_duplicates_in_game_attrs_list() {

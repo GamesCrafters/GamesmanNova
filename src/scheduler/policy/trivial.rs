@@ -13,7 +13,7 @@ use crate::scheduler::traits::Policy;
 #[derive(Default)]
 pub struct TrivialPolicy;
 
-/* IMPL TRAIT FOR TYPE */
+/* TRAIT IMPLEMENTATIONS */
 
 impl Policy for TrivialPolicy {
     fn retry<'a>(&mut self, _ctx: &DecisionContext<'a>) -> Option<TaskID> {

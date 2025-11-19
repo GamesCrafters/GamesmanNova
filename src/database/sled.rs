@@ -7,30 +7,45 @@ use anyhow::Result;
 
 use std::env;
 
-use crate::game::traits::Variable;
+use crate::frontend::IOMode;
+
+/* CONSTANTS */
+
+/// Environment variable with Sled DB path.
+const SLED_DATABASE: &str = "SLED_DATABASE";
+
+/// In bytes. Recall 1GB ~= 1_000_000_000B.
+const CACHE_CAPACITY: u64 = 5_000_000_000;
+
+/// In milliseconds.
+const FLUSH_INTERVAL: u64 = 10000;
 
 /* HELPER FUNCTIONS */
 
-pub fn open_tree<G>(game: &G) -> Result<sled::Tree>
-where
-    G: Variable,
-{
-    let path = env::var("SLED_DATABASE")
-        .context("SLED_DATABASE environment variable not set.")?;
+pub fn init_sled(mode: IOMode, name: &str) -> Result<sled::Db> {
+    let path = env::var(SLED_DATABASE).with_context(|| {
+        format!("{SLED_DATABASE} environment variable must be set")
+    })?;
 
-    let db = sled::open(path)?;
-    let tree = db.open_tree(game.name())?;
-    Ok(tree)
-}
+    let cfg = match mode {
+        IOMode::Forgetful => sled::Config::new().temporary(true),
+        IOMode::Overwrite => sled::Config::new().path(&path),
+        IOMode::Constructive => sled::Config::new()
+            .create_new(false)
+            .path(&path),
+    };
 
-pub fn drop_tree<G>(game: &G) -> Result<()>
-where
-    G: Variable,
-{
-    let path = env::var("SLED_DATABASE")
-        .context("SLED_DATABASE environment variable not set.")?;
+    let db = cfg
+        .mode(sled::Mode::HighThroughput)
+        .cache_capacity(CACHE_CAPACITY)
+        .flush_every_ms(Some(FLUSH_INTERVAL))
+        .open()
+        .context("Failed to open Sled database")?;
 
-    let db = sled::open(path)?;
-    db.drop_tree(game.name())?;
-    Ok(())
+    if matches!(mode, IOMode::Overwrite) {
+        db.drop_tree(name)
+            .context("Failed to drop Sled tree for Overwrite mode")?;
+    }
+
+    Ok(db)
 }

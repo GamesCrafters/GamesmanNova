@@ -46,7 +46,7 @@ where
                     )
                 }
 
-                let transitions = target.adjacent(&prev);
+                let transitions = target.outgoing(&prev);
                 if !transitions.contains(&next) {
                     bail!(
                         transition_history_error(target, prev, next)?.context(

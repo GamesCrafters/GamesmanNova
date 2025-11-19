@@ -32,3 +32,6 @@ flamegraph.svg
 # AI
 /.claude
 
+# Databases 
+/data/*
+

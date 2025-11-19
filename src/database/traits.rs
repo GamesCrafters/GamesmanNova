@@ -2,8 +2,11 @@
 //!
 //! TODO
 
+use anyhow::Context;
 use anyhow::Result;
 use rusqlite::Statement;
+use rusqlite::Transaction;
+use sled::IVec;
 
 use crate::database::Schema;
 use crate::game::DEFAULT_STATE_BYTES;
@@ -14,20 +17,21 @@ use crate::game::Remoteness;
 use crate::game::SUtility;
 use crate::game::State;
 
-/* SLED INTERFACES */
+/* SOLVER STORAGE INTERFACES */
 
 pub trait SledManager<
     const N: PlayerCount,
     const B: usize = DEFAULT_STATE_BYTES,
 >
 {
-    type SolutionRecord: Default;
-    fn read(&self, state: &State<B>) -> Result<Self::SolutionRecord>;
-    fn write(
-        &self,
-        state: &State<B>,
-        record: &Self::SolutionRecord,
-    ) -> Result<()>;
+    type Record: Into<IVec>
+        + IntegerUtilityRecord<N>
+        + RemotenessRecord
+        + PlayerRecord
+        + DrawRecord
+        + Default;
+
+    fn sled_transaction(&self) -> Result<sled::Tree>;
 }
 
 pub trait RemotenessRecord: Sized {
@@ -65,24 +69,34 @@ pub trait PuzzleUtilityRecord: Sized {
     fn get_utility(&self) -> SUtility;
 }
 
-/* SQLITE INTERFACES */
+/* DATASET GENERATION INTERFACES */
 
-pub trait SQLiteManager<const N: PlayerCount> {
-    type SolutionRecord;
-    fn schema(&self) -> &Schema;
-}
-
-pub trait SQLiteWriter<
-    SolutionRecord,
+pub trait SQLiteManager<
     const N: PlayerCount,
     const B: usize = DEFAULT_STATE_BYTES,
 > where
-    Self: SQLiteManager<N, SolutionRecord = SolutionRecord>,
+    Self: SledManager<N, B>,
 {
-    fn insert(
+    fn schema(&self) -> &Schema;
+
+    fn store_lift(
         &mut self,
         state: &State<B>,
-        solution: &SolutionRecord,
+        solution: &Self::Record,
         statement: &mut Statement,
     ) -> Result<()>;
+
+    fn sqlite_transaction<'a>(
+        &self,
+        conn: &'a mut rusqlite::Connection,
+    ) -> Result<Transaction<'a>> {
+        let tx = conn
+            .transaction()
+            .context("Failed to start SQLite transaction")?;
+
+        tx.execute(&self.schema().create_table_query(), [])
+            .context("Failed to create SQLite table")?;
+
+        Ok(tx)
+    }
 }

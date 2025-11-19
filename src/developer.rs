@@ -40,6 +40,8 @@ pub const DEV_DIRECTORY: &str = "dev";
 #[strum(serialize_all = "kebab-case")]
 pub enum DevelopmentData {
     Visuals,
+    Sled,
+    SledTest,
 }
 
 /// Specifies the level of side effects to generate during testing. This
@@ -106,6 +108,32 @@ pub fn test_database() -> Result<Connection> {
     )
     .context("Failed to tune SQLite database options.")?;
     Ok(db)
+}
+
+/// Returns a Sled database for testing. In correctness mode, uses an in-memory
+/// temporary database. In development mode, uses a persistent database in the
+/// dev/sled directory, deleting any existing data on initialization.
+pub fn test_sled_db(module: &str) -> Result<sled::Db> {
+    match test_setting()? {
+        TestSetting::Correctness => sled::Config::new()
+            .temporary(true)
+            .open()
+            .context("Failed to open temporary Sled database"),
+        TestSetting::Development => {
+            let path =
+                get_directory(DevelopmentData::Sled, PathBuf::from(module))?;
+
+            if path.exists() {
+                fs::remove_dir_all(&path)
+                    .context("Failed to remove existing Sled database")?;
+            }
+
+            sled::open(&path).context(format!(
+                "Failed to open Sled database at {}",
+                path.display()
+            ))
+        },
+    }
 }
 
 /// Returns the testing side effects setting as obtained from the `TEST_SETTING`

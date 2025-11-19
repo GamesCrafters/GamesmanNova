@@ -8,7 +8,9 @@ use petgraph::visit::EdgeRef;
 use std::sync::Arc;
 
 use crate::developer::GraphBuilder;
-use crate::scheduler::TaskID;
+use crate::game::Component;
+use crate::scheduler::TaskCategory;
+use crate::scheduler::TaskIDBuilder;
 use crate::scheduler::task::mock::CompiledGraph;
 use crate::scheduler::task::mock::Task;
 use crate::scheduler::task::mock::TaskConfig;
@@ -129,10 +131,17 @@ impl<'a> TaskBuilder<'a> {
             graph.add_edge(src, dst, ());
         }
 
+        let component = root.index() as Component;
+        let root_tid = TaskIDBuilder::default()
+            .category(TaskCategory::Mock)
+            .component(component)
+            .build()
+            .expect("TaskID builder should not fail with all fields provided");
+
         let compiled = CompiledGraph {
             graph,
             name: name.to_string(),
-            root: root.index() as TaskID,
+            root: root_tid,
         };
 
         let arc = Arc::new(compiled);
