@@ -39,6 +39,7 @@ pub fn init_sled(mode: IOMode, name: &str) -> Result<sled::Db> {
         .mode(sled::Mode::HighThroughput)
         .cache_capacity(CACHE_CAPACITY)
         .flush_every_ms(Some(FLUSH_INTERVAL))
+        .print_profile_on_drop(true)
         .open()
         .context("Failed to open Sled database")?;
 

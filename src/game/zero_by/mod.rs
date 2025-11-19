@@ -2,8 +2,6 @@
 //!
 //! TODO
 
-use std::collections::VecDeque;
-
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
@@ -65,9 +63,9 @@ type PlayerStorage = B8;
 
 /* CONSTANTS */
 
-// Task hyperparameter -- this is assuming all states below N are reachable. It
-// is also a by-node measurement, not a graph size measurement (not V + E).
-const APROXIMATE_COMPONENT_SIZE: u64 = 10000;
+// Task hyperparameter -- this is assuming all states below N are reachable. If
+// there are N players in the game, states per component will be ~(N * this).
+const APROXIMATE_COMPONENT_SIZE: u64 = 10000000;
 
 const NAME: &str = "zero-by";
 const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
@@ -132,26 +130,21 @@ struct RecordFeatures {
 impl Session {
     pub fn build(&mut self, mode: IOMode) -> Result<()> {
         self.sled_db = init_sled(mode, self.name())?;
-        let frontier = VecDeque::from(vec![self.source()]);
         let executable = match self.players {
             2 => ForwardTaskBuilder::<Self, 2>::default()
+                .source(self.source())
                 .game(self.clone())
-                .frontier(frontier)
-                .threshold(1)
+                .threshold(100)
                 .build()?,
             _ => bail!("Player count not supported for Zero-By"),
         };
 
-        let initial_task = {
-            TaskBuilder::default()
-                .retriable(false)
-                .executable(executable)
-                .about(format!(
-                    "Component exploration of Zero-By variant {}",
-                    self.name()
-                ))
-                .build()?
-        };
+        let about = format!("Forward pass of variant {}", self.name());
+        let task = TaskBuilder::default()
+            .executable(executable)
+            .retriable(true)
+            .about(about)
+            .build()?;
 
         let mut scheduler = {
             let policy = CriticalPathPolicyBuilder::default().build()?;
@@ -165,7 +158,7 @@ impl Session {
                 .build()?;
 
             let state = SchedulerStateBuilder::default()
-                .task(initial_task)
+                .task(task)
                 .build()?;
 
             SchedulerBuilder::default()

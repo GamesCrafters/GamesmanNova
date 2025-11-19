@@ -36,6 +36,9 @@ use crate::scheduler::util::format_cycle_path;
 pub use logger::compose::ComposeLoggerBuilder;
 pub use logger::count::CountLoggerBuilder;
 pub use logger::dashboard::DashboardLoggerBuilder;
+pub use logger::dashboard::SectionConfigBuilder;
+pub use logger::dashboard::SortOrder;
+pub use logger::dashboard::TaskFilter;
 
 pub use policy::critical::CriticalPathPolicyBuilder;
 pub use policy::trivial::TrivialPolicy;

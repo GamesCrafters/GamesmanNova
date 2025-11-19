@@ -24,7 +24,6 @@ use crate::game::traits::IntegerUtility;
 use crate::game::traits::Partition;
 use crate::game::traits::Sequential;
 use crate::game::traits::Variable;
-use crate::scheduler::Dependencies;
 use crate::scheduler::Task;
 use crate::scheduler::TaskBuilder;
 use crate::scheduler::TaskCategory;
@@ -103,6 +102,11 @@ where
         self
     }
 
+    pub fn source(mut self, state: State<B>) -> Self {
+        self.frontier = Some(VecDeque::from(vec![state]));
+        self
+    }
+
     pub fn game(mut self, value: G) -> Self {
         self.game = Some(value);
         self
@@ -134,9 +138,7 @@ where
         for state in &frontier {
             if visited
                 .insert(state, G::Record::default())
-                .context(
-                    "Failed to insert frontier state into Sled visited tree",
-                )?
+                .context("Sled insertion failure")?
                 .is_none()
             {
                 progress += 1;
@@ -177,18 +179,16 @@ where
 
     fn child(&self, frontier: VecDeque<State<B>>) -> Result<Task> {
         let child = ForwardTaskBuilder::<G, N, B>::default()
+            .threshold(self.threshold)
             .game(self.game.clone())
             .frontier(frontier)
-            .threshold(self.threshold)
             .build()?;
 
-        let comp = child.component();
+        let about = format!("Forward pass of variant {}", self.game.name());
         let task = TaskBuilder::default()
             .executable(child)
-            .about(format!("Explore component {}", comp))
-            .requires(Dependencies::new())
-            .retriable(false)
-            .size(None)
+            .retriable(true)
+            .about(about)
             .build()
             .context("Failed to build child explore task")?;
 
@@ -227,26 +227,6 @@ where
                 .push_back(state);
             self.buffered += 1;
         }
-    }
-
-    fn merge_visited(
-        &mut self,
-        visited: &sled::Tree,
-        progress: usize,
-    ) -> Result<()> {
-        for entry in visited.iter() {
-            let (key, _) = entry.context(
-                "Failed to iterate over Sled visited tree during merge",
-            )?;
-            self.visited
-                .insert(key, G::Record::default())
-                .context(
-                    "Failed to insert merged state into Sled visited tree",
-                )?;
-        }
-
-        self.progress = self.progress.max(progress);
-        Ok(())
     }
 
     fn merge_pending(
@@ -356,7 +336,7 @@ where
             );
         }
 
-        self.merge_visited(&other.visited, other.progress)?;
+        self.progress = self.progress.max(other.progress);
         self.merge_pending(&other.pending, other.buffered);
         self.merge_frontier(&other.frontier);
         self.explored = self.explored.max(other.explored);

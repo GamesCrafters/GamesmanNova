@@ -83,7 +83,7 @@ pub struct SectionConfig {
     pub name: &'static str,
 
     /// Task state filters for this section.
-    #[builder(setter(each(name = "filter", into)))]
+    #[builder(setter(each(name = "filter")))]
     pub filters: Vec<TaskFilter>,
 
     /// Relative size weight (proportional allocation).
@@ -105,7 +105,7 @@ pub struct DashboardLogger {
     order: SortOrder,
 
     /// Redraw every N observe calls.
-    #[builder(default = "100")]
+    #[builder(default = "2500")]
     frequency: usize,
 
     /// Max dependencies to display before abbreviation.
@@ -323,23 +323,19 @@ impl DashboardLogger {
 fn default_sections() -> Vec<SectionConfig> {
     vec![
         SectionConfig {
-            name: "Active",
-            filters: vec![
-                TaskFilter::Running,
-                TaskFilter::Preempting,
-                TaskFilter::Ready,
-            ],
-            weight: 1,
+            name: "Workers",
+            filters: vec![TaskFilter::Running, TaskFilter::Preempting],
+            weight: 2,
         },
         SectionConfig {
-            name: "Waiting",
-            filters: vec![TaskFilter::Waiting],
-            weight: 1,
+            name: "Buffered",
+            filters: vec![TaskFilter::Waiting, TaskFilter::Ready],
+            weight: 2,
         },
         SectionConfig {
             name: "Suspended",
             filters: vec![TaskFilter::Suspended],
-            weight: 1,
+            weight: 2,
         },
         SectionConfig {
             name: "Errors",
