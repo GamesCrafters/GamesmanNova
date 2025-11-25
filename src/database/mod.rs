@@ -22,7 +22,6 @@ use crate::game::SUtility;
 pub mod traits;
 pub mod sqlite;
 pub mod sled;
-pub mod util;
 
 /* API STRUCTURES */
 

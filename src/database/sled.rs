@@ -15,10 +15,10 @@ use crate::frontend::IOMode;
 const SLED_DATABASE: &str = "SLED_DATABASE";
 
 /// In bytes. Recall 1GB ~= 1_000_000_000B.
-const CACHE_CAPACITY: u64 = 5_000_000_000;
+const CACHE_CAPACITY: u64 = 10_000_000_000;
 
 /// In milliseconds.
-const FLUSH_INTERVAL: u64 = 10000;
+const FLUSH_INTERVAL: u64 = 500;
 
 /* HELPER FUNCTIONS */
 
@@ -36,9 +36,9 @@ pub fn init_sled(mode: IOMode, name: &str) -> Result<sled::Db> {
     };
 
     let db = cfg
+        .flush_every_ms(Some(FLUSH_INTERVAL))
         .mode(sled::Mode::HighThroughput)
         .cache_capacity(CACHE_CAPACITY)
-        .flush_every_ms(Some(FLUSH_INTERVAL))
         .print_profile_on_drop(true)
         .open()
         .context("Failed to open Sled database")?;

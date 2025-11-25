@@ -94,6 +94,7 @@ enum TaskCategory {
     Explore,
     Solve,
     Store,
+    Flush,
     Mock,
 }
 

@@ -65,7 +65,7 @@ type PlayerStorage = B8;
 
 // Task hyperparameter -- this is assuming all states below N are reachable. If
 // there are N players in the game, states per component will be ~(N * this).
-const APROXIMATE_COMPONENT_SIZE: u64 = 10000000;
+const APROXIMATE_COMPONENT_SIZE: u64 = 10000;
 
 const NAME: &str = "zero-by";
 const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
@@ -134,7 +134,7 @@ impl Session {
             2 => ForwardTaskBuilder::<Self, 2>::default()
                 .source(self.source())
                 .game(self.clone())
-                .threshold(100)
+                .threshold(1)
                 .build()?,
             _ => bail!("Player count not supported for Zero-By"),
         };

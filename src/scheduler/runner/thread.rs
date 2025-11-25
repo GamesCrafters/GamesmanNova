@@ -489,7 +489,7 @@ fn execute_task(
         let update = executable.tick(awaited);
 
         if let Some(value) = executable.progress()
-            && let Ok(mut map) = progress.write()
+            && let Ok(mut map) = progress.try_write()
         {
             map.insert(tid, value);
         }
