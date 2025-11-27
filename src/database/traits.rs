@@ -11,11 +11,11 @@ use rusqlite::Transaction;
 use std::sync::Arc;
 
 use crate::database::Schema;
+use crate::game::IUtility;
+use crate::game::Player;
 use crate::game::PlayerCount;
 use crate::game::Remoteness;
-use crate::game::IUtility;
 use crate::game::SUtility;
-use crate::game::Player;
 use crate::game::State;
 
 pub trait RocksDBManager<const N: PlayerCount> {

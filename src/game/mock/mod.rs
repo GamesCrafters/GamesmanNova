@@ -179,9 +179,7 @@ impl Transpose for Session {
 }
 
 impl Variable for Session {
-    fn variant(
-        _variant: Option<Variant>,
-    ) -> Result<Self> {
+    fn variant(_variant: Option<Variant>) -> Result<Self> {
         anyhow::bail!("Mock games cannot be created from variant strings")
     }
 
@@ -241,7 +239,8 @@ impl<const N: PlayerCount> SQLiteManager<N> for Session {
     ) -> Result<()> {
         let mut state_bytes = [0u8; 8];
         let raw = state.as_raw_slice();
-        state_bytes[..raw.len().min(8)].copy_from_slice(&raw[..raw.len().min(8)]);
+        state_bytes[..raw.len().min(8)]
+            .copy_from_slice(&raw[..raw.len().min(8)]);
 
         let values = [
             i64::from_be_bytes(state_bytes),

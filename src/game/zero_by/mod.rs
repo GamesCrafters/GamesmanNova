@@ -11,19 +11,11 @@ use bitvec::vec::BitVec;
 use modular_bitfield::Specifier;
 use modular_bitfield::bitfield;
 use modular_bitfield::prelude::*;
-use rusqlite::Statement;
-use rusqlite::params_from_iter;
 
-use std::sync::Arc;
-
-use crate::database::Schema;
 use crate::database::traits::DrawRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::RemotenessRecord;
-use crate::database::traits::RocksDBManager;
-use crate::database::traits::SQLiteManager;
 use crate::database::traits::SimpleUtilityRecord;
-use crate::frontend::IOMode;
 use crate::game::Component;
 use crate::game::GameData;
 use crate::game::Player;
@@ -42,14 +34,6 @@ use crate::game::traits::SimpleUtility;
 use crate::game::traits::Transpose;
 use crate::game::traits::Variable;
 use crate::game::util::min_ubits;
-use crate::scheduler::CriticalPathPolicyBuilder;
-use crate::scheduler::DashboardLoggerBuilder;
-use crate::scheduler::ForwardTaskBuilder;
-use crate::scheduler::SchedulerBuilder;
-use crate::scheduler::SchedulerContextBuilder;
-use crate::scheduler::SchedulerStateBuilder;
-use crate::scheduler::TaskBuilder;
-use crate::scheduler::ThreadPoolRunnerBuilder;
 
 /* SUBMODULES */
 
@@ -64,7 +48,9 @@ type PlayerStorage = B8;
 
 /* CONSTANTS */
 
-const APROXIMATE_COMPONENT_SIZE: u64 = 100000000;
+const APROXIMATE_COMPONENT_SIZE: u64 = 100000;
+const FEATURES_BYTES: usize =
+    (RemotenessStorage::BITS + PlayerStorage::BITS).div_ceil(8);
 
 const NAME: &str = "zero-by";
 const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
@@ -108,6 +94,7 @@ pub struct Ruleset {
     by: Vec<Elements>,
 }
 
+#[derive(Clone)]
 pub struct Record {
     features: RecordFeatures,
     utility: Vec<SUtility>,
@@ -116,7 +103,7 @@ pub struct Record {
 /* PRIVATE STRUCTURES */
 
 #[bitfield]
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RecordFeatures {
     remoteness: RemotenessStorage,
     player: PlayerStorage,
@@ -165,10 +152,8 @@ impl Information for Ruleset {
 
 impl Variable for Ruleset {
     fn variant(variant: Option<Variant>) -> Result<Self> {
-        variants::parse_variant(
-            variant.unwrap_or(VARIANT_DEFAULT.to_owned())
-        )
-        .context("Malformed game variant.")
+        variants::parse_variant(variant.unwrap_or(VARIANT_DEFAULT.to_owned()))
+            .context("Malformed game variant.")
     }
 
     fn name(&self) -> &str {
@@ -289,6 +274,34 @@ impl From<Record> for Vec<u8> {
 
         bytes.extend_from_slice(&udata.as_raw_slice()[..ubytes]);
         bytes
+    }
+}
+
+impl TryFrom<Vec<u8>> for Record {
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self> {
+        if bytes.len() < FEATURES_BYTES {
+            bail!("Insufficient bytes for Record features");
+        }
+
+        let farray: [u8; FEATURES_BYTES] =
+            bytes[..FEATURES_BYTES].try_into()?;
+        let features = RecordFeatures::from_bytes(farray);
+
+        let ubytes = &bytes[FEATURES_BYTES..];
+        let udata = BitVec::<u8, Msb0>::from_slice(ubytes);
+        let n = ubytes.len() * 8 / 2;
+
+        let utility = (0..n)
+            .map(|i| {
+                let start = i * 2;
+                let value: u8 = udata[start..start + 2].load_be();
+                SUtility::try_from(value)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self { features, utility })
     }
 }
 

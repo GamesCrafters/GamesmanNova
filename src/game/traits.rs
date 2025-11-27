@@ -5,7 +5,6 @@
 use anyhow::Context;
 use anyhow::Result;
 
-use crate::frontend::IOMode;
 use crate::game::Component;
 use crate::game::GameData;
 use crate::game::IUtility;
@@ -274,8 +273,7 @@ where
     }
 }
 
-pub trait Sequential<const N: PlayerCount>
-{
+pub trait Sequential<const N: PlayerCount> {
     /// Returns the player `i` whose turn it is at the given `state`.
     ///
     /// In general, it can be assumed that the player whose turn it is at there

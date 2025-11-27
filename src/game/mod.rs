@@ -257,6 +257,26 @@ impl TryFrom<i8> for SUtility {
     }
 }
 
+impl TryFrom<u8> for SUtility {
+    type Error = SolverError;
+
+    fn try_from(v: u8) -> Result<Self, Self::Error> {
+        match v {
+            _ if v == SUtility::Lose as u8 => Ok(SUtility::Lose),
+            _ if v == SUtility::Tie as u8 => Ok(SUtility::Tie),
+            _ if v == SUtility::Win as u8 => Ok(SUtility::Win),
+            _ => Err(SolverError::InvalidConversion {
+                input_t: "u8".into(),
+                output_t: "Simple Utility".into(),
+                hint: "Down-casting from integer to simple utility values \
+                    is not stable, and relies on the internal representation \
+                    used for simple utility values."
+                    .into(),
+            }),
+        }
+    }
+}
+
 impl From<SUtility> for IUtility {
     fn from(v: SUtility) -> Self {
         match v {

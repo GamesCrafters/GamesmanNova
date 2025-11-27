@@ -308,7 +308,6 @@ where
     }
 }
 
-
 /* HELPER FUNCTIONS */
 
 /// Transform input string into a valid SQL identifier.

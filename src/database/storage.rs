@@ -7,8 +7,8 @@ use anyhow::Result;
 
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::sync::RwLock;
 use std::sync::Arc;
+use std::sync::RwLock;
 
 use crate::game::State;
 
@@ -55,11 +55,18 @@ impl<R> RocksDBStorage<R> {
 
 impl<R> Storage<R> for RocksDBStorage<R>
 where
-    R: From<Vec<u8>> + Into<Vec<u8>> + Clone + Send + Sync,
+    R: TryFrom<Vec<u8>, Error = anyhow::Error>
+        + Into<Vec<u8>>
+        + Clone
+        + Send
+        + Sync,
 {
     fn get(&self, state: &State) -> Result<Option<R>> {
         let key = state.as_raw_slice();
-        Ok(self.db.get(key)?.map(R::from))
+        self.db
+            .get(key)?
+            .map(R::try_from)
+            .transpose()
     }
 
     fn put(&self, state: &State, record: &R) -> Result<()> {
@@ -101,7 +108,10 @@ where
 
     fn put(&self, state: &State, record: &R) -> Result<()> {
         let key = state.as_raw_slice().to_vec();
-        self.data.write().unwrap().insert(key, record.clone());
+        self.data
+            .write()
+            .unwrap()
+            .insert(key, record.clone());
         Ok(())
     }
 
@@ -125,13 +135,14 @@ mod tests {
         value: i64,
     }
 
-    impl From<Vec<u8>> for TestRecord {
-        fn from(bytes: Vec<u8>) -> Self {
+    impl TryFrom<Vec<u8>> for TestRecord {
+        type Error = anyhow::Error;
+
+        fn try_from(bytes: Vec<u8>) -> Result<Self> {
             let mut arr = [0u8; 8];
             arr.copy_from_slice(&bytes[..8.min(bytes.len())]);
-            Self {
-                value: i64::from_be_bytes(arr),
-            }
+            let value = i64::from_be_bytes(arr);
+            Ok(Self { value })
         }
     }
 

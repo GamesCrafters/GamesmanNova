@@ -239,7 +239,8 @@ where
                 .is_some();
 
             if !is_visited && !self.frontier.contains(state) {
-                self.frontier.push_back(state.clone());
+                self.frontier
+                    .push_back(state.clone());
             }
         }
     }

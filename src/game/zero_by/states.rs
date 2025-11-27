@@ -9,8 +9,8 @@ use crate::game::Player;
 use crate::game::State;
 use crate::game::zero_by::Elements;
 use crate::game::zero_by::NAME;
-use crate::game::zero_by::STATE_PATTERN;
 use crate::game::zero_by::Ruleset;
+use crate::game::zero_by::STATE_PATTERN;
 
 /* API */
 
@@ -175,7 +175,7 @@ mod test {
         let s7 = "1-0".to_owned();
 
         fn f() -> Result<Ruleset> {
-                Ruleset::variant(None)
+            Ruleset::variant(None)
         }
 
         assert!(parse_state(&f()?, s1).is_ok());
