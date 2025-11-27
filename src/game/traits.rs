@@ -5,8 +5,8 @@
 use anyhow::Context;
 use anyhow::Result;
 
+use crate::frontend::IOMode;
 use crate::game::Component;
-use crate::game::DEFAULT_STATE_BYTES;
 use crate::game::GameData;
 use crate::game::IUtility;
 use crate::game::Player;
@@ -24,11 +24,11 @@ pub trait Information {
 
 /* REPRESENTATION INTERFACES */
 
-pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
-    /// Decodes a state [`String`] encoding into a bit-packed [`State<B>`].
+pub trait Codec {
+    /// Decodes a state [`String`] encoding into a bit-packed [`State`].
     ///
     /// This function (and [`Codec::encode`]) effectively specifies a protocol
-    /// for turning a [`String`] into a [`State<B>`]. See [`Information::info`]
+    /// for turning a [`String`] into a [`State`]. See [`Information::info`]
     /// to make this protocol explicit.
     ///
     /// # Example
@@ -48,13 +48,13 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// Fails if `state` is detectably invalid or unreachable in the underlying
     /// game variant.
-    fn decode(&self, string: String) -> Result<State<B>>;
+    fn decode(&self, string: String) -> Result<State>;
 
     /// Encodes a game `state` into a compact string representation.
     ///
     /// The output representation is not designed to be space efficient. It is
     /// used for manual input/output. This function (and [`Codec::decode`])
-    /// effectively specifies a protocol for translating a [`State<B>`] into
+    /// effectively specifies a protocol for translating a [`State`] into
     /// a [`String`]. See [`Information::info`] to make this protocol explicit.
     ///
     /// # Example
@@ -74,7 +74,7 @@ pub trait Codec<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// Fails if `state` is detectably invalid or unreachable in the underlying
     /// game variant.
-    fn encode(&self, state: &State<B>) -> Result<String>;
+    fn encode(&self, state: &State) -> Result<String>;
 }
 
 pub trait Variable {
@@ -115,7 +115,7 @@ pub trait Variable {
 
 /* STRUCTURAL INTERFACES */
 
-pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
+pub trait Implicit {
     /// Returns the collection of states adjacent to `state` in this graph.
     ///
     /// The graph is assumed to be directed, such that calling this method on
@@ -142,7 +142,7 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     ///
     /// If the implementation fails to decode the provided `state`, there are no
     /// behavior guarantees (this many or may not panic).
-    fn outgoing(&self, state: &State<B>) -> Vec<State<B>>;
+    fn outgoing(&self, state: &State) -> Vec<State>;
 
     /// Returns one node within the implicit graph.  
     ///
@@ -162,7 +162,7 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     /// // ignoring turn information for illustration purposes
     /// assert_eq!(10, session.source());
     /// ```
-    fn source(&self) -> State<B>;
+    fn source(&self) -> State;
 
     /// Returns true iff `state` has no outgoing edges in this graph.
     ///
@@ -182,19 +182,19 @@ pub trait Implicit<const B: usize = DEFAULT_STATE_BYTES> {
     /// // ignoring turn information for illustration purposes
     /// assert!(session.sink(0));
     /// ```
-    fn sink(&self, state: &State<B>) -> bool;
+    fn sink(&self, state: &State) -> bool;
 }
 
-pub trait Transpose<const B: usize = DEFAULT_STATE_BYTES> {
+pub trait Transpose {
     /// TODO
-    fn incoming(&self, state: &State<B>) -> Vec<State<B>>;
+    fn incoming(&self, state: &State) -> Vec<State>;
 }
 
 /* UTILILITY INTERFACES */
 
-pub trait Advance<const B: usize = DEFAULT_STATE_BYTES>
+pub trait Advance
 where
-    Self: Information + Codec<B> + Implicit<B> + Sized,
+    Self: Information + Codec + Implicit + Sized,
 {
     /// Sets the game's starting state to a pre-verified `state`.
     ///
@@ -227,7 +227,7 @@ where
         initial states should be done through [`Advance::forward`], which is \
         fallible and provides verification for game states."
     )]
-    fn set_verified_start(&mut self, state: &State<B>);
+    fn set_verified_start(&mut self, state: &State);
 
     /// Advances the game's starting state to the last state in `history`,
     /// verifying that it is a valid traversal of the induced graph on this
@@ -274,7 +274,7 @@ where
     }
 }
 
-pub trait Sequential<const N: PlayerCount, const B: usize = DEFAULT_STATE_BYTES>
+pub trait Sequential<const N: PlayerCount>
 {
     /// Returns the player `i` whose turn it is at the given `state`.
     ///
@@ -288,26 +288,24 @@ pub trait Sequential<const N: PlayerCount, const B: usize = DEFAULT_STATE_BYTES>
     /// `N` is the number of players in the game. Violating this will definitely
     /// result in a program panic at some point. Unfortunately, there are not
     /// many good ways of enforcing this restriction at compilation time.
-    fn turn(&self, state: &State<B>) -> Player;
+    fn turn(&self, state: &State) -> Player;
 }
 
-pub trait Partition<const B: usize = DEFAULT_STATE_BYTES> {
+pub trait Partition {
     /// Returns the ID of the component that contains `state`.
     ///
     /// # Warning
     ///
     /// The component graph (with an edge component(a) -> component(b) for each
     /// pair (a, b) where b is in Sequential::transition(a)) should be acyclic.
-    fn component(&self, state: &State<B>) -> Component;
+    fn component(&self, state: &State) -> Component;
 }
 
 /* UTILITY MEASURE */
 
-pub trait IntegerUtility<
-    const N: PlayerCount,
-    const B: usize = DEFAULT_STATE_BYTES,
-> where
-    Self: Sequential<N, B>,
+pub trait IntegerUtility<const N: PlayerCount>
+where
+    Self: Sequential<N>,
 {
     /// Returns the utility vector associated with a terminal `state` where
     /// whose `i`'th entry is the utility of the state for player `i`.
@@ -323,14 +321,12 @@ pub trait IntegerUtility<
     /// each other's coins. Since the coins are discrete, it is only possible
     /// to gain utility in specific increments. We can model this hypothetical
     /// game through this interface.
-    fn utility(&self, state: &State<B>) -> [IUtility; N];
+    fn utility(&self, state: &State) -> [IUtility; N];
 }
 
-pub trait SimpleUtility<
-    const N: PlayerCount,
-    const B: usize = DEFAULT_STATE_BYTES,
-> where
-    Self: Sequential<N, B>,
+pub trait SimpleUtility<const N: PlayerCount>
+where
+    Self: Sequential<N>,
 {
     /// Returns the utility vector associated with a terminal `state` where the
     /// `i`'th entry is the utility of the state for player `i`.
@@ -348,14 +344,14 @@ pub trait SimpleUtility<
     /// to obtain a [`SUtility::Win`] by finishing first (in the event where
     /// utility is defined without 2nd through 6th places), and everyone else
     /// would be assigned a [`SUtility::Lose`].
-    fn utility(&self, state: &State<B>) -> [SUtility; N];
+    fn utility(&self, state: &State) -> [SUtility; N];
 }
 
 /* UTILITY STRUCTURE */
 
-pub trait ClassicGame<const B: usize = DEFAULT_STATE_BYTES>
+pub trait ClassicGame
 where
-    Self: Sequential<2, B>,
+    Self: Sequential<2>,
 {
     /// Returns the utility of the only player whose turn it is at `state`.
     ///
@@ -379,12 +375,12 @@ where
     /// While the games that implement this interface should be zero-sum, the
     /// type system is not sufficiently rich to enforce such a constraint at
     /// compilation time, so sum specifications are generally left to semantics.
-    fn utility(&self, state: &State<B>) -> SUtility;
+    fn utility(&self, state: &State) -> SUtility;
 }
 
-pub trait ClassicPuzzle<const B: usize = DEFAULT_STATE_BYTES>
+pub trait ClassicPuzzle
 where
-    Self: Sequential<1, B>,
+    Self: Sequential<1>,
 {
     /// Returns the utility of the only player in the puzzle at `state`.
     ///
@@ -408,5 +404,5 @@ where
     /// Finally, a [`SUtility::Tie`] can be interpreted as reaching an outcome
     /// of the puzzle where it is impossible to back out of, but that presents
     /// no positive or negative impact on the player.
-    fn utility(&self, state: State<B>) -> SUtility;
+    fn utility(&self, state: State) -> SUtility;
 }

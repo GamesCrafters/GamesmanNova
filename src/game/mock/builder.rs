@@ -79,14 +79,13 @@ impl<'a> SessionBuilder<'a> {
             game.add_edge(src, dst, ());
         }
 
-        let sled_db = sled::Config::new()
-            .temporary(true)
-            .open()
-            .expect("Failed to create temporary Sled database for mock game");
+        let rocksdb = crate::developer::test_rocksdb(name).expect(
+            "Failed to create temporary RocksDB database for mock game",
+        );
 
         let session = Session {
             players,
-            sled_db,
+            rocksdb,
             schema,
             source,
             game,

@@ -111,9 +111,6 @@ pub enum IOMode {
 
     /// Compute request from scratch, overwriting existing resources.
     Overwrite,
-
-    /// Constructive, but does not persist any changes.
-    Forgetful,
 }
 
 /* IMPL EXTERNAL TRAIT */
@@ -123,7 +120,6 @@ impl fmt::Display for IOMode {
         match self {
             IOMode::Constructive => write!(f, "constructive"),
             IOMode::Overwrite => write!(f, "overwrite"),
-            IOMode::Forgetful => write!(f, "forgetful"),
         }
     }
 }

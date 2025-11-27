@@ -11,7 +11,6 @@ use std::hash::Hash;
 use crate::database::traits::ClassicUtilityRecord;
 use crate::database::traits::IntegerUtilityRecord;
 use crate::database::traits::PlayerRecord;
-use crate::database::traits::PuzzleUtilityRecord;
 use crate::database::traits::SimpleUtilityRecord;
 use crate::game::IUtility;
 use crate::game::PlayerCount;
@@ -19,9 +18,10 @@ use crate::game::SUtility;
 
 /* SUBMODULES */
 
+pub mod storage;
 pub mod traits;
 pub mod sqlite;
-pub mod sled;
+pub mod rocksdb;
 
 /* API STRUCTURES */
 
@@ -267,64 +267,47 @@ impl SchemaBuilder {
 
 /* IMPL TRAIT FOR TYPE */
 
-impl<R, const N: PlayerCount> IntegerUtilityRecord<N> for R
+impl<R> IntegerUtilityRecord for R
 where
-    R: SimpleUtilityRecord<N>,
+    R: SimpleUtilityRecord,
 {
-    fn set_utility(&mut self, iutility: [IUtility; N]) -> Result<&mut Self> {
-        let mut sutility = [SUtility::Lose; N];
-        for (i, u) in sutility.iter_mut().enumerate() {
-            *u = iutility[i].try_into()?;
-        }
+    fn set_utility(&mut self, iutility: Vec<IUtility>) -> Result<&mut Self> {
+        let sutility = iutility
+            .into_iter()
+            .map(|u| u.try_into())
+            .collect::<Result<Vec<SUtility>, _>>()?;
 
         self.set_utility(sutility)
     }
 
-    fn get_utility(&self) -> [IUtility; N] {
-        let sutility = self.get_utility();
-        let mut iutility = [0; N];
-        iutility
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, u)| *u = IUtility::from(sutility[i]) - 1);
-
-        iutility
+    fn get_utility(&self) -> Vec<IUtility> {
+        self.get_utility()
+            .into_iter()
+            .map(|u| IUtility::from(u) - 1)
+            .collect()
     }
 }
 
-impl<R> SimpleUtilityRecord<2> for R
+impl<R> SimpleUtilityRecord for R
 where
-    R: ClassicUtilityRecord,
-    R: PlayerRecord,
+    R: ClassicUtilityRecord + PlayerRecord,
 {
-    fn set_utility(&mut self, value: [SUtility; 2]) -> Result<&mut Self> {
+    fn set_utility(&mut self, value: Vec<SUtility>) -> Result<&mut Self> {
         let turn = self.get_player();
         self.set_utility(value[turn])
     }
 
-    fn get_utility(&self) -> [SUtility; 2] {
-        let mut sutility = [SUtility::Tie; 2];
+    fn get_utility(&self) -> Vec<SUtility> {
         let utility = self.get_utility();
         let turn = self.get_player();
         let them = (turn + 1) % 2;
+        let mut sutility = vec![SUtility::Tie; 2];
         sutility[them] = !utility;
         sutility[turn] = utility;
         sutility
     }
 }
 
-impl<R> SimpleUtilityRecord<1> for R
-where
-    R: PuzzleUtilityRecord,
-{
-    fn set_utility(&mut self, value: [SUtility; 1]) -> Result<&mut Self> {
-        self.set_utility(value[0])
-    }
-
-    fn get_utility(&self) -> [SUtility; 1] {
-        [self.get_utility()]
-    }
-}
 
 /* HELPER FUNCTIONS */
 

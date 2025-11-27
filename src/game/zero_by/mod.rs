@@ -5,23 +5,24 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
-use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
+use bitvec::vec::BitVec;
 use modular_bitfield::Specifier;
 use modular_bitfield::bitfield;
 use modular_bitfield::prelude::*;
 use rusqlite::Statement;
 use rusqlite::params_from_iter;
 
+use std::sync::Arc;
+
 use crate::database::Schema;
-use crate::database::sled::init_sled;
 use crate::database::traits::DrawRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::RemotenessRecord;
+use crate::database::traits::RocksDBManager;
 use crate::database::traits::SQLiteManager;
 use crate::database::traits::SimpleUtilityRecord;
-use crate::database::traits::SledManager;
 use crate::frontend::IOMode;
 use crate::game::Component;
 use crate::game::GameData;
@@ -63,9 +64,7 @@ type PlayerStorage = B8;
 
 /* CONSTANTS */
 
-// Task hyperparameter -- this is assuming all states below N are reachable. If
-// there are N players in the game, states per component will be ~(N * this).
-const APROXIMATE_COMPONENT_SIZE: u64 = 10000;
+const APROXIMATE_COMPONENT_SIZE: u64 = 100000000;
 
 const NAME: &str = "zero-by";
 const AUTHORS: &str = "Max Fierro <maxfierro@berkeley.edu>";
@@ -100,20 +99,18 @@ the number of players in the game.";
 /* API STRUCTURES */
 
 #[derive(Clone)]
-pub struct Session {
+pub struct Ruleset {
     start_elems: Elements,
     start_state: State,
     player_bits: usize,
     players: PlayerCount,
-    sled_db: sled::Db,
-    schema: Schema,
     name: String,
     by: Vec<Elements>,
 }
 
-pub struct Record<const N: PlayerCount> {
+pub struct Record {
     features: RecordFeatures,
-    utility: [SUtility; N],
+    utility: Vec<SUtility>,
 }
 
 /* PRIVATE STRUCTURES */
@@ -127,59 +124,19 @@ struct RecordFeatures {
 
 /* IMPLEMENTATIONS */
 
-impl Session {
-    pub fn build(&mut self, mode: IOMode) -> Result<()> {
-        self.sled_db = init_sled(mode, self.name())?;
-        let executable = match self.players {
-            2 => ForwardTaskBuilder::<Self, 2>::default()
-                .source(self.source())
-                .game(self.clone())
-                .threshold(1)
-                .build()?,
-            _ => bail!("Player count not supported for Zero-By"),
-        };
+impl Ruleset {
+    /* Helper methods may be added here in the future */
+}
 
-        let about = format!("Forward pass of variant {}", self.name());
-        let task = TaskBuilder::default()
-            .executable(executable)
-            .retriable(true)
-            .about(about)
-            .build()?;
-
-        let mut scheduler = {
-            let policy = CriticalPathPolicyBuilder::default().build()?;
-            let runner = ThreadPoolRunnerBuilder::default().build()?;
-            let logger = DashboardLoggerBuilder::default().build()?;
-
-            let context = SchedulerContextBuilder::default()
-                .policy(policy)
-                .logger(logger)
-                .runner(runner)
-                .build()?;
-
-            let state = SchedulerStateBuilder::default()
-                .task(task)
-                .build()?;
-
-            SchedulerBuilder::default()
-                .context(context)
-                .state(state)
-                .build()?
-        };
-
-        scheduler.run()?;
-        Ok(())
-    }
-
+impl Ruleset {
     fn encode_state(&self, turn: Player, elements: Elements) -> State {
-        let mut state: BitArray<_, Msb0> = BitArray::ZERO;
+        let mut state: BitVec<u8, Msb0> = BitVec::repeat(false, 64);
         state[self.player_bits..].store_be(elements);
         state[..self.player_bits].store_be(turn);
-        state.data
+        state
     }
 
-    fn decode_state(&self, state: State) -> (Player, Elements) {
-        let state: BitArray<_, Msb0> = BitArray::from(state);
+    fn decode_state(&self, state: &State) -> (Player, Elements) {
         let elements = state[self.player_bits..].load_be::<Elements>();
         let player = state[..self.player_bits].load_be::<Player>();
         (player, elements)
@@ -188,7 +145,7 @@ impl Session {
 
 /* TRAIT IMPLEMENTATIONS */
 
-impl Information for Session {
+impl Information for Ruleset {
     fn info() -> GameData {
         GameData {
             name: NAME,
@@ -206,10 +163,12 @@ impl Information for Session {
     }
 }
 
-impl Variable for Session {
+impl Variable for Ruleset {
     fn variant(variant: Option<Variant>) -> Result<Self> {
-        variants::parse_variant(variant.unwrap_or(VARIANT_DEFAULT.to_owned()))
-            .context("Malformed game variant.")
+        variants::parse_variant(
+            variant.unwrap_or(VARIANT_DEFAULT.to_owned())
+        )
+        .context("Malformed game variant.")
     }
 
     fn name(&self) -> &str {
@@ -217,9 +176,9 @@ impl Variable for Session {
     }
 }
 
-impl Implicit for Session {
+impl Implicit for Ruleset {
     fn outgoing(&self, state: &State) -> Vec<State> {
-        let (turn, elements) = self.decode_state(*state);
+        let (turn, elements) = self.decode_state(state);
         let mut next = self
             .by
             .iter()
@@ -235,19 +194,19 @@ impl Implicit for Session {
     }
 
     fn source(&self) -> State {
-        self.start_state
+        self.start_state.clone()
     }
 
     fn sink(&self, state: &State) -> bool {
-        let (_, elements) = self.decode_state(*state);
+        let (_, elements) = self.decode_state(state);
         elements == 0
     }
 }
 
-impl Transpose for Session {
+impl Transpose for Ruleset {
     fn incoming(&self, state: &State) -> Vec<State> {
-        let (_, start) = self.decode_state(self.start_state);
-        let (turn, elements) = self.decode_state(*state);
+        let (_, start) = self.decode_state(&self.start_state);
+        let (turn, elements) = self.decode_state(state);
         let mut prev = self
             .by
             .iter()
@@ -270,97 +229,56 @@ impl Transpose for Session {
     }
 }
 
-impl Codec for Session {
+impl Codec for Ruleset {
     fn decode(&self, string: String) -> Result<State> {
         Ok(states::parse_state(self, string)?)
     }
 
     fn encode(&self, state: &State) -> Result<String> {
-        let (turn, elements) = self.decode_state(*state);
+        let (turn, elements) = self.decode_state(state);
         Ok(format!("{elements}-{turn}"))
     }
 }
 
-impl Advance for Session {
+impl Advance for Ruleset {
     fn set_verified_start(&mut self, state: &State) {
-        self.start_state = *state;
+        self.start_state = state.clone();
     }
 }
 
-impl Partition for Session {
+impl Partition for Ruleset {
     fn component(&self, state: &State) -> Component {
-        let (_turn, elements) = self.decode_state(*state);
+        let (_turn, elements) = self.decode_state(state);
         elements / APROXIMATE_COMPONENT_SIZE
     }
 }
 
-impl<const N: PlayerCount> Sequential<N> for Session {
+impl<const N: PlayerCount> Sequential<N> for Ruleset {
     fn turn(&self, state: &State) -> Player {
-        let (turn, _elements) = self.decode_state(*state);
+        let (turn, _elements) = self.decode_state(state);
         turn
     }
 }
 
-impl<const N: PlayerCount> SimpleUtility<N> for Session {
+impl<const N: PlayerCount> SimpleUtility<N> for Ruleset {
     fn utility(&self, state: &State) -> [SUtility; N] {
-        let (turn, _elements) = self.decode_state(*state);
+        let (turn, _elements) = self.decode_state(state);
         let mut payoffs = [SUtility::Lose; N];
         payoffs[turn] = SUtility::Win;
         payoffs
     }
 }
 
-/* STORAGE IMPLEMENTATIONS */
-
-impl<const N: PlayerCount> SledManager<N> for Session {
-    type Record = self::Record<N>;
-
-    fn sled_transaction(&self) -> Result<sled::Tree> {
-        self.sled_db
-            .open_tree(self.name())
-            .context("Failed to open Sled tree for transaction")
-    }
-}
-
-impl<const N: PlayerCount> SQLiteManager<N> for Session {
-    fn schema(&self) -> &Schema {
-        &self.schema
-    }
-
-    fn store_lift(
-        &mut self,
-        state: &State,
-        solution: &Record<N>,
-        statement: &mut Statement,
-    ) -> Result<()> {
-        let values = [
-            i64::from_be_bytes(*state),
-            solution.get_remoteness() as i64,
-            solution.get_player() as i64,
-        ]
-        .into_iter()
-        .chain(
-            solution
-                .utility
-                .into_iter()
-                .map(From::from),
-        );
-
-        let params = params_from_iter(values);
-        statement.execute(params)?;
-        Ok(())
-    }
-}
-
 /* RECORD IMPLEMENTATIONS */
 
-impl<const N: PlayerCount> From<Record<N>> for sled::IVec {
-    fn from(val: Record<N>) -> Self {
+impl From<Record> for Vec<u8> {
+    fn from(val: Record) -> Self {
         let mut bytes = val.features.into_bytes().to_vec();
-        let ubits = N * 2;
+        let n = val.utility.len();
+        let ubits = n * 2;
         let ubytes = ubits.div_ceil(8);
 
-        let mut udata: BitArray<[u8; 8], Msb0> = BitArray::ZERO;
+        let mut udata: BitVec<u8, Msb0> = BitVec::repeat(false, 64);
         val.utility
             .iter()
             .enumerate()
@@ -369,24 +287,24 @@ impl<const N: PlayerCount> From<Record<N>> for sled::IVec {
                 udata[start..start + 2].store_be(util as u8);
             });
 
-        bytes.extend_from_slice(&udata.data[..ubytes]);
-        bytes.into()
+        bytes.extend_from_slice(&udata.as_raw_slice()[..ubytes]);
+        bytes
     }
 }
 
-impl<const N: PlayerCount> Default for Record<N> {
+impl Default for Record {
     fn default() -> Self {
         Self {
             features: Default::default(),
-            utility: [Default::default(); N],
+            utility: Vec::new(),
         }
     }
 }
 
-impl<const N: PlayerCount> RemotenessRecord for Record<N> {
+impl RemotenessRecord for Record {
     fn set_remoteness(&mut self, value: Remoteness) -> Result<&mut Self> {
         if min_ubits(value as u128) > RemotenessStorage::BITS {
-            bail!("Remoteness {value} would not fit in Sled DB record.")
+            bail!("Remoteness {value} would not fit in RocksDB record.")
         }
 
         self.features
@@ -400,21 +318,21 @@ impl<const N: PlayerCount> RemotenessRecord for Record<N> {
     }
 }
 
-impl<const N: PlayerCount> SimpleUtilityRecord<N> for Record<N> {
-    fn set_utility(&mut self, value: [SUtility; N]) -> Result<&mut Self> {
+impl SimpleUtilityRecord for Record {
+    fn set_utility(&mut self, value: Vec<SUtility>) -> Result<&mut Self> {
         self.utility = value;
         Ok(self)
     }
 
-    fn get_utility(&self) -> [SUtility; N] {
-        self.utility
+    fn get_utility(&self) -> Vec<SUtility> {
+        self.utility.clone()
     }
 }
 
-impl<const N: PlayerCount> PlayerRecord for Record<N> {
+impl PlayerRecord for Record {
     fn set_player(&mut self, value: Player) -> Result<&mut Self> {
         if min_ubits(value as u128) > PlayerStorage::BITS {
-            bail!("Remoteness {value} would not fit in Sled DB record.")
+            bail!("Player {value} would not fit in RocksDB record.")
         }
 
         self.features
@@ -428,7 +346,7 @@ impl<const N: PlayerCount> PlayerRecord for Record<N> {
     }
 }
 
-impl<const N: PlayerCount> DrawRecord for Record<N> {
+impl DrawRecord for Record {
     fn set_draw(&mut self, _value: bool) -> Result<&mut Self> {
         Ok(self)
     }

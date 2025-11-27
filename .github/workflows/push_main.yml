@@ -21,6 +21,8 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+    - name: Install RocksDB dependencies
+      run: sudo apt-get update && sudo apt-get install -y libclang-dev
     - name: Build
       run: cargo build --verbose
 
@@ -32,6 +34,8 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+    - name: Install RocksDB dependencies
+      run: sudo apt-get update && sudo apt-get install -y libclang-dev
     - name: Test
       run: TEST_SETTING=correctness cargo test --verbose
   
@@ -54,5 +58,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: stable
+    - name: Install RocksDB dependencies
+      run: sudo apt-get update && sudo apt-get install -y libclang-dev
     - name: Publish to crates.io
       run: cargo publish --token ${{ secrets.CRATES_TOKEN }}

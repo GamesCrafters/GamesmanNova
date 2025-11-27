@@ -7,23 +7,17 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::marker::PhantomData;
+use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 
-use crate::database::traits::SQLiteManager;
-use crate::database::traits::SledManager;
+use crate::database::storage::Storage;
 use crate::game::Component;
-use crate::game::DEFAULT_STATE_BYTES;
-use crate::game::PlayerCount;
 use crate::game::State;
 use crate::game::traits::Implicit;
-use crate::game::traits::IntegerUtility;
 use crate::game::traits::Partition;
-use crate::game::traits::Sequential;
-use crate::game::traits::Variable;
 use crate::scheduler::Task;
 use crate::scheduler::TaskBuilder;
 use crate::scheduler::TaskCategory;
@@ -38,71 +32,54 @@ use crate::scheduler::traits::Executable;
 
 /* STRUCTURES */
 
-pub struct ForwardTask<
-    G,
-    const N: PlayerCount,
-    const B: usize = DEFAULT_STATE_BYTES,
-> {
+pub struct ForwardTask<G, R> {
     threshold: usize,
     component: Component,
-    _phantom: PhantomData<[(); N]>,
-    frontier: VecDeque<State<B>>,
+    frontier: VecDeque<State>,
     buffered: usize,
     explored: usize,
     progress: usize,
-    pending: HashMap<Component, VecDeque<State<B>>>,
-    visited: sled::Tree,
+    pending: HashMap<Component, VecDeque<State>>,
+    storage: Arc<dyn Storage<R>>,
     game: G,
 }
 
-pub struct ForwardTaskBuilder<
-    G,
-    const N: PlayerCount,
-    const B: usize = DEFAULT_STATE_BYTES,
-> {
+pub struct ForwardTaskBuilder<G, R> {
     threshold: Option<usize>,
-    frontier: Option<VecDeque<State<B>>>,
+    frontier: Option<VecDeque<State>>,
+    storage: Option<Arc<dyn Storage<R>>>,
     game: Option<G>,
 }
 
 /* IMPLEMENTATIONS */
 
-impl<G, const N: PlayerCount, const B: usize> Default
-    for ForwardTaskBuilder<G, N, B>
-{
+impl<G, R> Default for ForwardTaskBuilder<G, R> {
     fn default() -> Self {
         Self {
             threshold: None,
             frontier: None,
+            storage: None,
             game: None,
         }
     }
 }
 
-impl<G, const N: PlayerCount, const B: usize> ForwardTaskBuilder<G, N, B>
+impl<G, R> ForwardTaskBuilder<G, R>
 where
-    G: SledManager<N, B>
-        + SQLiteManager<N, B>
-        + Implicit<B>
-        + Sequential<N, B>
-        + IntegerUtility<N, B>
-        + Partition<B>
-        + Variable
-        + Clone
-        + Send
-        + 'static,
+    G: Implicit + Partition + Clone + Send + 'static,
+    R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     pub fn threshold(mut self, value: usize) -> Self {
         self.threshold = Some(value);
         self
     }
 
-    pub fn frontier(mut self, value: VecDeque<State<B>>) -> Self {
+    pub fn frontier(mut self, value: VecDeque<State>) -> Self {
         self.frontier = Some(value);
         self
     }
 
-    pub fn source(mut self, state: State<B>) -> Self {
+    pub fn source(mut self, state: State) -> Self {
         self.frontier = Some(VecDeque::from(vec![state]));
         self
     }
@@ -112,7 +89,12 @@ where
         self
     }
 
-    pub fn build(self) -> Result<ForwardTask<G, N, B>> {
+    pub fn storage(mut self, value: Arc<dyn Storage<R>>) -> Self {
+        self.storage = Some(value);
+        self
+    }
+
+    pub fn build(self) -> Result<ForwardTask<G, R>> {
         let game = self
             .game
             .context("game is required")?;
@@ -130,23 +112,26 @@ where
             .map(|state| game.component(state))
             .context("frontier cannot be empty")?;
 
-        let visited = game
-            .sled_transaction()
-            .context("Failed to open Sled tree for visited tracking")?;
+        let storage = self
+            .storage
+            .context("storage is required")?;
 
         let mut progress = 0;
         for state in &frontier {
-            if visited
-                .insert(state, G::Record::default())
-                .context("Sled insertion failure")?
+            let record = R::default();
+            if storage
+                .get(state)
+                .context("Storage get failure")?
                 .is_none()
             {
+                storage
+                    .put(state, &record)
+                    .context("Storage put failure")?;
                 progress += 1;
             }
         }
 
         Ok(ForwardTask {
-            _phantom: PhantomData,
             buffered: 0,
             explored: 0,
             pending: HashMap::new(),
@@ -154,37 +139,30 @@ where
             component,
             frontier,
             progress,
-            visited,
+            storage,
             game,
         })
     }
 }
 
-impl<G, const N: PlayerCount, const B: usize> ForwardTask<G, N, B>
+impl<G, R> ForwardTask<G, R>
 where
-    G: SledManager<N, B>
-        + SQLiteManager<N, B>
-        + Implicit<B>
-        + Sequential<N, B>
-        + IntegerUtility<N, B>
-        + Partition<B>
-        + Variable
-        + Clone
-        + Send
-        + 'static,
+    G: Implicit + Partition + Clone + Send + 'static,
+    R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     pub fn component(&self) -> Component {
         self.component
     }
 
-    fn child(&self, frontier: VecDeque<State<B>>) -> Result<Task> {
-        let child = ForwardTaskBuilder::<G, N, B>::default()
+    fn child(&self, frontier: VecDeque<State>) -> Result<Task> {
+        let child = ForwardTaskBuilder::<G, R>::default()
             .threshold(self.threshold)
             .game(self.game.clone())
+            .storage(Arc::clone(&self.storage))
             .frontier(frontier)
             .build()?;
 
-        let about = format!("Forward pass of variant {}", self.game.name());
+        let about = "Forward pass exploration".to_string();
         let task = TaskBuilder::default()
             .executable(child)
             .retriable(true)
@@ -205,16 +183,23 @@ where
             .expect("Failed to spawn pending children")
     }
 
-    fn process(&mut self, state: State<B>) {
+    fn process(&mut self, state: State) {
+        let record = R::default();
+
         if self
-            .visited
-            .insert(state, G::Record::default())
-            .context("Failed to insert state into Sled visited tree during DFS")
-            .expect("Sled insert failed during forward exploration")
+            .storage
+            .get(&state)
+            .context("Failed to check storage during DFS")
+            .expect("Storage get failed during forward exploration")
             .is_some()
         {
             return;
         }
+
+        self.storage
+            .put(&state, &record)
+            .context("Failed to insert state into storage during DFS")
+            .expect("Storage put failed during forward exploration");
 
         self.progress += 1;
         let comp = self.game.component(&state);
@@ -231,49 +216,39 @@ where
 
     fn merge_pending(
         &mut self,
-        pending: &HashMap<Component, VecDeque<State<B>>>,
+        pending: &HashMap<Component, VecDeque<State>>,
         buffered: usize,
     ) {
         for (comp, frontier) in pending {
             self.pending
                 .entry(*comp)
                 .or_default()
-                .extend(frontier);
+                .extend(frontier.iter().cloned());
         }
 
         self.buffered += buffered;
     }
 
-    fn merge_frontier(&mut self, frontier: &VecDeque<State<B>>) {
-        let new: Vec<_> = frontier
-            .iter()
-            .filter(|s| {
-                !self
-                    .visited
-                    .contains_key(*s)
-                    .unwrap_or(false)
-            })
-            .filter(|s| !self.frontier.contains(*s))
-            .copied()
-            .collect();
+    fn merge_frontier(&mut self, frontier: &VecDeque<State>) {
+        for state in frontier {
+            let is_visited = self
+                .storage
+                .get(state)
+                .ok()
+                .flatten()
+                .is_some();
 
-        self.frontier.extend(new);
+            if !is_visited && !self.frontier.contains(state) {
+                self.frontier.push_back(state.clone());
+            }
+        }
     }
 }
 
-impl<G, const N: PlayerCount, const B: usize> Executable
-    for ForwardTask<G, N, B>
+impl<G, R> Executable for ForwardTask<G, R>
 where
-    G: SledManager<N, B>
-        + SQLiteManager<N, B>
-        + Implicit<B>
-        + Sequential<N, B>
-        + IntegerUtility<N, B>
-        + Partition<B>
-        + Variable
-        + Clone
-        + Send
-        + 'static,
+    G: Implicit + Partition + Clone + Send + 'static,
+    R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     fn tick(&mut self, _deps: TaskOutcomes) -> Option<YieldUpdate> {
         let Some(state) = self.frontier.pop_back() else {
@@ -325,7 +300,7 @@ where
     fn merge(&mut self, other: Box<dyn Executable>) -> Result<()> {
         let other = other
             .as_any()
-            .downcast_ref::<ForwardTask<G, N, B>>()
+            .downcast_ref::<ForwardTask<G, R>>()
             .context("Cannot merge non-ExploreTask")?;
 
         if self.component != other.component {
@@ -370,11 +345,14 @@ impl ExecutableExt for dyn Executable {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::database::storage::InMemoryStorage;
     use crate::developer::GraphBuilder;
+    use crate::game::mock;
     use crate::game::mock::Node;
     use crate::game::mock::SessionBuilder;
     use crate::game::traits::Implicit;
     use crate::node;
+    use std::sync::Arc;
 
     #[test]
     fn explore_tiny_game() -> Result<()> {
@@ -395,11 +373,13 @@ mod tests {
             .build()?;
 
         let start = game.source();
+        let storage = Arc::new(InMemoryStorage::<mock::Record>::new());
 
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
-        let mut task = ForwardTaskBuilder::<_, 8>::default()
+        let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game)
+            .storage(storage)
             .frontier(frontier)
             .threshold(100)
             .build()?;
@@ -455,11 +435,13 @@ mod tests {
             .build()?;
 
         let start = game.source();
+        let storage = Arc::new(InMemoryStorage::<mock::Record>::new());
 
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
-        let mut task = ForwardTaskBuilder::<_, 8>::default()
+        let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game)
+            .storage(storage)
             .frontier(frontier)
             .threshold(100)
             .build()?;
@@ -471,7 +453,7 @@ mod tests {
         for _ in 0..50 {
             let update = task.tick(empty.clone()).unwrap();
 
-            let current = task.visited.len() as usize;
+            let current = task.explored;
             assert!(current >= prev);
             prev = current;
 
@@ -480,7 +462,7 @@ mod tests {
             }
         }
 
-        assert_eq!(task.explored, task.visited.len() as usize);
+        assert!(task.explored > 0);
         Ok(())
     }
 
@@ -507,19 +489,23 @@ mod tests {
             .build()?;
 
         let start = game.source();
+        let storage1 = Arc::new(InMemoryStorage::<mock::Record>::new());
+        let storage2 = Arc::new(InMemoryStorage::<mock::Record>::new());
 
         let mut frontier1 = VecDeque::new();
-        frontier1.push_back(start);
-        let mut task1 = ForwardTaskBuilder::<_, 8>::default()
+        frontier1.push_back(start.clone());
+        let mut task1 = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game.clone())
+            .storage(storage1)
             .frontier(frontier1)
             .threshold(100)
             .build()?;
 
         let mut frontier2 = VecDeque::new();
         frontier2.push_back(start);
-        let task2 = ForwardTaskBuilder::<_, 8>::default()
+        let task2 = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game)
+            .storage(storage2)
             .frontier(frontier2)
             .threshold(100)
             .build()?;
@@ -533,11 +519,9 @@ mod tests {
             .tick(empty)
             .context("Second tick failed")?;
 
-        let before = task1.visited.len();
         let explored = task1.explored;
         task1.merge(Box::new(task2))?;
 
-        assert!(task1.visited.len() >= before);
         assert_eq!(task1.explored, explored);
 
         Ok(())
@@ -560,11 +544,13 @@ mod tests {
             .build()?;
 
         let start = game.source();
+        let storage = Arc::new(InMemoryStorage::<mock::Record>::new());
 
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
-        let task = ForwardTaskBuilder::<_, 8>::default()
+        let task = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game)
+            .storage(storage)
             .frontier(frontier)
             .threshold(100)
             .build()?;
@@ -594,11 +580,13 @@ mod tests {
             .build()?;
 
         let start = game.source();
+        let storage = Arc::new(InMemoryStorage::<mock::Record>::new());
 
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
-        let mut task = ForwardTaskBuilder::<_, 8>::default()
+        let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game)
+            .storage(storage)
             .frontier(frontier)
             .threshold(1000)
             .build()?;
@@ -635,11 +623,13 @@ mod tests {
             .build()?;
 
         let start = game.source();
+        let storage = Arc::new(InMemoryStorage::<mock::Record>::new());
 
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
-        let mut task = ForwardTaskBuilder::<_, 8>::default()
+        let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game)
+            .storage(storage)
             .frontier(frontier)
             .threshold(1)
             .build()?;
@@ -678,20 +668,23 @@ mod tests {
             .build()?;
 
         let start1 = game.source();
+        let storage = Arc::new(InMemoryStorage::<mock::Record>::new());
 
         let mut frontier = VecDeque::new();
-        frontier.push_back(start1);
-        frontier.push_back(start1);
+        frontier.push_back(start1.clone());
+        frontier.push_back(start1.clone());
         frontier.push_back(start1);
 
-        let task = ForwardTaskBuilder::<_, 8>::default()
+        let task = ForwardTaskBuilder::<_, mock::Record>::default()
             .game(game)
+            .storage(storage)
             .frontier(frontier.clone())
             .threshold(100)
             .build()?;
 
         assert_eq!(task.frontier.len(), frontier.len());
-        assert_eq!(task.visited.len() as usize, 1);
+        assert_eq!(task.explored, 0);
+        assert_eq!(task.progress, 1);
 
         Ok(())
     }

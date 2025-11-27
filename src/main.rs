@@ -48,14 +48,17 @@ fn main() -> Result<()> {
 fn build(args: cli::BuildArgs) -> Result<()> {
     match args.target {
         GameModule::ZeroBy => {
-            let mut game = zero_by::Session::variant(args.variant)?;
+            let mut _ruleset =
+                zero_by::Ruleset::variant(args.variant)?;
             if args.advance {
                 let history = cli::stdin_lines()?;
-                game.advance(history)
+                _ruleset
+                    .advance(history)
                     .context("Failed to forward game via history")?;
             }
 
-            game.build(args.mode)?;
+            // TODO: Phase 4 - CLI Integration: Wire up new storage/task system
+            anyhow::bail!("Build command not yet implemented for new Ruleset API");
         },
     };
 
@@ -64,7 +67,7 @@ fn build(args: cli::BuildArgs) -> Result<()> {
 
 fn info(args: cli::InfoArgs) -> Result<()> {
     let data = match args.target {
-        GameModule::ZeroBy => zero_by::Session::info(),
+        GameModule::ZeroBy => zero_by::Ruleset::info(),
     };
 
     let attrs = if !args.attributes.is_empty() {

@@ -2,19 +2,17 @@
 //!
 //! TODO
 
-use anyhow::Context;
 use anyhow::Result;
-use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
+use bitvec::vec::BitVec;
 use regex::Regex;
 
-use crate::database::SchemaBuilder;
 use crate::error::GameError;
 use crate::game::Player;
 use crate::game::util::min_ubits;
 use crate::game::zero_by::NAME;
-use crate::game::zero_by::Session;
+use crate::game::zero_by::Ruleset;
 use crate::game::zero_by::VARIANT_PATTERN;
 
 /* API */
@@ -22,7 +20,7 @@ use crate::game::zero_by::VARIANT_PATTERN;
 /// Returns a zero-by game session set up using the parameters specified by
 /// `variant`. Returns a `GameError::VariantMalformed` if the variant string
 /// does not conform to the variant protocol.
-pub fn parse_variant(variant: String) -> Result<Session> {
+pub fn parse_variant(variant: String) -> Result<Ruleset> {
     check_variant_pattern(&variant)?;
     let params = parse_parameters(&variant)?;
     check_param_count(&params)?;
@@ -30,33 +28,18 @@ pub fn parse_variant(variant: String) -> Result<Session> {
     let players = parse_player_count(&params)?;
 
     let start_elems = params[1];
-    let mut start_state: BitArray<_, Msb0> = BitArray::ZERO;
     let player_bits = min_ubits(players as u128);
+    let mut start_state: BitVec<u8, Msb0> = BitVec::repeat(false, 64);
     start_state[..player_bits].store_be(Player::default());
     start_state[player_bits..].store_be(start_elems);
 
-    let table = format!("{}_{}", NAME, variant);
-    let schema = SchemaBuilder::new(&table)
-        .players(players)
-        .key("state", "INTEGER")
-        .column("remoteness", "INTEGER")
-        .column("player", "INTEGER")
-        .build()?;
-
-    let sled_db = sled::Config::new()
-        .temporary(true)
-        .open()
-        .context("Failed to create temporary Sled DB during variant parsing")?;
-
-    Ok(Session {
-        start_state: start_state.data,
+    Ok(Ruleset {
+        start_state,
         name: variant,
         by: Vec::from(&params[2..]),
         start_elems,
         player_bits,
-        sled_db,
         players,
-        schema,
     })
 }
 
@@ -151,7 +134,7 @@ mod test {
 
     #[test]
     fn initialization_success_with_no_variant() -> Result<()> {
-        let _ = Session::variant(None)?;
+        let _ = Ruleset::variant(None)?;
         Ok(())
     }
 
@@ -164,7 +147,7 @@ mod test {
         let v5 = "0-12-234-364";
         let v6 = "-234-256";
 
-        fn wrapper(v: &'static str) -> Result<Session> {
+        fn wrapper(v: &'static str) -> Result<Ruleset> {
             parse_variant(v.to_owned())
         }
 
@@ -184,7 +167,7 @@ mod test {
         let v4 = "5-2-8-23";
         let v5 = "1-619-496-1150";
 
-        fn wrapper(v: &'static str) -> Result<Session> {
+        fn wrapper(v: &'static str) -> Result<Ruleset> {
             parse_variant(v.to_owned())
         }
 

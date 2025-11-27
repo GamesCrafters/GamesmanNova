@@ -22,29 +22,23 @@ const OPTIMIZATION_SQL: &str = "\
     PRAGMA journal_mode = MEMORY; \
     PRAGMA temp_store = MEMORY;";
 
-/* HELPER FUNCTIONS */
+/* FUNCTIONS */
 
-pub fn init_sqlite<G, const N: PlayerCount, const B: usize>(
+pub fn init_sqlite<G, const N: PlayerCount>(
     mode: IOMode,
     game: &G,
 ) -> Result<Connection>
 where
-    G: SQLiteManager<N, B>,
+    G: SQLiteManager<N>,
 {
-    let conn = match mode {
-        IOMode::Forgetful => Connection::open(":memory:")
-            .context("Failed to open in-memory SQLite database")?,
-        _ => {
-            let path = std::env::var(SQLITE_DATABASE).with_context(|| {
-                format!("{SQLITE_DATABASE} environment variable must be set")
-            })?;
+    let path = std::env::var(SQLITE_DATABASE).with_context(|| {
+        format!("{SQLITE_DATABASE} environment variable must be set")
+    })?;
 
-            Connection::open(&path).context(format!(
-                "Failed to open SQLite database at {}",
-                path
-            ))?
-        },
-    };
+    let conn = Connection::open(&path).context(format!(
+        "Failed to open SQLite database at {}",
+        path
+    ))?;
 
     conn.execute(OPTIMIZATION_SQL, [])
         .context("Failed to tune SQLite database options")?;
@@ -57,7 +51,7 @@ where
             conn.execute(&schema.create_table_query(), [])
                 .context("Failed to create SQLite table")?;
         },
-        IOMode::Constructive | IOMode::Forgetful => {
+        IOMode::Constructive => {
             conn.execute(&schema.create_table_query(), [])
                 .context("Failed to create SQLite table")?;
         },

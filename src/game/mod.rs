@@ -8,6 +8,9 @@ use clap::ValueEnum;
 use std::fmt::Display;
 use std::ops::Not;
 
+use bitvec::order::Msb0;
+use bitvec::vec::BitVec;
+
 use crate::error::SolverError;
 use crate::frontend::GameAttribute;
 use crate::game::traits::ClassicGame;
@@ -27,7 +30,7 @@ pub mod zero_by;
 /* TYPE ALIASES */
 
 /// Unique identifier of a particular state in a game.
-pub type State<const B: usize = DEFAULT_STATE_BYTES> = [u8; B];
+pub type State = BitVec<u8, Msb0>;
 
 /// Indicates the number of outoing edges that exist from a given game state.
 pub type Degree = u64;
@@ -169,11 +172,11 @@ impl GameData {
 /* IMPL TRAIT FOR TYPE */
 
 // All N-player simple-utility games are also N-player integer-utility games.
-impl<const N: PlayerCount, const B: usize, G> IntegerUtility<N, B> for G
+impl<const N: PlayerCount, G> IntegerUtility<N> for G
 where
-    G: SimpleUtility<N, B>,
+    G: SimpleUtility<N>,
 {
-    fn utility(&self, state: &State<B>) -> [IUtility; N] {
+    fn utility(&self, state: &State) -> [IUtility; N] {
         let sutility = self.utility(state);
         let mut iutility = [0; N];
         iutility
@@ -186,11 +189,11 @@ where
 }
 
 // All 2-player zero-sum games are also 2-player simple-utility games.
-impl<const B: usize, G> SimpleUtility<2, B> for G
+impl<G> SimpleUtility<2> for G
 where
-    G: ClassicGame<B>,
+    G: ClassicGame,
 {
-    fn utility(&self, state: &State<B>) -> [SUtility; 2] {
+    fn utility(&self, state: &State) -> [SUtility; 2] {
         let mut sutility = [SUtility::Tie; 2];
         let utility = self.utility(state);
         let turn = self.turn(state);
@@ -202,12 +205,12 @@ where
 }
 
 // All puzzles are also 1-player simple-utility games.
-impl<const B: usize, G> SimpleUtility<1, B> for G
+impl<G> SimpleUtility<1> for G
 where
-    G: ClassicPuzzle<B>,
+    G: ClassicPuzzle,
 {
-    fn utility(&self, state: &State<B>) -> [SUtility; 1] {
-        [self.utility(*state)]
+    fn utility(&self, state: &State) -> [SUtility; 1] {
+        [self.utility(state.clone())]
     }
 }
 

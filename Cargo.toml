@@ -40,10 +40,11 @@ num_cpus = "^1"
 anyhow = "^1"
 bitvec = "^1"
 regex = "^1"
-sled = "^0.34"
+rocksdb = { version = "0.24", default-features = false, features = ["lz4"] }
 ratatui = "0.28"
 crossterm = "0.28"
 
 [dev-dependencies]
 strum_macros = "0.26"
 strum = "0.26"
+tempfile = "3"
