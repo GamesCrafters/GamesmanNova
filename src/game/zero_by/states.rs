@@ -9,8 +9,8 @@ use crate::game::Player;
 use crate::game::State;
 use crate::game::zero_by::Elements;
 use crate::game::zero_by::NAME;
+use crate::game::zero_by::Ruleset;
 use crate::game::zero_by::STATE_PATTERN;
-use crate::game::zero_by::Session;
 
 /* API */
 
@@ -19,7 +19,7 @@ use crate::game::zero_by::Session;
 /// state encoded in `from`. This does not verify that the provided `from` is
 /// reachable in `session`'s game variant.
 pub fn parse_state(
-    session: &Session,
+    session: &Ruleset,
     from: String,
 ) -> Result<State, GameError> {
     check_state_pattern(&from)?;
@@ -76,7 +76,7 @@ fn check_param_count(params: &[u64]) -> Result<(Elements, Player), GameError> {
 fn check_variant_coherence(
     from: Elements,
     turn: Player,
-    session: &Session,
+    session: &Ruleset,
 ) -> Result<(), GameError> {
     if from > session.start_elems {
         Err(GameError::StateMalformed {
@@ -129,7 +129,7 @@ mod test {
 
     #[test]
     fn no_state_equals_default_state() -> Result<()> {
-        let with_none = Session::variant(None)?;
+        let with_none = Ruleset::variant(None)?;
         assert_eq!(
             with_none.start_state,
             parse_state(&with_none, STATE_DEFAULT.to_string()).unwrap()
@@ -148,9 +148,9 @@ mod test {
         let s6 = "7-".to_owned();
         let s7 = "11-0".to_owned();
 
-        fn f() -> Result<Session> {
+        fn f() -> Result<Ruleset> {
             // 2-player 10-to-zero by 1 or 2
-            Session::variant(None)
+            Ruleset::variant(None)
         }
 
         assert!(parse_state(&f()?, s1).is_err());
@@ -174,8 +174,8 @@ mod test {
         let s6 = "10-1".to_owned(); // <-- Impossible but well formed
         let s7 = "1-0".to_owned();
 
-        fn f() -> Result<Session> {
-            Session::variant(None)
+        fn f() -> Result<Ruleset> {
+            Ruleset::variant(None)
         }
 
         assert!(parse_state(&f()?, s1).is_ok());
@@ -226,43 +226,43 @@ mod test {
         let i7 = vec![""]; // Empty string
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(i1))
                 .is_err()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(i2))
                 .is_err()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(i3))
                 .is_err()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(i4))
                 .is_err()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(i5))
                 .is_err()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(i6))
                 .is_err()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(i7))
                 .is_err()
         );
@@ -280,37 +280,37 @@ mod test {
         let c6 = vec!["", "10-0", " "];
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(c1))
                 .is_ok()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(c2))
                 .is_ok()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(c3))
                 .is_ok()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(c4))
                 .is_ok()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(c5))
                 .is_ok()
         );
 
         assert!(
-            Session::variant(None)?
+            Ruleset::variant(None)?
                 .advance(owned(c6))
                 .is_ok()
         );
@@ -377,8 +377,8 @@ mod test {
 
     /* UTILITIES */
 
-    fn variant(v: &str) -> Result<Session> {
-        Session::variant(Some(v.to_string()))
+    fn variant(v: &str) -> Result<Ruleset> {
+        Ruleset::variant(Some(v.to_string()))
     }
 
     fn owned(v: Vec<&'static str>) -> Vec<String> {

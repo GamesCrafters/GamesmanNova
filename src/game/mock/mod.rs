@@ -5,12 +5,11 @@
 //! creating example games a matter of simply declaring them and wrapping them
 //! in any necessary external interface implementations.
 
-use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
-use bitvec::array::BitArray;
 use bitvec::field::BitField;
 use bitvec::order::Msb0;
+use bitvec::vec::BitVec;
 use modular_bitfield::Specifier;
 use modular_bitfield::bitfield;
 use modular_bitfield::prelude::B15;
@@ -25,14 +24,15 @@ use rusqlite::Statement;
 use rusqlite::params_from_iter;
 
 use std::fmt::Display;
+use std::sync::Arc;
 
 use crate::database::Schema;
 use crate::database::traits::DrawRecord;
 use crate::database::traits::IntegerUtilityRecord;
 use crate::database::traits::PlayerRecord;
 use crate::database::traits::RemotenessRecord;
+use crate::database::traits::RocksDBManager;
 use crate::database::traits::SQLiteManager;
-use crate::database::traits::SledManager;
 use crate::developer::visualize_graph;
 use crate::game::IUtility;
 use crate::game::Player;
@@ -47,8 +47,6 @@ use crate::game::traits::Sequential;
 use crate::game::traits::Transpose;
 use crate::game::traits::Variable;
 use crate::game::util::min_ubits;
-
-/* RE-EXPORTS */
 
 pub use builder::SessionBuilder;
 
@@ -79,16 +77,17 @@ pub enum Node {
 #[derive(Clone)]
 pub struct Session {
     players: PlayerCount,
-    sled_db: sled::Db,
+    rocksdb: Arc<rocksdb::DB>,
     source: NodeIndex,
     schema: Schema,
     game: Graph<Node, ()>,
     name: &'static str,
 }
 
-pub struct Record<const N: PlayerCount> {
+#[derive(Clone)]
+pub struct Record {
     features: RecordFeatures,
-    utility: [IUtility; N],
+    utility: Vec<IUtility>,
 }
 
 /* PRIVATE STRUCTURES */
@@ -129,25 +128,20 @@ impl Session {
     /* PRIVATE HELPERS */
 
     fn neighbors(&self, state: &State, dir: Direction) -> Vec<State> {
+        let index: DefaultIx = state.load_be::<u64>() as DefaultIx;
         self.game
-            .neighbors_directed(
-                NodeIndex::from(
-                    BitArray::<_, Msb0>::from(*state).load_be::<DefaultIx>(),
-                ),
-                dir,
-            )
+            .neighbors_directed(NodeIndex::from(index), dir)
             .map(|n| {
-                let mut state: BitArray<_, Msb0> = BitArray::ZERO;
-                state.store_be(n.index());
-                state.data
+                let mut state: BitVec<u8, Msb0> = BitVec::repeat(false, 64);
+                state.store_be(n.index() as u64);
+                state
             })
             .collect()
     }
 
     fn node(&self, state: &State) -> &Node {
-        &self.game[NodeIndex::from(
-            BitArray::<_, Msb0>::from(*state).load_be::<DefaultIx>(),
-        )]
+        let index: DefaultIx = state.load_be::<u64>() as DefaultIx;
+        &self.game[NodeIndex::from(index)]
     }
 }
 
@@ -165,9 +159,9 @@ impl Implicit for Session {
     }
 
     fn source(&self) -> State {
-        let mut state = BitArray::<_, Msb0>::ZERO;
-        state.store_be::<DefaultIx>(self.source.index() as DefaultIx);
-        state.data
+        let mut state: BitVec<u8, Msb0> = BitVec::repeat(false, 64);
+        state.store_be(self.source.index() as u64);
+        state
     }
 
     fn sink(&self, state: &State) -> bool {
@@ -224,13 +218,11 @@ impl<const N: PlayerCount> IntegerUtility<N> for Session {
     }
 }
 
-impl<const N: PlayerCount> SledManager<N> for Session {
-    type Record = self::Record<N>;
+impl<const N: PlayerCount> RocksDBManager<N> for Session {
+    type Record = self::Record;
 
-    fn sled_transaction(&self) -> Result<sled::Tree> {
-        self.sled_db
-            .open_tree(self.name)
-            .context("Failed to open Sled tree for transaction")
+    fn rocksdb_transaction(&self) -> Result<Arc<rocksdb::DB>> {
+        Ok(Arc::clone(&self.rocksdb))
     }
 }
 
@@ -245,40 +237,45 @@ impl<const N: PlayerCount> SQLiteManager<N> for Session {
         solution: &Self::Record,
         statement: &mut Statement,
     ) -> Result<()> {
+        let mut state_bytes = [0u8; 8];
+        let raw = state.as_raw_slice();
+        state_bytes[..raw.len().min(8)]
+            .copy_from_slice(&raw[..raw.len().min(8)]);
+
         let values = [
-            i64::from_be_bytes(*state),
+            i64::from_be_bytes(state_bytes),
             solution.get_remoteness() as i64,
             solution.get_player() as i64,
         ]
         .into_iter()
-        .chain(solution.utility);
+        .chain(solution.utility.iter().copied());
         let params = params_from_iter(values);
         statement.execute(params)?;
         Ok(())
     }
 }
 
-impl<const N: PlayerCount> Default for Record<N> {
+impl Default for Record {
     fn default() -> Self {
         Self {
             features: Default::default(),
-            utility: [Default::default(); N],
+            utility: Vec::new(),
         }
     }
 }
 
-impl<const N: PlayerCount> From<Record<N>> for sled::IVec {
-    fn from(val: Record<N>) -> Self {
+impl From<Record> for Vec<u8> {
+    fn from(val: Record) -> Self {
         let mut bytes = val.features.into_bytes().to_vec();
         for util in val.utility {
             bytes.extend_from_slice(&util.to_be_bytes());
         }
 
-        bytes.into()
+        bytes
     }
 }
 
-impl<const N: PlayerCount> RemotenessRecord for Record<N> {
+impl RemotenessRecord for Record {
     fn set_remoteness(&mut self, value: Remoteness) -> Result<&mut Self> {
         if min_ubits(value as u128) > RemotenessStorage::BITS {
             bail!("Remoteness {value} would not fit in Sled DB record.")
@@ -295,18 +292,18 @@ impl<const N: PlayerCount> RemotenessRecord for Record<N> {
     }
 }
 
-impl<const N: PlayerCount> IntegerUtilityRecord<N> for Record<N> {
-    fn set_utility(&mut self, value: [IUtility; N]) -> Result<&mut Self> {
+impl IntegerUtilityRecord for Record {
+    fn set_utility(&mut self, value: Vec<IUtility>) -> Result<&mut Self> {
         self.utility = value;
         Ok(self)
     }
 
-    fn get_utility(&self) -> [IUtility; N] {
-        self.utility
+    fn get_utility(&self) -> Vec<IUtility> {
+        self.utility.clone()
     }
 }
 
-impl<const N: PlayerCount> PlayerRecord for Record<N> {
+impl PlayerRecord for Record {
     fn set_player(&mut self, value: Player) -> Result<&mut Self> {
         if min_ubits(value as u128) > PlayerStorage::BITS {
             bail!("Remoteness {value} would not fit in Sled DB record.")
@@ -323,7 +320,7 @@ impl<const N: PlayerCount> PlayerRecord for Record<N> {
     }
 }
 
-impl<const N: PlayerCount> DrawRecord for Record<N> {
+impl DrawRecord for Record {
     fn set_draw(&mut self, value: bool) -> Result<&mut Self> {
         self.features.set_draw(value);
         Ok(self)
@@ -421,7 +418,7 @@ mod tests {
         let mut stack = vec![g.source()];
 
         while let Some(state) = stack.pop() {
-            if visited.insert(state) {
+            if visited.insert(state.clone()) {
                 stack.extend(g.outgoing(&state));
             }
         }
@@ -462,7 +459,7 @@ mod tests {
         let mut sinks = Vec::new();
 
         while let Some(state) = stack.pop() {
-            if visited.insert(state) {
+            if visited.insert(state.clone()) {
                 if g.sink(&state) {
                     sinks.push(state);
                 } else {

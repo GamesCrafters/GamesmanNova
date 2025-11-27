@@ -16,12 +16,12 @@ use crate::game::traits::Information;
 
 /// Verifies that the elements of `history` are a valid sequence of states under
 /// the rules of `target`, failing if this is not true.
-pub fn verify_state_history<const B: usize, G>(
+pub fn verify_state_history<G>(
     target: &G,
     history: Vec<String>,
-) -> Result<State<B>>
+) -> Result<State>
 where
-    G: Information + Implicit<B> + Codec<B>,
+    G: Information + Implicit + Codec,
 {
     let history = sanitize_input(history);
     if let Some((l, s)) = history.first() {
@@ -89,13 +89,13 @@ fn sanitize_input(mut input: Vec<String>) -> Vec<(usize, String)> {
 
 /* HISTORY VERIFICATION ERRORS */
 
-fn transition_history_error<const B: usize, G>(
+fn transition_history_error<G>(
     target: &G,
-    prev: State<B>,
-    next: State<B>,
+    prev: State,
+    next: State,
 ) -> Result<anyhow::Error>
 where
-    G: Information + Codec<B>,
+    G: Information + Codec,
 {
     bail!(GameError::InvalidHistory {
         game: G::info().name,
@@ -108,13 +108,13 @@ where
     })
 }
 
-fn terminal_history_error<const B: usize, G>(
+fn terminal_history_error<G>(
     target: &G,
-    prev: State<B>,
-    next: State<B>,
+    prev: State,
+    next: State,
 ) -> Result<anyhow::Error>
 where
-    G: Information + Codec<B>,
+    G: Information + Codec,
 {
     bail!(GameError::InvalidHistory {
         game: G::info().name,

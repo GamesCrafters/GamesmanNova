@@ -18,6 +18,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
+use std::sync::Arc;
 use std::sync::RwLock;
 
 /* CONSTANTS */
@@ -110,28 +111,68 @@ pub fn test_database() -> Result<Connection> {
     Ok(db)
 }
 
-/// Returns a Sled database for testing. In correctness mode, uses an in-memory
-/// temporary database. In development mode, uses a persistent database in the
-/// dev/sled directory, deleting any existing data on initialization.
-pub fn test_sled_db(module: &str) -> Result<sled::Db> {
+/// Returns a RocksDB database for testing. In correctness mode, uses a
+/// temporary database that persists in /tmp/ until OS cleanup (test isolation
+/// via thread-specific names). In development mode, uses a persistent database
+/// in the dev/rocksdb-test directory, deleting any existing data.
+pub fn test_rocksdb(name: &str) -> Result<Arc<rocksdb::DB>> {
+    use rocksdb::{BlockBasedOptions, Cache, DB, Options};
+    use tempfile::tempdir;
+
+    let mut opts = Options::default();
+    opts.create_if_missing(true);
+
     match test_setting()? {
-        TestSetting::Correctness => sled::Config::new()
-            .temporary(true)
-            .open()
-            .context("Failed to open temporary Sled database"),
+        TestSetting::Correctness => {
+            let thread_id = std::thread::current().id();
+            let temp = tempdir().context("Failed to create temp directory")?;
+            let path = temp
+                .into_path()
+                .join(format!("rocksdb_{}_{:?}", name, thread_id));
+
+            opts.set_disable_auto_compactions(true);
+            opts.set_max_open_files(-1);
+            opts.set_use_fsync(false);
+            opts.set_wal_bytes_per_sync(0);
+            opts.set_bytes_per_sync(0);
+
+            let cache = Cache::new_lru_cache(100 * 1024 * 1024);
+            let mut block_opts = BlockBasedOptions::default();
+            block_opts.set_block_cache(&cache);
+            opts.set_block_based_table_factory(&block_opts);
+
+            opts.set_enable_pipelined_write(true);
+            opts.set_allow_concurrent_memtable_write(true);
+
+            let db = DB::open(&opts, path)
+                .context("Failed to open temp RocksDB for testing")?;
+
+            Ok(Arc::new(db))
+        },
         TestSetting::Development => {
-            let path =
-                get_directory(DevelopmentData::Sled, PathBuf::from(module))?;
+            let thread_id = std::thread::current().id();
+            let path = get_directory(
+                DevelopmentData::SledTest,
+                PathBuf::from(format!("rocksdb/{}/{:?}", name, thread_id)),
+            )?;
 
             if path.exists() {
-                fs::remove_dir_all(&path)
-                    .context("Failed to remove existing Sled database")?;
+                let _ = DB::destroy(&Options::default(), &path);
             }
 
-            sled::open(&path).context(format!(
-                "Failed to open Sled database at {}",
-                path.display()
-            ))
+            let cache = Cache::new_lru_cache(1024 * 1024 * 1024);
+            let mut block_opts = BlockBasedOptions::default();
+            block_opts.set_block_cache(&cache);
+            opts.set_block_based_table_factory(&block_opts);
+
+            opts.set_manual_wal_flush(true);
+            opts.set_enable_pipelined_write(true);
+            opts.set_allow_concurrent_memtable_write(true);
+
+            let db = DB::open(&opts, path)
+                .context("Failed to open RocksDB for testing")?;
+
+            Ok(Arc::new(db))
         },
     }
 }
@@ -216,7 +257,7 @@ pub fn visualize_graph(
     Ok(())
 }
 
-/* HELPER FUNCTIONS */
+/* FUNCTIONS */
 
 /// Searches for a parent directory containing a `Cargo.lock` file.
 fn find_cargo_lock_directory() -> Result<PathBuf> {

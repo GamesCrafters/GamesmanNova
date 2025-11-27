@@ -1,6 +1,6 @@
 [package]
 name = "gamesman-nova"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["Max Fierro <maxfierro@berkeley.edu>"]
 license = "GPL-3.0"
 repository = "https://github.com/GamesCrafters/GamesmanNova"
@@ -40,10 +40,11 @@ num_cpus = "^1"
 anyhow = "^1"
 bitvec = "^1"
 regex = "^1"
-sled = "^0.34"
+rocksdb = { version = "0.24", default-features = false, features = ["lz4"] }
 ratatui = "0.28"
 crossterm = "0.28"
 
 [dev-dependencies]
 strum_macros = "0.26"
 strum = "0.26"
+tempfile = "3"

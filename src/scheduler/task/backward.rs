@@ -5,19 +5,15 @@
 
 use std::any::Any;
 use std::collections::VecDeque;
-use std::marker::PhantomData;
+use std::sync::Arc;
 
 use anyhow::Result;
 
+use crate::database::storage::Storage;
 use crate::game::Component;
-use crate::game::DEFAULT_STATE_BYTES;
-use crate::game::PlayerCount;
 use crate::game::State;
 use crate::game::traits::Implicit;
-use crate::game::traits::IntegerUtility;
-use crate::game::traits::Sequential;
 use crate::game::traits::Transpose;
-use crate::game::traits::Variable;
 use crate::scheduler::TaskCategory;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskIDBuilder;
@@ -30,56 +26,39 @@ use crate::scheduler::traits::Executable;
 
 /* STRUCTURES */
 
-pub struct BackwardTask<
-    G,
-    const N: PlayerCount,
-    const B: usize = DEFAULT_STATE_BYTES,
-> {
+pub struct BackwardTask<G, R> {
     component: Component,
-    _players: PhantomData<[(); N]>,
-    frontier: VecDeque<State<B>>,
-    db: sled::Db,
+    frontier: VecDeque<State>,
+    storage: Arc<dyn Storage<R>>,
     game: G,
 }
 
 /* IMPLEMENTATIONS */
 
-impl<G, const N: PlayerCount, const B: usize> BackwardTask<G, N, B>
+impl<G, R> BackwardTask<G, R>
 where
-    G: IntegerUtility<N, B>
-        + Sequential<N, B>
-        + Implicit<B>
-        + Transpose<B>
-        + Variable
-        + Send
-        + 'static,
+    G: Implicit + Transpose + Clone + Send + 'static,
+    R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     pub fn new(
         component: Component,
         game: G,
-        frontier: VecDeque<State<B>>,
-        db: sled::Db,
+        frontier: VecDeque<State>,
+        storage: Arc<dyn Storage<R>>,
     ) -> Result<Self> {
         Ok(Self {
-            _players: PhantomData,
             component,
             frontier,
+            storage,
             game,
-            db,
         })
     }
 }
 
-impl<G, const N: PlayerCount, const B: usize> Executable
-    for BackwardTask<G, N, B>
+impl<G, R> Executable for BackwardTask<G, R>
 where
-    G: IntegerUtility<N, B>
-        + Sequential<N, B>
-        + Implicit<B>
-        + Transpose<B>
-        + Variable
-        + Send
-        + 'static,
+    G: Implicit + Transpose + Clone + Send + 'static,
+    R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     fn tick(&mut self, _deps: TaskOutcomes) -> Option<YieldUpdate> {
         let outcome = TaskOutcome::Success(0);
@@ -115,16 +94,10 @@ pub(super) trait ExecutableExt {
     fn as_any(&self) -> &dyn Any;
 }
 
-impl<G, const N: PlayerCount, const B: usize> ExecutableExt
-    for BackwardTask<G, N, B>
+impl<G, R> ExecutableExt for BackwardTask<G, R>
 where
-    G: IntegerUtility<N, B>
-        + Sequential<N, B>
-        + Implicit<B>
-        + Transpose<B>
-        + Variable
-        + Send
-        + 'static,
+    G: Implicit + Transpose + Clone + Send + 'static,
+    R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     fn as_any(&self) -> &dyn Any {
         self

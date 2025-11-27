@@ -38,8 +38,33 @@ This will display a list of sub-commands and their descriptions. Nova uses [`cla
 
 ## Development
 
-As a research project, the primary users of Nova will be people who intend to build on it as a platform. 
+As a research project, the primary users of Nova will be people who intend to build on it as a platform.
 
 For now, we make our best attempt at providing a good experience when building from this repository via rustdocs and a reasonable architecture. The project adheres to semantic versioning per Rust's standards, and will remain unstable for the foreseeable future.
+
+### Developer Setup
+
+Nova uses RocksDB as an embedded database backend, which requires LLVM/Clang for compilation. You'll need to install these dependencies once:
+
+**macOS:**
+
+```bash
+brew install llvm
+```
+
+Then add to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+export LIBCLANG_PATH="/opt/homebrew/opt/llvm/lib"
+export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/opt/llvm/lib"
+```
+
+**Linux:**
+
+```bash
+sudo apt-get update && sudo apt-get install -y libclang-dev
+```
+
+After setup, restart your shell or run `source ~/.zshrc` (or `~/.bashrc`). You should then be able to run `cargo check`, `cargo test`, and `cargo build` without issues.
 
 -- Cheers, [Max Fierro](https://www.maxfierro.me/)
