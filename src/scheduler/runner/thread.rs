@@ -7,10 +7,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::thread::Builder;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -21,6 +23,7 @@ use crossbeam_channel::unbounded;
 use derive_builder::Builder as DeriveBuilder;
 
 use crate::scheduler::PollStatus;
+use crate::scheduler::RunnerSnapshot;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskOutcomes;
 use crate::scheduler::YieldIntention;
@@ -83,6 +86,9 @@ pub struct ThreadPoolRunner {
 
     /// Shutdown signal for all workers
     shutdown: Arc<AtomicBool>,
+
+    /// Latest tick duration per worker (in nanoseconds)
+    ticks: Arc<Vec<AtomicU64>>,
 }
 
 /* PRIVATE STRUCTURES */
@@ -100,6 +106,7 @@ struct WorkPacket {
 /// Completion packet sent from worker back to runner.
 struct CompletionPacket {
     executable: Box<dyn Executable>,
+    execution_time: Duration,
     result: WorkResult,
     tid: TaskID,
 }
@@ -116,16 +123,24 @@ impl ThreadPoolRunnerBuilder {
             .timeout
             .unwrap_or_else(|| Duration::from_millis(100));
 
-        let (work_tx, work_rx) = unbounded();
         let (result_tx, result_rx) = unbounded();
+        let (work_tx, work_rx) = unbounded();
+
         let shutdown = Arc::new(AtomicBool::new(false));
+        let ticks = Arc::new(
+            (0..threads)
+                .map(|_| AtomicU64::new(0))
+                .collect::<Vec<_>>(),
+        );
 
         let spawn = |i| {
-            let work_rx = work_rx.clone();
             let shutdown = shutdown.clone();
+            let work_rx = work_rx.clone();
+            let ticks = ticks.clone();
+
             Builder::new()
                 .name(format!("nova-worker-{}", i))
-                .spawn(move || harness(work_rx, shutdown))
+                .spawn(move || harness(i, work_rx, shutdown, ticks))
                 .context(format!("Failed to spawn worker thread {}", i))
         };
 
@@ -146,6 +161,7 @@ impl ThreadPoolRunnerBuilder {
             workers,
             timeout,
             threads,
+            ticks,
         })
     }
 }
@@ -428,6 +444,20 @@ impl Runner for ThreadPoolRunner {
             .get(&tid)
             .copied()
     }
+
+    fn snapshot(&mut self) -> Option<RunnerSnapshot> {
+        let ticks = self
+            .ticks
+            .iter()
+            .map(|atomic| atomic.swap(0, Ordering::Relaxed))
+            .filter(|&ns| ns > 0)
+            .collect();
+
+        Some(RunnerSnapshot {
+            capacity: self.threads,
+            ticks,
+        })
+    }
 }
 
 impl Drop for ThreadPoolRunner {
@@ -448,7 +478,12 @@ impl Drop for ThreadPoolRunner {
 
 /* HELPER FUNCTIONS */
 
-fn harness(work_rx: Receiver<WorkPacket>, shutdown: Arc<AtomicBool>) {
+fn harness(
+    wid: usize,
+    work_rx: Receiver<WorkPacket>,
+    shutdown: Arc<AtomicBool>,
+    ticks: Arc<Vec<AtomicU64>>,
+) {
     while !shutdown.load(Ordering::Relaxed) {
         let timeout = Duration::from_millis(100);
         let packet = match work_rx.recv_timeout(timeout) {
@@ -456,18 +491,21 @@ fn harness(work_rx: Receiver<WorkPacket>, shutdown: Arc<AtomicBool>) {
             Err(_) => continue,
         };
 
-        let (executable, result) = execute_task(
+        let (executable, result, execution_time) = execute_task(
             packet.signal,
             packet.awaited,
             packet.executable,
             packet.progress,
             packet.tid,
+            wid,
+            &ticks,
         );
 
         let _ = packet
             .result_tx
             .send(CompletionPacket {
                 tid: packet.tid,
+                execution_time,
                 executable,
                 result,
             });
@@ -480,13 +518,21 @@ fn execute_task(
     mut executable: Box<dyn Executable>,
     progress: Arc<RwLock<HashMap<TaskID, u64>>>,
     tid: TaskID,
-) -> (Box<dyn Executable>, WorkResult) {
+    wid: usize,
+    ticks: &Arc<Vec<AtomicU64>>,
+) -> (Box<dyn Executable>, WorkResult, Duration) {
+    let start = Instant::now();
     let execute = || loop {
         if signal.load(Ordering::Relaxed) {
             return WorkResult::Preempted;
         }
 
+        let tick_start = Instant::now();
         let update = executable.tick(awaited);
+        let tick_elapsed = tick_start.elapsed();
+
+        let duration = tick_elapsed.as_nanos() as u64;
+        ticks[wid].store(duration, Ordering::Relaxed);
 
         if let Some(value) = executable.progress()
             && let Ok(mut map) = progress.try_write()
@@ -496,11 +542,9 @@ fn execute_task(
 
         match update {
             None => {
-                // Task wants to continue ticking - don't yield to scheduler yet
                 awaited = TaskOutcomes::new();
             },
             Some(yield_update) => {
-                // Task yielding control back to scheduler
                 return WorkResult::Yielded(yield_update);
             },
         }
@@ -510,7 +554,8 @@ fn execute_task(
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(execute));
 
     let result = panic_result.unwrap_or_else(WorkResult::panicked);
-    (executable, result)
+    let elapsed = start.elapsed();
+    (executable, result, elapsed)
 }
 
 /* TESTS */

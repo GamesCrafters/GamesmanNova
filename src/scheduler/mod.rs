@@ -34,11 +34,11 @@ use crate::scheduler::util::format_cycle_path;
 /* API RE-EXPORTS */
 
 pub use logger::compose::ComposeLoggerBuilder;
-pub use logger::count::CountLoggerBuilder;
 pub use logger::dashboard::DashboardLoggerBuilder;
 pub use logger::dashboard::SectionConfigBuilder;
 pub use logger::dashboard::SortOrder;
 pub use logger::dashboard::TaskFilter;
+pub use logger::tracing::TracingLoggerBuilder;
 
 pub use policy::critical::CriticalPathPolicyBuilder;
 pub use policy::trivial::TrivialPolicy;
@@ -56,9 +56,9 @@ mod util;
 mod traits;
 mod logger {
     pub mod dashboard;
+    pub mod tracing;
     pub mod history;
     pub mod compose;
-    pub mod count;
 }
 
 mod policy {
@@ -251,7 +251,34 @@ struct SizeStats {
 struct SchedulerSnapshot {
     tasks: HashMap<TaskID, TaskContextSnapshot>,
     transitions: Vec<Transition>,
+    runner: Option<RunnerSnapshot>,
+    policy: Option<PolicySnapshot>,
     tick: u64,
+}
+
+#[derive(Clone, Debug, Default)]
+struct RunnerSnapshot {
+    ticks: Vec<u64>,
+    capacity: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+struct PolicySnapshot {
+    decisions: Vec<PolicyDecision>,
+}
+
+#[derive(Clone, Debug)]
+struct PolicyDecision {
+    weight: Option<u64>,
+    action: PolicyAction,
+    task: TaskID,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum PolicyAction {
+    Preempt,
+    Execute,
+    Retry,
 }
 
 #[derive(Clone)]
@@ -478,7 +505,6 @@ impl Scheduler {
 
     fn collect(&mut self) -> Result<()> {
         let tasks = self.state.collect_runner_ids();
-
         for id in tasks {
             self.collect_task(id)?;
         }
@@ -714,6 +740,7 @@ impl Scheduler {
         self.context
             .runner
             .execute(id, awaited, executable)?;
+
         Ok(())
     }
 
@@ -950,9 +977,15 @@ impl Scheduler {
             .map(convert)
             .collect();
 
+        let transitions = std::mem::take(&mut self.transitions);
+        let runner = self.context.runner.snapshot();
+        let policy = self.context.policy.snapshot();
+
         SchedulerSnapshot {
-            transitions: std::mem::take(&mut self.transitions),
             tick: self.state.ticks,
+            transitions,
+            runner,
+            policy,
             tasks,
         }
     }

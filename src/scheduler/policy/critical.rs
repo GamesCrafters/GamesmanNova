@@ -23,11 +23,15 @@
 //!   comparison
 //! - retry(): Delegates to configurable retry policy closure
 
+use std::collections::HashMap;
+use std::mem::take;
+
 use derive_builder::Builder;
 
-use std::collections::HashMap;
-
 use crate::scheduler::DecisionContext;
+use crate::scheduler::PolicyAction;
+use crate::scheduler::PolicyDecision;
+use crate::scheduler::PolicySnapshot;
 use crate::scheduler::SizeStats;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskRegistry;
@@ -54,57 +58,92 @@ pub struct CriticalPathPolicy {
     /// ready for execution (immediately and regardless of their state).
     #[builder(default = "threshold(0)")]
     retry: RetryPolicy,
+
+    #[builder(default, setter(skip))]
+    decisions: Vec<PolicyDecision>,
 }
 
 /* IMPLEMENTATIONS */
 
 impl Policy for CriticalPathPolicy {
     fn retry<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
-        (self.retry)(
-            &ctx.candidates
-                .keys()
-                .copied()
-                .collect::<Vec<_>>(),
-        )
+        let candidates: Vec<_> = ctx
+            .candidates
+            .keys()
+            .copied()
+            .collect();
+
+        let result = (self.retry)(&candidates);
+        if let Some(tid) = result {
+            self.decisions
+                .push(PolicyDecision {
+                    action: PolicyAction::Retry,
+                    weight: None,
+                    task: tid,
+                });
+        }
+
+        result
     }
 
     fn preempt<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
-        let running_count = ctx.candidates.len();
         let limit = ctx.units?;
-        if running_count < limit {
+        if ctx.candidates.len() < limit {
             return None;
         }
 
         let stats = compute_size_stats(ctx.buffer);
         let threshold = (self.sigma * stats.stddev) as u64;
-        let max_ready_depth = ctx
+
+        let max_ready = ctx
             .buffer
             .iter()
-            .filter(|(_, task_ctx)| {
-                matches!(task_ctx.state, crate::scheduler::TaskState::Ready)
+            .filter(|(_, c)| {
+                matches!(c.state, crate::scheduler::TaskState::Ready)
             })
             .map(|(id, _)| critical_weight(*id, ctx.buffer))
             .max()?;
 
-        let (min_running_id, min_running_depth) = ctx
+        let (victim, weight) = ctx
             .candidates
             .keys()
             .map(|id| (*id, critical_weight(*id, ctx.buffer)))
-            .min_by_key(|(_, depth)| *depth)?;
+            .min_by_key(|(_, w)| *w)?;
 
-        if max_ready_depth > min_running_depth + threshold {
-            Some(min_running_id)
+        if max_ready > weight + threshold {
+            self.decisions
+                .push(PolicyDecision {
+                    action: PolicyAction::Preempt,
+                    weight: Some(weight),
+                    task: victim,
+                });
+            Some(victim)
         } else {
             None
         }
     }
 
     fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
-        ctx.candidates
+        let (tid, weight) = ctx
+            .candidates
             .keys()
             .map(|id| (*id, critical_weight(*id, ctx.buffer)))
-            .max_by_key(|(_, depth)| *depth)
-            .map(|(id, _)| id)
+            .max_by_key(|(_, w)| *w)?;
+
+        self.decisions
+            .push(PolicyDecision {
+                action: PolicyAction::Execute,
+                weight: Some(weight),
+                task: tid,
+            });
+
+        Some(tid)
+    }
+
+    fn snapshot(&mut self) -> Option<PolicySnapshot> {
+        Some(PolicySnapshot {
+            decisions: take(&mut self.decisions),
+        })
     }
 }
 

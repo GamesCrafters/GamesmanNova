@@ -49,7 +49,7 @@ Nova uses RocksDB as an embedded database backend, which requires LLVM/Clang for
 **macOS:**
 
 ```bash
-brew install llvm
+brew install llvm rocksdb
 ```
 
 Then add to your `~/.zshrc` or `~/.bashrc`:
@@ -57,13 +57,24 @@ Then add to your `~/.zshrc` or `~/.bashrc`:
 ```bash
 export LIBCLANG_PATH="/opt/homebrew/opt/llvm/lib"
 export DYLD_FALLBACK_LIBRARY_PATH="/opt/homebrew/opt/llvm/lib"
+export ROCKSDB_LIB_DIR="/opt/homebrew/opt/rocksdb/lib"
+export ROCKSDB_INCLUDE_DIR="/opt/homebrew/opt/rocksdb/include"
 ```
 
 **Linux:**
 
 ```bash
-sudo apt-get update && sudo apt-get install -y libclang-dev
+sudo apt-get update && sudo apt-get install -y libclang-dev librocksdb-dev
 ```
+
+Then add to your `~/.bashrc`:
+
+```bash
+export ROCKSDB_LIB_DIR="/usr/lib"
+export ROCKSDB_INCLUDE_DIR="/usr/include"
+```
+
+The RocksDB variables link against system libraries instead of compiling from source, reducing clean build times from minutes to seconds.
 
 After setup, restart your shell or run `source ~/.zshrc` (or `~/.bashrc`). You should then be able to run `cargo check`, `cargo test`, and `cargo build` without issues.
 

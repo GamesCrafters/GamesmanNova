@@ -1,82 +1,73 @@
 //! Internal state management for dashboard logger.
 
-use ratatui::Terminal;
-use ratatui::backend::CrosstermBackend;
-
 use std::collections::HashMap;
 use std::io::Stdout;
 use std::time::Instant;
+
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskContextSnapshot;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskState;
+use crate::scheduler::logger::dashboard::histogram::TickSketch;
 
 /* CONSTANTS */
 
-// EMA parameters for throughput calculation.
 const MIN_INTERVAL: f64 = 1.0;
-const ALPHA: f64 = 0.3;
+const SMOOTHING: f64 = 0.3;
 
 /* STRUCTURES */
 
 /// Internal state for TUI logger.
 pub struct TuiLoggerState {
-    /// When the logger started (for time-based spinner).
-    pub start_time: Instant,
-
-    /// When each task started running (for duration tracking).
     pub task_start_times: HashMap<TaskID, Instant>,
-
-    /// Last progress sample for each task (timestamp, progress).
-    pub task_progress: HashMap<TaskID, (Instant, u64)>,
-
-    /// Calculated throughput for each task (ops per second).
     pub task_throughput: HashMap<TaskID, f64>,
-
-    /// Terminal interface.
+    pub task_progress: HashMap<TaskID, (Instant, u64)>,
     pub terminal: Terminal<CrosstermBackend<Stdout>>,
-
-    /// Number of observe calls (for update frequency).
+    pub tick_sketch: TickSketch,
+    pub start_time: Instant,
     pub observe_count: usize,
 }
 
 /// State count breakdown by task state.
 pub struct StateCounts {
-    pub running: usize,
-    pub ready: usize,
-    pub waiting: usize,
     pub suspended: usize,
+    pub running: usize,
+    pub waiting: usize,
     pub errors: usize,
+    pub ready: usize,
 }
 
 /// Bar segment sizes for state visualization.
+#[derive(Default)]
 pub struct BarSegments {
-    pub running: usize,
-    pub ready: usize,
-    pub waiting: usize,
     pub suspended: usize,
+    pub running: usize,
+    pub waiting: usize,
     pub errors: usize,
+    pub ready: usize,
 }
 
-/* STATE MANAGEMENT */
+/* IMPLEMENTATIONS */
 
-pub fn count_states(snapshot: &SchedulerSnapshot) -> StateCounts {
+pub(super) fn count_states(snapshot: &SchedulerSnapshot) -> StateCounts {
     let mut counts = StateCounts {
-        running: 0,
-        ready: 0,
-        waiting: 0,
         suspended: 0,
+        running: 0,
+        waiting: 0,
         errors: 0,
+        ready: 0,
     };
 
     for ctx in snapshot.tasks.values() {
         match ctx.state {
-            TaskState::Running | TaskState::Preempting => counts.running += 1,
-            TaskState::Ready => counts.ready += 1,
-            TaskState::Waiting(_) => counts.waiting += 1,
             TaskState::Suspended(_) => counts.suspended += 1,
+            TaskState::Preempting | TaskState::Running => counts.running += 1,
+            TaskState::Waiting(_) => counts.waiting += 1,
             TaskState::Error => counts.errors += 1,
+            TaskState::Ready => counts.ready += 1,
         }
     }
 
@@ -84,23 +75,40 @@ pub fn count_states(snapshot: &SchedulerSnapshot) -> StateCounts {
 }
 
 pub fn track_times(state: &mut TuiLoggerState, snapshot: &SchedulerSnapshot) {
-    let active = |(_, ctx): &(&TaskID, &TaskContextSnapshot)| {
+    let dominated = |ctx: &TaskContextSnapshot| {
+        matches!(
+            ctx.state,
+            TaskState::Suspended(_) | TaskState::Error
+        )
+    };
+
+    let active = |ctx: &TaskContextSnapshot| {
         matches!(
             ctx.state,
             TaskState::Running | TaskState::Preempting
         )
     };
 
-    let tasks = snapshot
+    snapshot
         .tasks
         .iter()
-        .filter(active);
-    for (tid, _) in tasks {
-        state
-            .task_start_times
-            .entry(*tid)
-            .or_insert_with(Instant::now);
-    }
+        .filter(|(_, ctx)| dominated(ctx))
+        .for_each(|(tid, _)| {
+            state.task_start_times.remove(tid);
+            state.task_throughput.remove(tid);
+            state.task_progress.remove(tid);
+        });
+
+    snapshot
+        .tasks
+        .iter()
+        .filter(|(_, ctx)| active(ctx))
+        .for_each(|(tid, _)| {
+            state
+                .task_start_times
+                .entry(*tid)
+                .or_insert_with(Instant::now);
+        });
 }
 
 pub fn update_throughput(
@@ -108,6 +116,7 @@ pub fn update_throughput(
     snapshot: &SchedulerSnapshot,
 ) {
     let now = Instant::now();
+
     for (tid, ctx) in &snapshot.tasks {
         let Some(current) = ctx.progress else {
             continue;
@@ -129,17 +138,16 @@ pub fn update_throughput(
         }
 
         let delta = current.saturating_sub(*last_progress);
-        let instantaneous = delta as f64 / elapsed;
-        let smoothed = if let Some(&previous) = state.task_throughput.get(tid) {
-            ALPHA * instantaneous + (1.0 - ALPHA) * previous
-        } else {
-            instantaneous
-        };
+        let instant = delta as f64 / elapsed;
+        let smoothed = state
+            .task_throughput
+            .get(tid)
+            .map(|&prev| SMOOTHING * instant + (1.0 - SMOOTHING) * prev)
+            .unwrap_or(instant);
 
         state
             .task_throughput
             .insert(*tid, smoothed);
-
         state
             .task_progress
             .insert(*tid, (now, current));

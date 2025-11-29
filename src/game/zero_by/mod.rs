@@ -48,7 +48,7 @@ type PlayerStorage = B8;
 
 /* CONSTANTS */
 
-const APROXIMATE_COMPONENT_SIZE: u64 = 100000;
+const APROXIMATE_COMPONENT_SIZE: u64 = 50000;
 const FEATURES_BYTES: usize =
     (RemotenessStorage::BITS + PlayerStorage::BITS).div_ceil(8);
 
@@ -94,7 +94,7 @@ pub struct Ruleset {
     by: Vec<Elements>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Record {
     features: RecordFeatures,
     utility: Vec<SUtility>,
@@ -302,15 +302,6 @@ impl TryFrom<Vec<u8>> for Record {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self { features, utility })
-    }
-}
-
-impl Default for Record {
-    fn default() -> Self {
-        Self {
-            features: Default::default(),
-            utility: Vec::new(),
-        }
     }
 }
 

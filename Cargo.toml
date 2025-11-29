@@ -43,6 +43,9 @@ regex = "^1"
 rocksdb = { version = "0.24", default-features = false, features = ["lz4"] }
 ratatui = "0.28"
 crossterm = "0.28"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+ordered-float = "4.5"
 
 [dev-dependencies]
 strum_macros = "0.26"

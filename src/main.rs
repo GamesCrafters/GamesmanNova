@@ -6,11 +6,13 @@
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
+use tracing_subscriber::EnvFilter;
 
 use std::process;
 use std::sync::Arc;
 
 use crate::database::rocksdb::init_rocksdb;
+use crate::database::storage::InMemoryStorage;
 use crate::database::storage::RocksDBStorage;
 use crate::frontend::IOMode;
 use crate::frontend::cli;
@@ -37,6 +39,10 @@ pub mod game;
 /* PROGRAM ENTRY */
 
 fn main() -> Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     let cli = cli::Cli::parse();
     let res = match cli.command {
         cli::Commands::Info(args) => info(args),
@@ -62,6 +68,26 @@ fn build(args: cli::BuildArgs) -> Result<()> {
         },
     }
 }
+
+fn info(args: cli::InfoArgs) -> Result<()> {
+    let data = match args.target {
+        GameModule::ZeroBy => zero_by::Ruleset::info(),
+    };
+
+    let attrs = if !args.attributes.is_empty() {
+        args.attributes
+    } else {
+        frontend::GAME_ATTRIBUTES.to_vec()
+    };
+
+    let out = cli::aggregate_and_format_attributes(data, attrs, args.output)
+        .context("Failed format specified game data attributes.")?;
+
+    print!("{out}");
+    Ok(())
+}
+
+/* HELPERS */
 
 fn build_game<G, R>(
     mut ruleset: G,
@@ -91,9 +117,8 @@ where
 
     let task = {
         let executable = ForwardTaskBuilder::<_, R>::default()
-            .source(ruleset.source())
+            .ruleset(ruleset.clone())
             .storage(storage)
-            .game(ruleset.clone())
             .threshold(100)
             .build()?;
 
@@ -106,10 +131,15 @@ where
     };
 
     let mut scheduler = {
+        let dashboard = DashboardLoggerBuilder::default().build()?;
+        let tracing = TracingLoggerBuilder::default().build()?;
+        let logger = ComposeLoggerBuilder::default()
+            .logger(dashboard)
+            .logger(tracing)
+            .build()?;
+
         let policy = CriticalPathPolicyBuilder::default().build()?;
         let runner = ThreadPoolRunnerBuilder::default().build()?;
-        let logger = DashboardLoggerBuilder::default().build()?;
-
         let context = SchedulerContextBuilder::default()
             .policy(policy)
             .logger(logger)
@@ -127,22 +157,4 @@ where
     };
 
     scheduler.run()
-}
-
-fn info(args: cli::InfoArgs) -> Result<()> {
-    let data = match args.target {
-        GameModule::ZeroBy => zero_by::Ruleset::info(),
-    };
-
-    let attrs = if !args.attributes.is_empty() {
-        args.attributes
-    } else {
-        frontend::GAME_ATTRIBUTES.to_vec()
-    };
-
-    let out = cli::aggregate_and_format_attributes(data, attrs, args.output)
-        .context("Failed format specified game data attributes.")?;
-
-    print!("{out}");
-    Ok(())
 }

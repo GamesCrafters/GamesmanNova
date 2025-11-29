@@ -23,7 +23,9 @@ use anyhow::bail;
 use std::any::Any;
 
 use crate::scheduler::DecisionContext;
+use crate::scheduler::PolicySnapshot;
 use crate::scheduler::PollStatus;
+use crate::scheduler::RunnerSnapshot;
 use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskOutcomes;
@@ -70,6 +72,13 @@ pub(super) trait Runner {
     /// last known progress value without blocking. For concurrent runners, this
     /// reflects progress sampled after the most recent tick() call.
     fn progress(&self, id: TaskID) -> Option<u64>;
+
+    /// Returns a snapshot of runner state for observability. Returns None if
+    /// the runner doesn't support observability. Snapshots represent current
+    /// state only; loggers are responsible for any accumulation.
+    fn snapshot(&mut self) -> Option<RunnerSnapshot> {
+        None
+    }
 }
 
 #[cfg_attr(test, automock)]
@@ -131,6 +140,13 @@ pub(super) trait Policy {
     /// dispatched to the runner, or None if no tasks should run. Must be
     /// idempotent.
     fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID>;
+
+    /// Returns a snapshot of policy state for observability. Returns None if
+    /// the policy doesn't support observability. Snapshots represent current
+    /// state only; loggers are responsible for any accumulation.
+    fn snapshot(&mut self) -> Option<PolicySnapshot> {
+        None
+    }
 }
 
 #[cfg_attr(test, automock)]

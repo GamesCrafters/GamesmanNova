@@ -127,7 +127,7 @@ pub fn test_rocksdb(name: &str) -> Result<Arc<rocksdb::DB>> {
             let thread_id = std::thread::current().id();
             let temp = tempdir().context("Failed to create temp directory")?;
             let path = temp
-                .into_path()
+                .keep()
                 .join(format!("rocksdb_{}_{:?}", name, thread_id));
 
             opts.set_disable_auto_compactions(true);

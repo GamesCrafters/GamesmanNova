@@ -3,18 +3,32 @@
 //! Logger that composes multiple loggers, calling each in sequence.
 
 use anyhow::Result;
-use derive_builder::Builder;
 
 use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::traits::Logger;
 
 /* STRUCTURES */
 
-#[derive(Builder)]
-#[builder(pattern = "owned", setter(into))]
 pub struct ComposeLogger {
-    #[builder(setter(each = "logger"))]
     loggers: Vec<Box<dyn Logger>>,
+}
+
+#[derive(Default)]
+pub struct ComposeLoggerBuilder {
+    loggers: Vec<Box<dyn Logger>>,
+}
+
+impl ComposeLoggerBuilder {
+    pub fn logger(mut self, logger: impl Logger + 'static) -> Self {
+        self.loggers.push(Box::new(logger));
+        self
+    }
+
+    pub fn build(self) -> Result<ComposeLogger> {
+        Ok(ComposeLogger {
+            loggers: self.loggers,
+        })
+    }
 }
 
 /* IMPLEMENTATIONS */

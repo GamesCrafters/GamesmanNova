@@ -18,6 +18,7 @@ use crate::game::Component;
 use crate::game::State;
 use crate::game::traits::Implicit;
 use crate::game::traits::Partition;
+use crate::game::traits::Variable;
 use crate::scheduler::Task;
 use crate::scheduler::TaskBuilder;
 use crate::scheduler::TaskCategory;
@@ -41,14 +42,14 @@ pub struct ForwardTask<G, R> {
     progress: usize,
     pending: HashMap<Component, VecDeque<State>>,
     storage: Arc<dyn Storage<R>>,
-    game: G,
+    ruleset: G,
 }
 
 pub struct ForwardTaskBuilder<G, R> {
     threshold: Option<usize>,
     frontier: Option<VecDeque<State>>,
     storage: Option<Arc<dyn Storage<R>>>,
-    game: Option<G>,
+    ruleset: Option<G>,
 }
 
 /* IMPLEMENTATIONS */
@@ -59,14 +60,14 @@ impl<G, R> Default for ForwardTaskBuilder<G, R> {
             threshold: None,
             frontier: None,
             storage: None,
-            game: None,
+            ruleset: None,
         }
     }
 }
 
 impl<G, R> ForwardTaskBuilder<G, R>
 where
-    G: Implicit + Partition + Clone + Send + 'static,
+    G: Implicit + Variable + Partition + Clone + Send + 'static,
     R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     pub fn threshold(mut self, value: usize) -> Self {
@@ -79,13 +80,8 @@ where
         self
     }
 
-    pub fn source(mut self, state: State) -> Self {
-        self.frontier = Some(VecDeque::from(vec![state]));
-        self
-    }
-
-    pub fn game(mut self, value: G) -> Self {
-        self.game = Some(value);
+    pub fn ruleset(mut self, value: G) -> Self {
+        self.ruleset = Some(value);
         self
     }
 
@@ -95,13 +91,13 @@ where
     }
 
     pub fn build(self) -> Result<ForwardTask<G, R>> {
-        let game = self
-            .game
+        let ruleset = self
+            .ruleset
             .context("game is required")?;
 
         let frontier = self
             .frontier
-            .context("frontier is required")?;
+            .unwrap_or_else(|| VecDeque::from(vec![ruleset.source()]));
 
         let threshold = self
             .threshold
@@ -109,7 +105,7 @@ where
 
         let component = frontier
             .front()
-            .map(|state| game.component(state))
+            .map(|state| ruleset.component(state))
             .context("frontier cannot be empty")?;
 
         let storage = self
@@ -127,6 +123,7 @@ where
                 storage
                     .put(state, &record)
                     .context("Storage put failure")?;
+
                 progress += 1;
             }
         }
@@ -140,14 +137,14 @@ where
             frontier,
             progress,
             storage,
-            game,
+            ruleset,
         })
     }
 }
 
 impl<G, R> ForwardTask<G, R>
 where
-    G: Implicit + Partition + Clone + Send + 'static,
+    G: Implicit + Variable + Partition + Clone + Send + 'static,
     R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     pub fn component(&self) -> Component {
@@ -156,13 +153,13 @@ where
 
     fn child(&self, frontier: VecDeque<State>) -> Result<Task> {
         let child = ForwardTaskBuilder::<G, R>::default()
-            .threshold(self.threshold)
-            .game(self.game.clone())
             .storage(Arc::clone(&self.storage))
+            .ruleset(self.ruleset.clone())
+            .threshold(self.threshold)
             .frontier(frontier)
             .build()?;
 
-        let about = "Forward pass exploration".to_string();
+        let about = format!("Forward pass of variant {}", self.ruleset.name());
         let task = TaskBuilder::default()
             .executable(child)
             .retriable(true)
@@ -185,7 +182,6 @@ where
 
     fn process(&mut self, state: State) {
         let record = R::default();
-
         if self
             .storage
             .get(&state)
@@ -202,7 +198,7 @@ where
             .expect("Storage put failed during forward exploration");
 
         self.progress += 1;
-        let comp = self.game.component(&state);
+        let comp = self.ruleset.component(&state);
         if comp == self.component {
             self.frontier.push_back(state);
         } else {
@@ -210,6 +206,7 @@ where
                 .entry(comp)
                 .or_default()
                 .push_back(state);
+
             self.buffered += 1;
         }
     }
@@ -248,7 +245,7 @@ where
 
 impl<G, R> Executable for ForwardTask<G, R>
 where
-    G: Implicit + Partition + Clone + Send + 'static,
+    G: Implicit + Variable + Partition + Clone + Send + 'static,
     R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
 {
     fn tick(&mut self, _deps: TaskOutcomes) -> Option<YieldUpdate> {
@@ -269,25 +266,23 @@ where
             );
         };
 
-        let successors = self.game.outgoing(&state);
+        let successors = self.ruleset.outgoing(&state);
         for next in successors {
             self.process(next);
         }
 
         self.explored += 1;
-        let new = if self.buffered >= self.threshold {
-            self.spawn()
-        } else {
-            Vec::new()
-        };
+        if self.buffered >= self.threshold {
+            let update = YieldUpdateBuilder::default()
+                .intention(YieldIntention::Ready)
+                .discovered(self.spawn())
+                .build()
+                .expect("Failed to build ready yield");
 
-        let update = YieldUpdateBuilder::default()
-            .intention(YieldIntention::Ready)
-            .discovered(new)
-            .build()
-            .expect("Failed to build ready yield");
+            return Some(update);
+        }
 
-        Some(update)
+        None
     }
 
     fn size(&self) -> Option<u64> {
@@ -379,7 +374,7 @@ mod tests {
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
         let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game)
+            .ruleset(game)
             .storage(storage)
             .frontier(frontier)
             .threshold(100)
@@ -441,7 +436,7 @@ mod tests {
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
         let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game)
+            .ruleset(game)
             .storage(storage)
             .frontier(frontier)
             .threshold(100)
@@ -496,7 +491,7 @@ mod tests {
         let mut frontier1 = VecDeque::new();
         frontier1.push_back(start.clone());
         let mut task1 = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game.clone())
+            .ruleset(game.clone())
             .storage(storage1)
             .frontier(frontier1)
             .threshold(100)
@@ -505,7 +500,7 @@ mod tests {
         let mut frontier2 = VecDeque::new();
         frontier2.push_back(start);
         let task2 = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game)
+            .ruleset(game)
             .storage(storage2)
             .frontier(frontier2)
             .threshold(100)
@@ -550,7 +545,7 @@ mod tests {
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
         let task = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game)
+            .ruleset(game)
             .storage(storage)
             .frontier(frontier)
             .threshold(100)
@@ -586,7 +581,7 @@ mod tests {
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
         let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game)
+            .ruleset(game)
             .storage(storage)
             .frontier(frontier)
             .threshold(1000)
@@ -629,7 +624,7 @@ mod tests {
         let mut frontier = VecDeque::new();
         frontier.push_back(start);
         let mut task = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game)
+            .ruleset(game)
             .storage(storage)
             .frontier(frontier)
             .threshold(1)
@@ -677,7 +672,7 @@ mod tests {
         frontier.push_back(start1);
 
         let task = ForwardTaskBuilder::<_, mock::Record>::default()
-            .game(game)
+            .ruleset(game)
             .storage(storage)
             .frontier(frontier.clone())
             .threshold(100)
