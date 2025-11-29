@@ -1,8 +1,6 @@
 //! Styling helpers for dashboard TUI.
 
 use ratatui::style::Color;
-use ratatui::style::Style;
-use ratatui::text::Span;
 
 use crate::scheduler::TaskState;
 
@@ -36,8 +34,4 @@ pub fn badge(state: &TaskState) -> (&'static str, Color) {
         TaskState::Ready => ("READY", Color::Blue),
         TaskState::Error => ("ERROR", Color::Red),
     }
-}
-
-pub fn styled(text: impl Into<String>, color: Color) -> Span<'static> {
-    Span::styled(text.into(), Style::default().fg(color))
 }

@@ -8,6 +8,7 @@ use tracing::debug;
 use tracing::info;
 use tracing::trace;
 
+use std::time::Duration;
 use std::time::Instant;
 
 use crate::scheduler::PolicyAction;
@@ -66,7 +67,7 @@ impl Logger for TracingLogger {
     }
 }
 
-/* Utilities for TracingLogger */
+/* UTILITIES */
 
 impl TracingLogger {
     fn should_emit(&mut self, changed: bool) -> bool {
@@ -94,7 +95,7 @@ impl TracingLogger {
     fn emit_tick(
         &self,
         snapshot: &SchedulerSnapshot,
-        elapsed: Option<std::time::Duration>,
+        elapsed: Option<Duration>,
     ) {
         let counts = self.count_states(snapshot);
 

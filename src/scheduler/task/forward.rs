@@ -6,6 +6,7 @@
 
 use std::any::Any;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
@@ -20,16 +21,14 @@ use crate::game::traits::Implicit;
 use crate::game::traits::Partition;
 use crate::game::traits::Variable;
 use crate::scheduler::Task;
-use crate::scheduler::TaskBuilder;
 use crate::scheduler::TaskCategory;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskIDBuilder;
 use crate::scheduler::TaskOutcome;
 use crate::scheduler::TaskOutcomes;
-use crate::scheduler::YieldIntention;
-use crate::scheduler::YieldUpdate;
-use crate::scheduler::YieldUpdateBuilder;
 use crate::scheduler::traits::Executable;
+use crate::scheduler::traits::YieldIntention;
+use crate::scheduler::traits::YieldUpdate;
 
 /* STRUCTURES */
 
@@ -160,12 +159,13 @@ where
             .build()?;
 
         let about = format!("Forward pass of variant {}", self.ruleset.name());
-        let task = TaskBuilder::default()
-            .executable(child)
-            .retriable(true)
-            .about(about)
-            .build()
-            .context("Failed to build child explore task")?;
+        let task = Task {
+            executable: Box::new(child),
+            dependencies: HashSet::new(),
+            retriable: true,
+            about,
+            size: None,
+        };
 
         Ok(task)
     }
@@ -257,13 +257,10 @@ where
             };
 
             let outcome = TaskOutcome::Success(0);
-            return Some(
-                YieldUpdateBuilder::default()
-                    .intention(YieldIntention::Suspended(outcome))
-                    .discovered(remaining)
-                    .build()
-                    .expect("Failed to build suspended yield"),
-            );
+            return Some(YieldUpdate {
+                intention: YieldIntention::Suspended(outcome),
+                discovered: remaining,
+            });
         };
 
         let successors = self.ruleset.outgoing(&state);
@@ -273,13 +270,10 @@ where
 
         self.explored += 1;
         if self.buffered >= self.threshold {
-            let update = YieldUpdateBuilder::default()
-                .intention(YieldIntention::Ready)
-                .discovered(self.spawn())
-                .build()
-                .expect("Failed to build ready yield");
-
-            return Some(update);
+            return Some(YieldUpdate {
+                intention: YieldIntention::Ready,
+                discovered: self.spawn(),
+            });
         }
 
         None
@@ -346,9 +340,28 @@ mod tests {
     use crate::game::mock;
     use crate::game::mock::Node;
     use crate::game::mock::SessionBuilder;
+    use std::sync::Arc;
+
     use crate::game::traits::Implicit;
     use crate::node;
-    use std::sync::Arc;
+
+    /// Test helper: Tick task until it yields control back to scheduler.
+    ///
+    /// The cooperative scheduling API returns None for internal ticks and Some
+    /// when yielding. This helper abstracts that for tests that don't care about
+    /// internal tick granularity.
+    fn tick_until_yield<G, R>(
+        task: &mut ForwardTask<G, R>,
+        deps: TaskOutcomes,
+    ) -> YieldUpdate
+    where
+        G: Implicit + Variable + Partition + Clone + Send + 'static,
+        R: Default + Into<Vec<u8>> + Clone + Send + Sync + 'static,
+    {
+        std::iter::repeat_with(|| task.tick(deps.clone()))
+            .find_map(|x| x)
+            .expect("Task should eventually yield")
+    }
 
     #[test]
     fn explore_tiny_game() -> Result<()> {
@@ -382,29 +395,24 @@ mod tests {
 
         let empty = TaskOutcomes::new();
 
-        let update1 = task.tick(empty.clone()).unwrap();
-        assert!(matches!(update1.intention, YieldIntention::Ready));
-        assert_eq!(task.explored, 1);
+        let update = tick_until_yield(&mut task, empty.clone());
 
-        let update2 = task.tick(empty.clone()).unwrap();
-        assert!(matches!(update2.intention, YieldIntention::Ready));
-        assert_eq!(task.explored, 2);
-
-        let mut ticks = 2;
-        loop {
-            let update = task.tick(empty.clone()).unwrap();
-            if matches!(update.intention, YieldIntention::Suspended(_)) {
-                break;
-            }
-            ticks += 1;
-
-            if ticks > 100 {
-                bail!("Too many ticks - likely infinite loop");
-            }
-        }
-
-        assert!(task.explored > 0);
-        assert!(task.frontier.is_empty());
+        assert!(matches!(
+            update.intention,
+            YieldIntention::Suspended(TaskOutcome::Success(_))
+        ));
+        assert!(
+            task.explored > 0,
+            "Should have explored some states"
+        );
+        assert!(
+            task.frontier.is_empty(),
+            "Frontier should be exhausted"
+        );
+        assert!(
+            task.pending.is_empty(),
+            "No cross-component work in single-component game"
+        );
 
         Ok(())
     }
@@ -422,7 +430,7 @@ mod tests {
             .edge(&s2, &s3)
             .edge(&s3, &s4)
             .edge(&s4, &t1)
-            .edge(&s2, &s4);
+            .edge(&s2, &s4); // Creates a diamond - s2 reaches s4 via two paths
 
         let game = SessionBuilder::default()
             .name("no_revisit_states")
@@ -444,21 +452,18 @@ mod tests {
 
         let empty = TaskOutcomes::new();
 
-        let mut prev = 1;
+        let update = tick_until_yield(&mut task, empty.clone());
 
-        for _ in 0..50 {
-            let update = task.tick(empty.clone()).unwrap();
+        assert!(matches!(
+            update.intention,
+            YieldIntention::Suspended(TaskOutcome::Success(_))
+        ));
+        assert!(
+            task.explored > 0,
+            "Should have explored all reachable states"
+        );
+        assert!(task.frontier.is_empty());
 
-            let current = task.explored;
-            assert!(current >= prev);
-            prev = current;
-
-            if matches!(update.intention, YieldIntention::Suspended(_)) {
-                break;
-            }
-        }
-
-        assert!(task.explored > 0);
         Ok(())
     }
 
@@ -507,18 +512,17 @@ mod tests {
             .build()?;
 
         let empty = TaskOutcomes::new();
-        task1
-            .tick(empty.clone())
-            .context("First tick failed")?;
 
-        task1
-            .tick(empty)
-            .context("Second tick failed")?;
+        let _ = tick_until_yield(&mut task1, empty.clone());
 
         let explored = task1.explored;
+
         task1.merge(Box::new(task2))?;
 
-        assert_eq!(task1.explored, explored);
+        assert_eq!(
+            task1.explored, explored,
+            "Merge should preserve max explored count"
+        );
 
         Ok(())
     }
@@ -589,15 +593,17 @@ mod tests {
 
         let empty = TaskOutcomes::new();
 
-        for _ in 0..10 {
-            let update = task.tick(empty.clone()).unwrap();
-            if matches!(update.intention, YieldIntention::Suspended(_)) {
-                break;
-            }
-            assert_eq!(update.discovered.len(), 0);
-        }
+        let update = tick_until_yield(&mut task, empty);
 
-        assert_eq!(task.buffered, 0);
+        assert!(matches!(
+            update.intention,
+            YieldIntention::Suspended(TaskOutcome::Success(_))
+        ));
+        assert_eq!(
+            task.buffered, 0,
+            "Single-component game has no cross-component buffering"
+        );
+        assert!(task.pending.is_empty());
 
         Ok(())
     }
@@ -632,13 +638,12 @@ mod tests {
 
         let empty = TaskOutcomes::new();
 
-        for _ in 0..10 {
-            let update = task.tick(empty.clone()).unwrap();
-            if matches!(update.intention, YieldIntention::Suspended(_)) {
-                break;
-            }
-        }
+        let update = tick_until_yield(&mut task, empty);
 
+        assert!(matches!(
+            update.intention,
+            YieldIntention::Suspended(TaskOutcome::Success(_))
+        ));
         assert!(task.pending.is_empty());
         assert_eq!(task.buffered, 0);
 

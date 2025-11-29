@@ -19,6 +19,7 @@ pub struct ComposeLoggerBuilder {
 }
 
 impl ComposeLoggerBuilder {
+    #[allow(private_bounds)]
     pub fn logger(mut self, logger: impl Logger + 'static) -> Self {
         self.loggers.push(Box::new(logger));
         self

@@ -1,11 +1,11 @@
 //! Internal state management for dashboard logger.
 
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
+
 use std::collections::HashMap;
 use std::io::Stdout;
 use std::time::Instant;
-
-use ratatui::Terminal;
-use ratatui::backend::CrosstermBackend;
 
 use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskContextSnapshot;
@@ -137,19 +137,33 @@ pub fn update_throughput(
             continue;
         }
 
-        let delta = current.saturating_sub(*last_progress);
-        let instant = delta as f64 / elapsed;
-        let smoothed = state
-            .task_throughput
-            .get(tid)
-            .map(|&prev| SMOOTHING * instant + (1.0 - SMOOTHING) * prev)
-            .unwrap_or(instant);
+        let rate = compute_smoothed_rate(
+            current,
+            *last_progress,
+            elapsed,
+            state.task_throughput.get(tid),
+        );
 
         state
             .task_throughput
-            .insert(*tid, smoothed);
+            .insert(*tid, rate);
         state
             .task_progress
             .insert(*tid, (now, current));
+    }
+}
+
+fn compute_smoothed_rate(
+    current: u64,
+    last: u64,
+    elapsed: f64,
+    prev_rate: Option<&f64>,
+) -> f64 {
+    let delta = current.saturating_sub(last);
+    let instant = delta as f64 / elapsed;
+
+    match prev_rate {
+        Some(&prev) => SMOOTHING * instant + (1.0 - SMOOTHING) * prev,
+        None => instant,
     }
 }

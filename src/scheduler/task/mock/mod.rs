@@ -14,23 +14,24 @@ use petgraph::dot::Dot;
 use petgraph::graph::NodeIndex;
 
 use std::any::Any;
+use std::collections::HashSet;
 use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::sync::Arc;
 
 use crate::developer::visualize_graph;
 use crate::game::Component;
 use crate::scheduler::Dependencies;
 use crate::scheduler::Task as SchedulerTask;
-use crate::scheduler::TaskBuilder as SchedulerTaskBuilder;
 use crate::scheduler::TaskCategory;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskIDBuilder;
 use crate::scheduler::TaskOutcome;
 use crate::scheduler::TaskOutcomes;
-use crate::scheduler::YieldIntention;
-use crate::scheduler::YieldUpdate;
-use crate::scheduler::YieldUpdateBuilder;
 use crate::scheduler::traits::Executable;
+use crate::scheduler::traits::YieldIntention;
+use crate::scheduler::traits::YieldUpdate;
 
 /* RE-EXPORTS */
 
@@ -221,15 +222,13 @@ impl Task {
     fn build_child(&self, tid: TaskID) -> SchedulerTask {
         let child = Task::new(tid, Arc::clone(&self.graph));
         let config = self.graph.config(&tid);
-        let requires: Dependencies = Dependencies::new();
-        SchedulerTaskBuilder::default()
-            .executable(child)
-            .retriable(config.retriable)
-            .about(config.about.clone())
-            .size(config.size)
-            .requires(requires)
-            .build()
-            .expect("Failed to build scheduler task")
+        SchedulerTask {
+            executable: Box::new(child),
+            dependencies: HashSet::new(),
+            retriable: config.retriable,
+            about: config.about.clone(),
+            size: config.size,
+        }
     }
 
     fn handle_release(
@@ -271,16 +270,13 @@ impl Task {
         let root_tid = self.graph.root;
         let root = Task::new(root_tid, Arc::clone(&self.graph));
         let config = self.graph.config(&root_tid);
-        let requires: Dependencies = Dependencies::new();
-
-        let task = SchedulerTaskBuilder::default()
-            .executable(root)
-            .retriable(config.retriable)
-            .about(config.about.clone())
-            .size(config.size)
-            .requires(requires)
-            .build()
-            .context("Failed to build root task")?;
+        let task = SchedulerTask {
+            executable: Box::new(root),
+            dependencies: HashSet::new(),
+            retriable: config.retriable,
+            about: config.about.clone(),
+            size: config.size,
+        };
 
         Ok(task)
     }
@@ -305,7 +301,6 @@ impl Executable for Task {
         let num = children.len();
         let remaining = self.remaining();
 
-        // check if waiting for children to complete
         if num > 0
             && remaining == 0
             && let Some(waiting) = self.unsatisfied(&deps)
@@ -313,17 +308,14 @@ impl Executable for Task {
             return Some(YieldUpdate::new_waiting(waiting));
         }
 
-        // handle release (before completion check)
         if remaining > 0 && self.progress >= self.release {
             return Some(self.handle_release(num, children));
         }
 
-        // check completion
         if self.progress >= self.ticks {
             return Some(YieldUpdate::new_suspended(self.outcome, vec![]));
         }
 
-        // normal tick
         self.progress += 1;
         Some(YieldUpdate::new_ready())
     }
@@ -381,7 +373,7 @@ impl Clone for Task {
 }
 
 impl Display for Task {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
         let format = |_, n: (NodeIndex, &TaskConfig)| {
             let (index, config) = n;
             let component = index.index() as Component;
@@ -464,49 +456,44 @@ fn format_outcome(outcome: &TaskOutcome) -> String {
 
 impl YieldUpdate {
     fn new_waiting(deps: Dependencies) -> Self {
-        YieldUpdateBuilder::default()
-            .intention(YieldIntention::Waiting(deps))
-            .discovered(Vec::new())
-            .build()
-            .expect("Failed to build waiting")
+        YieldUpdate {
+            intention: YieldIntention::Waiting(deps),
+            discovered: Vec::new(),
+        }
     }
 
     fn new_ready() -> Self {
-        YieldUpdateBuilder::default()
-            .intention(YieldIntention::Ready)
-            .discovered(Vec::new())
-            .build()
-            .expect("Failed to build ready")
+        YieldUpdate {
+            intention: YieldIntention::Ready,
+            discovered: Vec::new(),
+        }
     }
 
     fn new_suspended(
         outcome: TaskOutcome,
         discovered: Vec<SchedulerTask>,
     ) -> Self {
-        YieldUpdateBuilder::default()
-            .intention(YieldIntention::Suspended(outcome))
-            .discovered(discovered)
-            .build()
-            .expect("Failed to build suspended")
+        YieldUpdate {
+            intention: YieldIntention::Suspended(outcome),
+            discovered,
+        }
     }
 
     fn with_ready(discovered: Vec<SchedulerTask>) -> Self {
-        YieldUpdateBuilder::default()
-            .intention(YieldIntention::Ready)
-            .discovered(discovered)
-            .build()
-            .expect("Failed to build ready")
+        YieldUpdate {
+            intention: YieldIntention::Ready,
+            discovered,
+        }
     }
 
     fn with_waiting(
         deps: Dependencies,
         discovered: Vec<SchedulerTask>,
     ) -> Self {
-        YieldUpdateBuilder::default()
-            .intention(YieldIntention::Waiting(deps))
-            .discovered(discovered)
-            .build()
-            .expect("Failed to build waiting")
+        YieldUpdate {
+            intention: YieldIntention::Waiting(deps),
+            discovered,
+        }
     }
 }
 
@@ -862,14 +849,12 @@ mod tests {
 
         let empty = TaskOutcomes::new();
 
-        // First tick: discover first child, return Ready
         let update1 = executable
             .tick(empty.clone())
             .ok_or(anyhow!(""))?;
         assert!(matches!(update1.intention, YieldIntention::Ready));
         assert_eq!(update1.discovered.len(), 1);
 
-        // Second tick: discover second child, return Waiting for both
         let update2 = executable
             .tick(empty)
             .ok_or(anyhow!(""))?;
@@ -885,7 +870,6 @@ mod tests {
         };
         assert_eq!(update2.discovered.len(), 1);
 
-        // Provide one dependency outcome
         let partial: TaskOutcomes = [(dep_tids[0], TaskOutcome::Success(1))]
             .into_iter()
             .collect();
@@ -901,7 +885,6 @@ mod tests {
             _ => panic!("Expected Waiting with one dep"),
         }
 
-        // Provide all dependency outcomes
         let full: TaskOutcomes = [
             (dep_tids[0], TaskOutcome::Success(1)),
             (dep_tids[1], TaskOutcome::Success(2)),
@@ -909,7 +892,6 @@ mod tests {
         .into_iter()
         .collect();
 
-        // After all deps satisfied, should return Ready
         let update4 = executable
             .tick(full.clone())
             .ok_or(anyhow!(""))?;
@@ -918,7 +900,6 @@ mod tests {
             _ => panic!("Expected Ready after deps satisfied"),
         }
 
-        // Continue execution
         let update5 = executable
             .tick(full.clone())
             .ok_or(anyhow!(""))?;
@@ -927,7 +908,6 @@ mod tests {
             _ => panic!("Expected Ready during execution"),
         }
 
-        // Final tick to complete
         let update6 = executable
             .tick(full)
             .ok_or(anyhow!(""))?;

@@ -1,9 +1,5 @@
 //! Rendering functions for dashboard TUI.
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::iter::once;
-
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
@@ -14,6 +10,10 @@ use ratatui::widgets::Block;
 use ratatui::widgets::BorderType;
 use ratatui::widgets::Borders;
 use ratatui::widgets::Paragraph;
+
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::iter::once;
 
 use crate::scheduler::RunnerSnapshot;
 use crate::scheduler::SchedulerSnapshot;
@@ -36,7 +36,7 @@ use super::state::count_states;
 
 /* IMPLEMENTATIONS */
 
-/* Header Rendering */
+/* HEADER RENDERING */
 
 pub fn header(
     frame: &mut ratatui::Frame,
@@ -53,7 +53,13 @@ pub fn header(
         .saturating_sub(HEADER_PADDING) as usize;
 
     let workers = runner
-        .map(|r| format!("{}/{}", counts.running, r.capacity))
+        .map(|r| {
+            let cap = r
+                .capacity
+                .map(|c| c.to_string())
+                .unwrap_or_else(|| "∞".to_string());
+            format!("{}/{}", counts.running, cap)
+        })
         .unwrap_or_else(|| format!("{}", counts.running));
 
     let title = format!(
@@ -109,7 +115,7 @@ fn status_line(counts: &StateCounts) -> Line<'static> {
     ])
 }
 
-/* State Bar */
+/* STATE BAR */
 
 pub fn render_state_bar(counts: &StateCounts, width: usize) -> Line<'static> {
     if width == 0 {
@@ -256,43 +262,15 @@ fn color_bar(
 }
 
 fn z_score_color(z: f64, labeled: bool) -> Color {
-    match z {
-        z if z < -2.0 => {
-            if labeled {
-                Color::Magenta
-            } else {
-                Color::LightMagenta
-            }
-        },
-        z if z < -1.0 => {
-            if labeled {
-                Color::Blue
-            } else {
-                Color::LightBlue
-            }
-        },
-        z if z < 1.0 => {
-            if labeled {
-                Color::DarkGray
-            } else {
-                Color::Gray
-            }
-        },
-        z if z < 2.0 => {
-            if labeled {
-                Color::Yellow
-            } else {
-                Color::LightYellow
-            }
-        },
-        _ => {
-            if labeled {
-                Color::Red
-            } else {
-                Color::LightRed
-            }
-        },
-    }
+    let (dark, light) = match z {
+        z if z < -2.0 => (Color::Magenta, Color::LightMagenta),
+        z if z < -1.0 => (Color::Blue, Color::LightBlue),
+        z if z < 1.0 => (Color::DarkGray, Color::Gray),
+        z if z < 2.0 => (Color::Yellow, Color::LightYellow),
+        _ => (Color::Red, Color::LightRed),
+    };
+
+    if labeled { dark } else { light }
 }
 
 fn histogram_with_markers(
@@ -340,7 +318,7 @@ fn axis_with_labels(labels: &[(usize, String)]) -> String {
     buf.into_iter().collect()
 }
 
-/* Section Rendering */
+/* SECTION RENDERING */
 
 pub fn section(
     frame: &mut ratatui::Frame,
@@ -392,7 +370,7 @@ pub fn section(
     frame.render_widget(Paragraph::new(lines).block(block), area);
 }
 
-/* Task Rendering */
+/* TASK RENDERING */
 
 fn task<'a>(
     tid: TaskID,

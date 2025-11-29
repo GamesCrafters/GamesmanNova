@@ -9,12 +9,12 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 
-use crate::scheduler::PollStatus;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskOutcomes;
-use crate::scheduler::YieldUpdate;
 use crate::scheduler::traits::Executable;
+use crate::scheduler::traits::PollStatus;
 use crate::scheduler::traits::Runner;
+use crate::scheduler::traits::YieldUpdate;
 
 /* STRUCTURES */
 
@@ -37,7 +37,9 @@ impl Runner for SyncRunner {
         tid: TaskID,
         awaited: TaskOutcomes,
         mut executable: Box<dyn Executable>,
-    ) -> Result<()> {
+    ) -> Result<crate::scheduler::DispatchOutcome> {
+        use crate::scheduler::DispatchOutcome;
+
         if self.running.contains_key(&tid) {
             bail!("Task {} is already running.", tid);
         }
@@ -50,11 +52,10 @@ impl Runner for SyncRunner {
         let result = result.expect("guaranteed");
         self.running
             .insert(tid, executable);
-
         self.results
             .insert(tid, Ok(result));
 
-        Ok(())
+        Ok(DispatchOutcome::Accepted)
     }
 
     fn poll(&mut self, tid: TaskID) -> Result<PollStatus> {

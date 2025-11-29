@@ -3,8 +3,8 @@
 //! Simplest possible policy: no preemption, no retries, always
 //! selects task with lowest ID.
 
-use crate::scheduler::DecisionContext;
 use crate::scheduler::TaskID;
+use crate::scheduler::core::State;
 use crate::scheduler::traits::Policy;
 
 /* STRUCTURES */
@@ -16,18 +16,30 @@ pub struct TrivialPolicy;
 /* TRAIT IMPLEMENTATIONS */
 
 impl Policy for TrivialPolicy {
-    fn retry<'a>(&mut self, _ctx: &DecisionContext<'a>) -> Option<TaskID> {
+    fn retry(
+        &mut self,
+        _candidates: &[TaskID],
+        _state: &State,
+        _capacity: usize,
+    ) -> Option<TaskID> {
         None
     }
 
-    fn preempt<'a>(&mut self, _ctx: &DecisionContext<'a>) -> Option<TaskID> {
+    fn preempt(
+        &mut self,
+        _candidates: &[TaskID],
+        _state: &State,
+        _capacity: usize,
+    ) -> Option<TaskID> {
         None
     }
 
-    fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID> {
-        ctx.candidates
-            .keys()
-            .copied()
-            .min()
+    fn execute(
+        &mut self,
+        candidates: &[TaskID],
+        _state: &State,
+        _capacity: usize,
+    ) -> Option<TaskID> {
+        candidates.iter().min().copied()
     }
 }

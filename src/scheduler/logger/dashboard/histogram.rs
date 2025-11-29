@@ -54,24 +54,6 @@ impl TickSketch {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.centroids.is_empty()
-    }
-
-    pub fn min_ns(&self) -> u64 {
-        self.centroids
-            .first_key_value()
-            .map(|(k, _)| k.0 as u64)
-            .unwrap_or(1)
-    }
-
-    pub fn max_ns(&self) -> u64 {
-        self.centroids
-            .last_key_value()
-            .map(|(k, _)| k.0 as u64)
-            .unwrap_or(1)
-    }
-
     pub fn centroid_values(&self) -> Vec<u64> {
         self.centroids
             .keys()
@@ -136,7 +118,7 @@ impl TickSketch {
     }
 }
 
-/* Histogram Rendering */
+/* RENDERING */
 
 pub fn render(bins: &[u64]) -> String {
     if bins.is_empty() {
@@ -169,6 +151,26 @@ fn bar_char(count: u64, max: u64) -> char {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl TickSketch {
+        pub fn is_empty(&self) -> bool {
+            self.centroids.is_empty()
+        }
+
+        pub fn min_ns(&self) -> u64 {
+            self.centroids
+                .first_key_value()
+                .map(|(k, _)| k.0 as u64)
+                .unwrap_or(1)
+        }
+
+        pub fn max_ns(&self) -> u64 {
+            self.centroids
+                .last_key_value()
+                .map(|(k, _)| k.0 as u64)
+                .unwrap_or(1)
+        }
+    }
 
     #[test]
     fn test_btreemap_record_and_centroid_methods() {

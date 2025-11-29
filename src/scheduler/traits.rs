@@ -22,14 +22,12 @@ use anyhow::Result;
 use anyhow::bail;
 use std::any::Any;
 
-use crate::scheduler::DecisionContext;
 use crate::scheduler::PolicySnapshot;
-use crate::scheduler::PollStatus;
 use crate::scheduler::RunnerSnapshot;
 use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskID;
+use crate::scheduler::TaskOutcome;
 use crate::scheduler::TaskOutcomes;
-use crate::scheduler::YieldUpdate;
 
 /* SCHEDULER INTERFACES */
 
@@ -39,16 +37,17 @@ pub(super) trait Runner {
     /// unlimited capacity (synchronous execution where tasks run to completion).
     fn capacity(&self) -> Option<usize>;
 
-    /// Initiates execution of a task with its dependencies' outcomes. Transfers
-    /// ownership of the executable to the runner. The task switches to Running
-    /// state in the scheduler before this call. May return immediately or block
-    /// until first yield (synchronous execution).
+    /// Attempts to dispatch a task, checking capacity atomically. Runner decides
+    /// whether to accept or reject based on current capacity. Returns Accepted if
+    /// task was dispatched successfully, or CapacityExhausted if no capacity
+    /// available. Rejection is not an error - caller should restore task state
+    /// and retry next tick.
     fn execute(
         &mut self,
         id: TaskID,
         awaited: TaskOutcomes,
         executable: Box<dyn Executable>,
-    ) -> Result<()>;
+    ) -> Result<crate::scheduler::DispatchOutcome>;
 
     /// Checks if running task has yielded since the last poll. Returns Pending
     /// if still executing, Ready if completed with update, or Panic if the task
@@ -128,18 +127,33 @@ pub(super) trait Policy {
     /// the provided candidates (Error tasks), or None if no retries are needed.
     /// Must be idempotent - repeated calls without state changes should return
     /// the same result.
-    fn retry<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID>;
+    fn retry(
+        &mut self,
+        candidates: &[TaskID],
+        state: &crate::scheduler::core::State,
+        capacity: usize,
+    ) -> Option<TaskID>;
 
     /// Identifies running task that should be preempted. Returns a TaskID from
     /// the provided candidates (Running tasks), or None if no preemption is
     /// needed. Must be idempotent.
-    fn preempt<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID>;
+    fn preempt(
+        &mut self,
+        candidates: &[TaskID],
+        state: &crate::scheduler::core::State,
+        capacity: usize,
+    ) -> Option<TaskID>;
 
     /// Selects the next task to execute from candidates (Ready or satisfied
     /// Waiting tasks depending on phase). Returns a TaskID that should be
     /// dispatched to the runner, or None if no tasks should run. Must be
     /// idempotent.
-    fn execute<'a>(&mut self, ctx: &DecisionContext<'a>) -> Option<TaskID>;
+    fn execute(
+        &mut self,
+        candidates: &[TaskID],
+        state: &crate::scheduler::core::State,
+        capacity: usize,
+    ) -> Option<TaskID>;
 
     /// Returns a snapshot of policy state for observability. Returns None if
     /// the policy doesn't support observability. Snapshots represent current
@@ -158,4 +172,27 @@ pub(super) trait Logger {
         snapshot: &SchedulerSnapshot,
         changed: bool,
     ) -> Result<()>;
+}
+
+/* YIELD TYPES */
+
+/// Yield intention from task execution.
+#[derive(Clone, Debug)]
+pub(crate) enum YieldIntention {
+    Suspended(TaskOutcome),
+    Waiting(crate::scheduler::orchestration::Deps),
+    Ready,
+}
+
+/// Yield update from task execution.
+pub(crate) struct YieldUpdate {
+    pub intention: YieldIntention,
+    pub discovered: Vec<crate::scheduler::orchestration::Task>,
+}
+
+/// Poll status from runner.
+pub(crate) enum PollStatus {
+    Ready(YieldUpdate),
+    Panic(String),
+    Pending,
 }

@@ -120,7 +120,7 @@ pub struct DashboardLogger {
     label_period: usize,
 }
 
-/* Helper Structures */
+/* HELPER STRUCTURES */
 
 struct RenderContext {
     throughput: HashMap<TaskID, f64>,
@@ -301,7 +301,7 @@ impl DashboardLogger {
     }
 }
 
-/* Helper Functions */
+/* HELPER FUNCTIONS */
 
 fn render_header(
     frame: &mut ratatui::Frame,
@@ -352,7 +352,7 @@ fn render_sections(
     }
 }
 
-/* Helpers */
+/* HELPERS */
 
 fn default_sections() -> Vec<SectionConfig> {
     vec![

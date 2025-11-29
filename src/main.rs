@@ -12,7 +12,6 @@ use std::process;
 use std::sync::Arc;
 
 use crate::database::rocksdb::init_rocksdb;
-use crate::database::storage::InMemoryStorage;
 use crate::database::storage::RocksDBStorage;
 use crate::frontend::IOMode;
 use crate::frontend::cli;
@@ -115,46 +114,36 @@ where
         Arc::new(RocksDBStorage::<R>::new(db))
     };
 
-    let task = {
-        let executable = ForwardTaskBuilder::<_, R>::default()
-            .ruleset(ruleset.clone())
-            .storage(storage)
-            .threshold(100)
-            .build()?;
+    let executable = ForwardTaskBuilder::<_, R>::default()
+        .ruleset(ruleset.clone())
+        .storage(storage)
+        .threshold(100)
+        .build()?;
 
-        let about = format!("Forward pass of variant {}", ruleset.name());
-        TaskBuilder::default()
-            .executable(executable)
-            .retriable(true)
-            .about(about)
-            .build()?
-    };
+    let about = format!("Forward pass of variant {}", ruleset.name());
+    let task = scheduler::Task::builder()
+        .executable(executable)
+        .dependencies(std::collections::HashSet::new())
+        .retriable(true)
+        .about(about)
+        .build()?;
 
-    let mut scheduler = {
-        let dashboard = DashboardLoggerBuilder::default().build()?;
-        let tracing = TracingLoggerBuilder::default().build()?;
-        let logger = ComposeLoggerBuilder::default()
-            .logger(dashboard)
-            .logger(tracing)
-            .build()?;
+    let dashboard = DashboardLoggerBuilder::default().build()?;
+    let tracing = TracingLoggerBuilder::default().build()?;
+    let logger = ComposeLoggerBuilder::default()
+        .logger(dashboard)
+        .logger(tracing)
+        .build()?;
 
-        let policy = CriticalPathPolicyBuilder::default().build()?;
-        let runner = ThreadPoolRunnerBuilder::default().build()?;
-        let context = SchedulerContextBuilder::default()
-            .policy(policy)
-            .logger(logger)
-            .runner(runner)
-            .build()?;
+    let policy = CriticalPathPolicyBuilder::default().build()?;
+    let runner = ThreadPoolRunnerBuilder::default().build()?;
 
-        let state = SchedulerStateBuilder::default()
-            .task(task)
-            .build()?;
+    let mut orchestrator = Orchestrator::builder()
+        .runner(runner)
+        .policy(policy)
+        .logger(logger)
+        .build()?;
 
-        SchedulerBuilder::default()
-            .context(context)
-            .state(state)
-            .build()?
-    };
-
-    scheduler.run()
+    orchestrator.register(task)?;
+    orchestrator.run()
 }

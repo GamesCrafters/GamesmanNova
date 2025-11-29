@@ -5,6 +5,8 @@ use ratatui::layout::Direction;
 use ratatui::layout::Layout;
 use ratatui::layout::Rect;
 
+use std::rc::Rc;
+
 use super::SectionConfig;
 use super::TaskFilter;
 
@@ -18,7 +20,7 @@ pub const HEADER_HEIGHT: u16 = 8;
 
 /* IMPLEMENTATIONS */
 
-pub fn layout(area: Rect, sections: &[SectionConfig]) -> std::rc::Rc<[Rect]> {
+pub fn layout(area: Rect, sections: &[SectionConfig]) -> Rc<[Rect]> {
     let total: usize = sections
         .iter()
         .map(|s| s.weight)

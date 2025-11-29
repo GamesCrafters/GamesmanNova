@@ -95,7 +95,7 @@ pub mod test_utils {
             tid: TaskID,
         ) -> Vec<Transition> {
             let component = tid.component;
-            let filter = |t: &Transition| t.task == component;
+            let filter = |t: &Transition| t.task.component == component;
             self.snapshots
                 .iter()
                 .flat_map(|s| s.transitions.iter())
@@ -148,14 +148,15 @@ pub mod test_utils {
             let comp2 = tid2.component;
             let relevant = |t: &&Transition| {
                 let running = matches!(t.to, TaskState::Running);
-                running && (t.task == comp1 || t.task == comp2)
+                running
+                    && (t.task.component == comp1 || t.task.component == comp2)
             };
 
             self.snapshots
                 .iter()
                 .flat_map(|s| &s.transitions)
                 .find(relevant)
-                .map(|t| t.task == comp1)
+                .map(|t| t.task.component == comp1)
                 .unwrap_or(false)
         }
 
@@ -166,7 +167,8 @@ pub mod test_utils {
                 .iter()
                 .flat_map(|s| &s.transitions)
                 .any(|t| {
-                    t.task == component && matches!(t.to, TaskState::Preempting)
+                    t.task.component == component
+                        && matches!(t.to, TaskState::Preempting)
                 })
         }
 
@@ -211,7 +213,9 @@ pub mod test_utils {
                         .enumerate()
                         .map(move |(order, t)| (s.tick, order, t))
                 })
-                .find(|(_, _, t)| t.task == component && predicate(&t.to))
+                .find(|(_, _, t)| {
+                    t.task.component == component && predicate(&t.to)
+                })
                 .map(|(tick, order, _)| (tick, order))
         }
 

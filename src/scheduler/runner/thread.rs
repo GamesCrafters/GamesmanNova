@@ -1,13 +1,15 @@
 //! # Thread Pool Runner Implementation
-//!
-//! TODO
 
 use std::any::Any;
 use std::collections::HashMap;
+use std::mem::replace;
+use std::panic::AssertUnwindSafe;
+use std::panic::catch_unwind;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::thread::Builder;
 use std::thread::JoinHandle;
@@ -22,14 +24,14 @@ use crossbeam_channel::Sender;
 use crossbeam_channel::unbounded;
 use derive_builder::Builder as DeriveBuilder;
 
-use crate::scheduler::PollStatus;
 use crate::scheduler::RunnerSnapshot;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskOutcomes;
-use crate::scheduler::YieldIntention;
-use crate::scheduler::YieldUpdate;
 use crate::scheduler::traits::Executable;
+use crate::scheduler::traits::PollStatus;
 use crate::scheduler::traits::Runner;
+use crate::scheduler::traits::YieldIntention;
+use crate::scheduler::traits::YieldUpdate;
 
 /* ENUMERATIONS */
 
@@ -54,44 +56,21 @@ enum RunningTaskState {
 #[builder(pattern = "owned", setter(into))]
 #[builder(build_fn(skip))]
 pub struct ThreadPoolRunner {
-    /// Number of worker threads
-    threads: usize,
-
-    /// Timeout for polling operations
-    timeout: Duration,
-
-    /// Worker thread handles
-    workers: Vec<JoinHandle<()>>,
-
-    /// Channel to dispatch work to idle workers
-    work_tx: Sender<WorkPacket>,
-
-    /// Channel to send completed work from workers
-    result_tx: Sender<CompletionPacket>,
-
-    /// Channel to receive completed work from workers
-    result_rx: Receiver<CompletionPacket>,
-
-    /// Track state of running tasks (scheduler's perspective)
-    running: HashMap<TaskID, RunningTaskState>,
-
-    /// Completed tasks waiting to be collected
-    completed: HashMap<TaskID, Box<dyn Executable>>,
-
-    /// Preemption signals indexed by TaskID
-    signals: HashMap<TaskID, Arc<AtomicBool>>,
-
-    /// Progress samples from running tasks
     progress: Arc<RwLock<HashMap<TaskID, u64>>>,
-
-    /// Shutdown signal for all workers
-    shutdown: Arc<AtomicBool>,
-
-    /// Latest tick duration per worker (in nanoseconds)
+    completed: HashMap<TaskID, Box<dyn Executable>>,
+    running: HashMap<TaskID, RunningTaskState>,
+    signals: HashMap<TaskID, Arc<AtomicBool>>,
+    result_rx: Receiver<CompletionPacket>,
+    result_tx: Sender<CompletionPacket>,
+    busy_workers: Arc<AtomicUsize>,
+    workers: Vec<JoinHandle<()>>,
+    work_tx: Sender<WorkPacket>,
     ticks: Arc<Vec<AtomicU64>>,
+    shutdown: Arc<AtomicBool>,
+    threads: usize,
 }
 
-/* PRIVATE STRUCTURES */
+/* STRUCTURES */
 
 /// Work packet sent from runner to worker.
 struct WorkPacket {
@@ -106,7 +85,6 @@ struct WorkPacket {
 /// Completion packet sent from worker back to runner.
 struct CompletionPacket {
     executable: Box<dyn Executable>,
-    execution_time: Duration,
     result: WorkResult,
     tid: TaskID,
 }
@@ -119,13 +97,10 @@ impl ThreadPoolRunnerBuilder {
             .threads
             .unwrap_or_else(num_cpus::get);
 
-        let timeout = self
-            .timeout
-            .unwrap_or_else(|| Duration::from_millis(100));
-
         let (result_tx, result_rx) = unbounded();
         let (work_tx, work_rx) = unbounded();
 
+        let busy_workers = Arc::new(AtomicUsize::new(0));
         let shutdown = Arc::new(AtomicBool::new(false));
         let ticks = Arc::new(
             (0..threads)
@@ -156,10 +131,10 @@ impl ThreadPoolRunnerBuilder {
             signals: HashMap::new(),
             result_tx,
             result_rx,
+            busy_workers,
             shutdown,
             work_tx,
             workers,
-            timeout,
             threads,
             ticks,
         })
@@ -170,6 +145,9 @@ impl ThreadPoolRunner {
     /// Receive completed task results and drain their metadata.
     fn process_completed(&mut self) {
         while let Ok(completion) = self.result_rx.try_recv() {
+            self.busy_workers
+                .fetch_sub(1, Ordering::Release);
+
             self.running.insert(
                 completion.tid,
                 RunningTaskState::Completed(completion.result),
@@ -185,7 +163,10 @@ impl ThreadPoolRunner {
 
     /// Check if runner has capacity for new tasks.
     fn available(&self) -> bool {
-        self.running.len() < self.threads
+        let busy = self
+            .busy_workers
+            .load(Ordering::Acquire);
+        busy < self.threads
     }
 
     /// Set preemption signal for a task.
@@ -193,21 +174,6 @@ impl ThreadPoolRunner {
         if let Some(signal) = self.signals.get(&tid) {
             signal.store(true, Ordering::Relaxed)
         }
-    }
-
-    /// Remove all metadata for a task.
-    fn cleanup(&mut self, tid: TaskID) {
-        self.running.remove(&tid);
-        self.completed.remove(&tid);
-        self.signals.remove(&tid);
-        if let Ok(mut map) = self.progress.write() {
-            map.remove(&tid);
-        }
-    }
-
-    /// Get task state.
-    fn state(&self, tid: TaskID) -> Option<&RunningTaskState> {
-        self.running.get(&tid)
     }
 }
 
@@ -235,78 +201,15 @@ impl WorkResult {
             Self::Panicked(msg) => PollStatus::Panic(msg),
         }
     }
-
-    /// Check if result is yielded.
-    fn yielded(&self) -> bool {
-        match self {
-            Self::Yielded(_) => true,
-            Self::Preempted | Self::Panicked(_) => false,
-        }
-    }
-
-    /// Check if result is preempted.
-    fn preempted(&self) -> bool {
-        match self {
-            Self::Preempted => true,
-            Self::Yielded(_) | Self::Panicked(_) => false,
-        }
-    }
 }
 
 impl RunningTaskState {
-    /// Check if task is executing.
-    fn executing(&self) -> bool {
-        match self {
-            Self::Executing => true,
-            Self::Preempting | Self::Completed(_) => false,
-        }
-    }
-
-    /// Check if task is preempting.
-    fn preempting(&self) -> bool {
-        match self {
-            Self::Preempting => true,
-            Self::Executing | Self::Completed(_) => false,
-        }
-    }
-
-    /// Check if task is completed.
-    fn completed(&self) -> bool {
-        match self {
-            Self::Completed(_) => true,
-            Self::Executing | Self::Preempting => false,
-        }
-    }
-
-    /// Check if task can be preempted.
-    fn preemptable(&self) -> bool {
-        match self {
-            Self::Executing | Self::Preempting | Self::Completed(_) => true,
-        }
-    }
-
-    /// Check if task can be collected.
-    fn collectable(&self) -> bool {
-        match self {
-            Self::Completed(_) => true,
-            Self::Executing | Self::Preempting => false,
-        }
-    }
-
-    /// Extract result, consuming self.
-    fn result(self) -> Option<WorkResult> {
-        match self {
-            Self::Completed(result) => Some(result),
-            Self::Executing | Self::Preempting => None,
-        }
-    }
-
     /// Take result, leaving Preempted placeholder.
     fn take(&mut self) -> Option<WorkResult> {
         match self {
             Self::Completed(_) => {
                 let placeholder = Self::Completed(WorkResult::Preempted);
-                match std::mem::replace(self, placeholder) {
+                match replace(self, placeholder) {
                     Self::Completed(result) => Some(result),
                     Self::Executing | Self::Preempting => unreachable!(),
                 }
@@ -328,23 +231,20 @@ impl Runner for ThreadPoolRunner {
         tid: TaskID,
         awaited: TaskOutcomes,
         executable: Box<dyn Executable>,
-    ) -> Result<()> {
+    ) -> Result<crate::scheduler::DispatchOutcome> {
+        use crate::scheduler::DispatchOutcome;
+
         if self.running.contains_key(&tid) {
             bail!("Task {} is already running", tid);
         }
 
         if !self.available() {
-            bail!(
-                "All {} workers are busy (task {} cannot be dispatched)",
-                self.threads,
-                tid
-            );
+            return Ok(DispatchOutcome::CapacityExhausted(executable));
         }
 
         let signal = Arc::new(AtomicBool::new(false));
         self.signals
             .insert(tid, signal.clone());
-
         self.running
             .insert(tid, RunningTaskState::Executing);
 
@@ -359,13 +259,19 @@ impl Runner for ThreadPoolRunner {
             tid,
         };
 
-        self.work_tx
-            .send(packet)
-            .map_err(|_| {
-                anyhow::anyhow!("Failed to dispatch task to worker thread pool")
-            })?;
+        self.busy_workers
+            .fetch_add(1, Ordering::Acquire);
 
-        Ok(())
+        if let Err(e) = self.work_tx.send(packet) {
+            self.busy_workers
+                .fetch_sub(1, Ordering::Release);
+            return Err(anyhow::anyhow!(
+                "Failed to dispatch task to worker thread pool: {}",
+                e
+            ));
+        }
+
+        Ok(DispatchOutcome::Accepted)
     }
 
     fn poll(&mut self, tid: TaskID) -> Result<PollStatus> {
@@ -449,12 +355,14 @@ impl Runner for ThreadPoolRunner {
         let ticks = self
             .ticks
             .iter()
-            .map(|atomic| atomic.swap(0, Ordering::Relaxed))
-            .filter(|&ns| ns > 0)
+            .filter_map(|atomic| {
+                let duration = atomic.swap(0, Ordering::Relaxed);
+                (duration != 0).then_some(duration)
+            })
             .collect();
 
         Some(RunnerSnapshot {
-            capacity: self.threads,
+            capacity: Some(self.threads),
             ticks,
         })
     }
@@ -465,10 +373,7 @@ impl Drop for ThreadPoolRunner {
         self.shutdown
             .store(true, Ordering::Relaxed);
 
-        drop(std::mem::replace(
-            &mut self.work_tx,
-            unbounded().0,
-        ));
+        drop(replace(&mut self.work_tx, unbounded().0));
 
         while let Some(handle) = self.workers.pop() {
             let _ = handle.join();
@@ -491,7 +396,7 @@ fn harness(
             Err(_) => continue,
         };
 
-        let (executable, result, execution_time) = execute_task(
+        let (executable, result) = execute_task(
             packet.signal,
             packet.awaited,
             packet.executable,
@@ -505,7 +410,6 @@ fn harness(
             .result_tx
             .send(CompletionPacket {
                 tid: packet.tid,
-                execution_time,
                 executable,
                 result,
             });
@@ -520,8 +424,7 @@ fn execute_task(
     tid: TaskID,
     wid: usize,
     ticks: &Arc<Vec<AtomicU64>>,
-) -> (Box<dyn Executable>, WorkResult, Duration) {
-    let start = Instant::now();
+) -> (Box<dyn Executable>, WorkResult) {
     let execute = || loop {
         if signal.load(Ordering::Relaxed) {
             return WorkResult::Preempted;
@@ -550,12 +453,9 @@ fn execute_task(
         }
     };
 
-    let panic_result =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(execute));
-
+    let panic_result = catch_unwind(AssertUnwindSafe(execute));
     let result = panic_result.unwrap_or_else(WorkResult::panicked);
-    let elapsed = start.elapsed();
-    (executable, result, elapsed)
+    (executable, result)
 }
 
 /* TESTS */
@@ -564,16 +464,15 @@ fn execute_task(
 mod tests {
 
     use anyhow::Result;
+
     use std::cell::RefCell;
     use std::rc::Rc;
+    use std::thread::sleep;
 
     use crate::developer::GraphBuilder;
     use crate::game::Component;
-    use crate::scheduler::Scheduler;
-    use crate::scheduler::SchedulerBuilder;
-    use crate::scheduler::SchedulerContextBuilder;
+    use crate::scheduler::Orchestrator;
     use crate::scheduler::SchedulerSnapshot;
-    use crate::scheduler::SchedulerState;
     use crate::scheduler::TaskCategory;
     use crate::scheduler::TaskIDBuilder;
     use crate::scheduler::TaskOutcome;
@@ -583,7 +482,6 @@ mod tests {
     use crate::scheduler::task::mock::TaskBuilder;
     use crate::scheduler::task::mock::TaskNodeBuilder;
     use crate::scheduler::traits::Logger;
-    use crate::scheduler::traits::Runner;
 
     use super::*;
 
@@ -606,7 +504,7 @@ mod tests {
         tid: TaskID,
         timeout: Duration,
     ) -> Result<PollStatus> {
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         loop {
             let status = runner.poll(tid)?;
             if !matches!(status, PollStatus::Pending) {
@@ -615,7 +513,7 @@ mod tests {
             if start.elapsed() > timeout {
                 bail!("Timeout waiting for task {} to complete", tid);
             }
-            std::thread::sleep(Duration::from_millis(5));
+            sleep(Duration::from_millis(5));
         }
     }
 
@@ -661,7 +559,7 @@ mod tests {
     fn create_test_scheduler_with_threadpool(
         num_threads: usize,
         sigma: f64,
-    ) -> Result<(Scheduler, Rc<RefCell<HistoryLogger>>)> {
+    ) -> Result<(Orchestrator, Rc<RefCell<HistoryLogger>>)> {
         let history = HistoryLoggerBuilder::default()
             .frequency(1usize)
             .build()?;
@@ -676,33 +574,26 @@ mod tests {
             .sigma(sigma)
             .build()?;
 
-        let context = SchedulerContextBuilder::default()
+        let orchestrator = Orchestrator::builder()
+            .runner(runner)
             .policy(policy)
             .logger(logger)
-            .runner(runner)
             .build()?;
 
-        let state = SchedulerState::default();
-        let scheduler = SchedulerBuilder::default()
-            .context(context)
-            .state(state)
-            .build()?;
-
-        Ok((scheduler, logger_ref))
+        Ok((orchestrator, logger_ref))
     }
 
-    /// Helper to find task ID by name in final snapshot
+    /// Helper to find task ID by name across all snapshots
     fn find_task_by_name(
         snapshots: &[SchedulerSnapshot],
         name: &str,
     ) -> TaskID {
         snapshots
-            .last()
-            .unwrap()
-            .tasks
             .iter()
+            .rev()
+            .flat_map(|snap| snap.tasks.iter())
             .find_map(|(tid, ctx)| (ctx.about == name).then_some(*tid))
-            .unwrap()
+            .unwrap_or_else(|| panic!("Task not found: {}", name))
     }
 
     /* UNIT TESTS */
@@ -932,14 +823,19 @@ mod tests {
         let tid2 = tid(2);
         let tid3 = tid(3);
 
-        runner.execute(tid1, TaskOutcomes::new(), task1)?;
-        runner.execute(tid2, TaskOutcomes::new(), task2)?;
+        use crate::scheduler::DispatchOutcome;
 
-        let result = runner.execute(tid3, TaskOutcomes::new(), task3);
-        assert!(result.is_err());
+        let outcome1 = runner.execute(tid1, TaskOutcomes::new(), task1)?;
+        assert!(matches!(outcome1, DispatchOutcome::Accepted));
 
-        let message = format!("{}", result.unwrap_err());
-        assert!(message.contains("workers are busy"));
+        let outcome2 = runner.execute(tid2, TaskOutcomes::new(), task2)?;
+        assert!(matches!(outcome2, DispatchOutcome::Accepted));
+
+        let outcome3 = runner.execute(tid3, TaskOutcomes::new(), task3)?;
+        assert!(matches!(
+            outcome3,
+            DispatchOutcome::CapacityExhausted(_)
+        ));
 
         Ok(())
     }
@@ -1114,8 +1010,6 @@ mod tests {
         let branch2_tid = find_task_by_name(snapshots, "branch2");
         let child2_tid = find_task_by_name(snapshots, "child2");
 
-        // Temporal ordering assertions removed due to async execution timing.
-        // Dependencies are still correctly enforced by the scheduler.
         let _ = (
             root_tid,
             branch1_tid,
@@ -1129,15 +1023,6 @@ mod tests {
 
     #[test]
     fn test_integration_complex_dag_execution() -> Result<()> {
-        // Graph structure:
-        //                      Root
-        //           /          |           \
-        //     FastPath    SlowPath    CriticalPath
-        //       / \          / \            / \
-        //    FC1  FC2     SC1  SC2       CC1  CC2
-        //      \  /         \  /            \  /
-        //     Merger1     Merger2         Merger3
-
         let (mut scheduler, logger_ref) =
             create_test_scheduler_with_threadpool(4, 1.0)?;
         let root = TaskNodeBuilder::default()
@@ -1288,8 +1173,6 @@ mod tests {
         let _merger1_tid = find_task_by_name(snapshots, "merger1");
         let _merger2_tid = find_task_by_name(snapshots, "merger2");
 
-        // Temporal ordering assertions removed due to async execution timing.
-        // Dependencies are still correctly enforced by the scheduler.
         let _ = (
             root_tid,
             fast_path_tid,

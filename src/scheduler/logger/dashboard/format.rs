@@ -89,25 +89,33 @@ pub(super) fn format_duration(secs: f64) -> String {
     }
 
     if secs < 3600.0 {
-        let mins = (secs / 60.0) as u64;
-        let s = (secs % 60.0) as u64;
-        return if s > 0 {
-            format!("{}m {}s", mins, s)
-        } else {
-            format!("{}m", mins)
-        };
+        return format_minutes(secs);
     }
 
     if secs < 86400.0 {
-        let hours = (secs / 3600.0) as u64;
-        let mins = ((secs % 3600.0) / 60.0) as u64;
-        return if mins > 0 {
-            format!("{}h {}m", hours, mins)
-        } else {
-            format!("{}h", hours)
-        };
+        return format_hours(secs);
     }
 
+    format_days(secs)
+}
+
+fn format_minutes(secs: f64) -> String {
+    let mins = (secs / 60.0) as u64;
+    let s = (secs % 60.0) as u64;
+    if s > 0 { format!("{}m {}s", mins, s) } else { format!("{}m", mins) }
+}
+
+fn format_hours(secs: f64) -> String {
+    let hours = (secs / 3600.0) as u64;
+    let mins = ((secs % 3600.0) / 60.0) as u64;
+    if mins > 0 {
+        format!("{}h {}m", hours, mins)
+    } else {
+        format!("{}h", hours)
+    }
+}
+
+fn format_days(secs: f64) -> String {
     let days = (secs / 86400.0) as u64;
     let hours = ((secs % 86400.0) / 3600.0) as u64;
     if hours > 0 {
@@ -117,7 +125,7 @@ pub(super) fn format_duration(secs: f64) -> String {
     }
 }
 
-/* Helpers */
+/* HELPERS */
 
 fn format_ids(tasks: &[(TaskCategory, Component)]) -> String {
     tasks
