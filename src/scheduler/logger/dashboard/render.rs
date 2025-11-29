@@ -71,7 +71,11 @@ pub fn header(
     ];
 
     if runner.is_some() {
-        lines.extend(runner_lines(centroid_values, centroid_counts, label_every_n));
+        lines.extend(runner_lines(
+            centroid_values,
+            centroid_counts,
+            label_every_n,
+        ));
     }
 
     let block = Block::default()
@@ -173,7 +177,11 @@ fn runner_lines(
     vec![
         Line::from(
             once(Span::raw(" "))
-                .chain(histogram_with_markers(hist, &labels, centroid_values))
+                .chain(histogram_with_markers(
+                    hist,
+                    &labels,
+                    centroid_values,
+                ))
                 .collect::<Vec<_>>(),
         ),
         Line::from(vec![
@@ -255,35 +263,35 @@ fn z_score_color(z: f64, labeled: bool) -> Color {
             } else {
                 Color::LightMagenta
             }
-        }
+        },
         z if z < -1.0 => {
             if labeled {
                 Color::Blue
             } else {
                 Color::LightBlue
             }
-        }
+        },
         z if z < 1.0 => {
             if labeled {
                 Color::DarkGray
             } else {
                 Color::Gray
             }
-        }
+        },
         z if z < 2.0 => {
             if labeled {
                 Color::Yellow
             } else {
                 Color::LightYellow
             }
-        }
+        },
         _ => {
             if labeled {
                 Color::Red
             } else {
                 Color::LightRed
             }
-        }
+        },
     }
 }
 
@@ -292,7 +300,10 @@ fn histogram_with_markers(
     labels: &[(usize, String)],
     vals: &[u64],
 ) -> Vec<Span<'static>> {
-    let marked: HashSet<usize> = labels.iter().map(|(i, _)| *i).collect();
+    let marked: HashSet<usize> = labels
+        .iter()
+        .map(|(i, _)| *i)
+        .collect();
     let stats = centroid_stats(vals);
 
     hist.chars()
@@ -306,8 +317,15 @@ fn axis_with_labels(labels: &[(usize, String)]) -> String {
         return String::new();
     }
 
-    let max_pos = labels.last().map(|(i, _)| *i).unwrap_or(0);
-    let width = max_pos + labels.last().map(|(_, s)| s.len()).unwrap_or(1);
+    let max_pos = labels
+        .last()
+        .map(|(i, _)| *i)
+        .unwrap_or(0);
+    let width = max_pos
+        + labels
+            .last()
+            .map(|(_, s)| s.len())
+            .unwrap_or(1);
 
     let mut buf = vec![' '; width];
 

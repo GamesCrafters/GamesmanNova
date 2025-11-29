@@ -96,7 +96,8 @@ impl TickSketch {
 
         self.centroids.remove(&key1);
         self.centroids.remove(&key2);
-        self.centroids.insert(merged_key, merged_count);
+        self.centroids
+            .insert(merged_key, merged_count);
     }
 
     fn find_closest_pair(&self) -> (OrderedFloat<f64>, OrderedFloat<f64>) {
@@ -116,11 +117,20 @@ impl TickSketch {
         key1: OrderedFloat<f64>,
         key2: OrderedFloat<f64>,
     ) -> (OrderedFloat<f64>, u64) {
-        let count1 = self.centroids.get(&key1).copied().unwrap_or(0);
-        let count2 = self.centroids.get(&key2).copied().unwrap_or(0);
+        let count1 = self
+            .centroids
+            .get(&key1)
+            .copied()
+            .unwrap_or(0);
+        let count2 = self
+            .centroids
+            .get(&key2)
+            .copied()
+            .unwrap_or(0);
 
         let total = count1 + count2;
-        let weight = (key1.0 * count1 as f64 + key2.0 * count2 as f64) / total as f64;
+        let weight =
+            (key1.0 * count1 as f64 + key2.0 * count2 as f64) / total as f64;
 
         (OrderedFloat(weight), total)
     }
