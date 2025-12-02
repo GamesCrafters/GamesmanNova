@@ -1,12 +1,12 @@
 //! Stats display component.
 
-use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
-use ratatui::Frame;
+use ratatui::widgets::Paragraph;
 
-use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::RunnerSnapshot;
+use crate::scheduler::SchedulerSnapshot;
 
 use super::super::support::state::count_states;
 

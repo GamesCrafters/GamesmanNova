@@ -1,18 +1,18 @@
 //! Task state breakdown bar component.
 
-use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
-use ratatui::Frame;
+use ratatui::widgets::Paragraph;
 
 use crate::scheduler::SchedulerSnapshot;
 
-use super::super::support::state::count_states;
 use super::super::support::state::BarSegments;
 use super::super::support::state::StateCounts;
+use super::super::support::state::count_states;
 
 /* IMPLEMENTATIONS */
 

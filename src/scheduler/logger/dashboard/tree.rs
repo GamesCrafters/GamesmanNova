@@ -6,25 +6,25 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use ratatui::layout::Direction as RatatuiDirection;
-use ratatui::widgets::BorderType;
-use ratatui::layout::Constraint;
-use ratatui::layout::Layout;
-use ratatui::layout::Rect;
 use derive_builder::Builder;
 use ratatui::Frame;
+use ratatui::layout::Constraint;
+use ratatui::layout::Direction as RatatuiDirection;
+use ratatui::layout::Layout;
+use ratatui::layout::Rect;
+use ratatui::widgets::BorderType;
 
-use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::RunnerSnapshot;
+use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskID;
 
-use super::support::style;
+use super::SortOrder;
+use super::TaskFilter;
 use super::collect::collect;
 use super::collect::sort;
-use super::TaskFilter;
-use super::SortOrder;
 use super::components;
 use super::render;
+use super::support::style;
 
 /* ENUMERATIONS */
 

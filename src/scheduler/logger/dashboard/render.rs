@@ -3,25 +3,25 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use ratatui::widgets::Paragraph;
-use ratatui::style::Modifier;
+use derive_builder::Builder;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
+use ratatui::style::Modifier;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
-use derive_builder::Builder;
+use ratatui::widgets::Paragraph;
 
-use crate::scheduler::TaskContextSnapshot;
-use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::RunnerSnapshot;
-use crate::scheduler::TaskState;
+use crate::scheduler::SchedulerSnapshot;
+use crate::scheduler::TaskContextSnapshot;
 use crate::scheduler::TaskID;
+use crate::scheduler::TaskState;
 
-use super::support::format::format_task_id;
-use super::support::format::format_deps;
-use super::support::format::format_tick;
 use super::components::histogram;
+use super::support::format::format_deps;
+use super::support::format::format_task_id;
+use super::support::format::format_tick;
 use super::support::progress;
 
 /* STRUCTURES */

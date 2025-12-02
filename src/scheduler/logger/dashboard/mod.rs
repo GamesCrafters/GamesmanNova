@@ -3,32 +3,32 @@
 //! Scheduler dashboard.
 
 use std::collections::HashMap;
-use std::time::Instant;
-use std::time::Duration;
 use std::io::Stdout;
 use std::io::stdout;
+use std::time::Duration;
+use std::time::Instant;
 
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use crossterm::event::DisableMouseCapture;
+use crossterm::event::EnableMouseCapture;
+use crossterm::event::Event;
+use crossterm::event::KeyCode;
+use crossterm::event::poll;
+use crossterm::event::read;
+use crossterm::execute;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::terminal::LeaveAlternateScreen;
 use crossterm::terminal::disable_raw_mode;
 use crossterm::terminal::enable_raw_mode;
-use crossterm::event::DisableMouseCapture;
-use crossterm::event::EnableMouseCapture;
-use crossterm::event::KeyCode;
-use crossterm::event::Event;
-use crossterm::event::poll;
-use crossterm::event::read;
+use derive_builder::Builder;
+use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use ratatui::style::Style;
+use ratatui::widgets::Block;
 use ratatui::widgets::BorderType;
 use ratatui::widgets::Borders;
-use ratatui::widgets::Block;
-use ratatui::style::Style;
-use ratatui::Terminal;
-use derive_builder::Builder;
-use crossterm::execute;
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
 
 use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskID;
@@ -43,16 +43,16 @@ mod render;
 mod support;
 mod tree;
 
+use tree::Border;
+use tree::Component;
 use tree::ComponentKind;
+use tree::Container;
+use tree::Direction;
+use tree::LayoutNode;
+use tree::Padded;
+use tree::Padding;
 use tree::SizeRequest;
 use tree::WidthRequest;
-use tree::Direction;
-use tree::Container;
-use tree::Component;
-use tree::LayoutNode;
-use tree::Padding;
-use tree::Padded;
-use tree::Border;
 
 use components::histogram;
 use support::state;

@@ -1,12 +1,12 @@
 //! Title bar component for dashboard.
 
-use ratatui::widgets::Paragraph;
-use ratatui::prelude::Stylize;
+use ratatui::Frame;
 use ratatui::layout::Rect;
+use ratatui::prelude::Stylize;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
-use ratatui::Frame;
+use ratatui::widgets::Paragraph;
 
 /* IMPLEMENTATIONS */
 
