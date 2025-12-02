@@ -9,6 +9,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::bail;
 
+use crate::scheduler::DispatchOutcome;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskOutcomes;
 use crate::scheduler::traits::Executable;
@@ -38,8 +39,6 @@ impl Runner for SyncRunner {
         awaited: TaskOutcomes,
         mut executable: Box<dyn Executable>,
     ) -> Result<crate::scheduler::DispatchOutcome> {
-        use crate::scheduler::DispatchOutcome;
-
         if self.running.contains_key(&tid) {
             bail!("Task {} is already running.", tid);
         }

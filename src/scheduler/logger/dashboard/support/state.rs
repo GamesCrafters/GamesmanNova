@@ -11,7 +11,7 @@ use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskContextSnapshot;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskState;
-use crate::scheduler::logger::dashboard::histogram::TickSketch;
+use crate::scheduler::logger::dashboard::components::histogram::TickSketch;
 
 /* CONSTANTS */
 
@@ -22,13 +22,13 @@ const SMOOTHING: f64 = 0.3;
 
 /// Internal state for TUI logger.
 pub struct TuiLoggerState {
-    pub task_start_times: HashMap<TaskID, Instant>,
-    pub task_throughput: HashMap<TaskID, f64>,
     pub task_progress: HashMap<TaskID, (Instant, u64)>,
     pub terminal: Terminal<CrosstermBackend<Stdout>>,
+    pub task_start_times: HashMap<TaskID, Instant>,
+    pub task_throughput: HashMap<TaskID, f64>,
     pub tick_sketch: TickSketch,
-    pub start_time: Instant,
     pub observe_count: usize,
+    pub start_time: Instant,
 }
 
 /// State count breakdown by task state.
@@ -52,7 +52,21 @@ pub struct BarSegments {
 
 /* IMPLEMENTATIONS */
 
-pub(super) fn count_states(snapshot: &SchedulerSnapshot) -> StateCounts {
+fn is_dominated(ctx: &TaskContextSnapshot) -> bool {
+    matches!(
+        ctx.state,
+        TaskState::Suspended(_) | TaskState::Error
+    )
+}
+
+fn is_active(ctx: &TaskContextSnapshot) -> bool {
+    matches!(
+        ctx.state,
+        TaskState::Running | TaskState::Preempting
+    )
+}
+
+pub fn count_states(snapshot: &SchedulerSnapshot) -> StateCounts {
     let mut counts = StateCounts {
         suspended: 0,
         running: 0,
@@ -75,24 +89,10 @@ pub(super) fn count_states(snapshot: &SchedulerSnapshot) -> StateCounts {
 }
 
 pub fn track_times(state: &mut TuiLoggerState, snapshot: &SchedulerSnapshot) {
-    let dominated = |ctx: &TaskContextSnapshot| {
-        matches!(
-            ctx.state,
-            TaskState::Suspended(_) | TaskState::Error
-        )
-    };
-
-    let active = |ctx: &TaskContextSnapshot| {
-        matches!(
-            ctx.state,
-            TaskState::Running | TaskState::Preempting
-        )
-    };
-
     snapshot
         .tasks
         .iter()
-        .filter(|(_, ctx)| dominated(ctx))
+        .filter(|(_, ctx)| is_dominated(ctx))
         .for_each(|(tid, _)| {
             state.task_start_times.remove(tid);
             state.task_throughput.remove(tid);
@@ -102,7 +102,7 @@ pub fn track_times(state: &mut TuiLoggerState, snapshot: &SchedulerSnapshot) {
     snapshot
         .tasks
         .iter()
-        .filter(|(_, ctx)| active(ctx))
+        .filter(|(_, ctx)| is_active(ctx))
         .for_each(|(tid, _)| {
             state
                 .task_start_times
@@ -122,35 +122,51 @@ pub fn update_throughput(
             continue;
         };
 
-        let Some((last_time, last_progress)) = state.task_progress.get(tid)
-        else {
+        if !state
+            .task_progress
+            .contains_key(tid)
+        {
             state
                 .task_progress
                 .insert(*tid, (now, current));
             continue;
-        };
-
-        let elapsed = now
-            .duration_since(*last_time)
-            .as_secs_f64();
-        if elapsed < MIN_INTERVAL {
-            continue;
         }
 
-        let rate = compute_smoothed_rate(
-            current,
-            *last_progress,
-            elapsed,
-            state.task_throughput.get(tid),
-        );
-
-        state
-            .task_throughput
-            .insert(*tid, rate);
-        state
-            .task_progress
-            .insert(*tid, (now, current));
+        if let Some(rate) = compute_task_throughput(tid, current, now, state) {
+            state
+                .task_throughput
+                .insert(*tid, rate);
+            state
+                .task_progress
+                .insert(*tid, (now, current));
+        }
     }
+}
+
+fn compute_task_throughput(
+    tid: &TaskID,
+    current: u64,
+    now: Instant,
+    state: &TuiLoggerState,
+) -> Option<f64> {
+    let (last_time, last_progress) = state.task_progress.get(tid)?;
+
+    let elapsed = now
+        .duration_since(*last_time)
+        .as_secs_f64();
+
+    if elapsed < MIN_INTERVAL {
+        return None;
+    }
+
+    let rate = compute_smoothed_rate(
+        current,
+        *last_progress,
+        elapsed,
+        state.task_throughput.get(tid),
+    );
+
+    Some(rate)
 }
 
 fn compute_smoothed_rate(

@@ -3,58 +3,59 @@
 //! Scheduler dashboard.
 
 use std::collections::HashMap;
+use std::time::Instant;
+use std::time::Duration;
 use std::io::Stdout;
 use std::io::stdout;
-use std::time::Duration;
-use std::time::Instant;
 
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
-use crossterm::event::DisableMouseCapture;
-use crossterm::event::EnableMouseCapture;
-use crossterm::event::Event;
-use crossterm::event::KeyCode;
-use crossterm::event::poll;
-use crossterm::event::read;
-use crossterm::execute;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::terminal::LeaveAlternateScreen;
 use crossterm::terminal::disable_raw_mode;
 use crossterm::terminal::enable_raw_mode;
-use derive_builder::Builder;
-use ratatui::Terminal;
+use crossterm::event::DisableMouseCapture;
+use crossterm::event::EnableMouseCapture;
+use crossterm::event::KeyCode;
+use crossterm::event::Event;
+use crossterm::event::poll;
+use crossterm::event::read;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::Rect;
+use ratatui::widgets::BorderType;
+use ratatui::widgets::Borders;
+use ratatui::widgets::Block;
+use ratatui::style::Style;
+use ratatui::Terminal;
+use derive_builder::Builder;
+use crossterm::execute;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
 
 use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskID;
 
 use super::super::traits::Logger;
 
+/* SUBMODULES */
+
 mod collect;
-mod format;
-mod histogram;
-mod layout;
-mod progress;
+mod components;
 mod render;
-mod state;
-mod style;
+mod support;
+mod tree;
 
-use collect::collect;
-use collect::extract_weights;
-use collect::sort;
-use histogram::TickSketch;
-use layout::HEADER_PADDING;
-use layout::layout;
-use layout::shows_time;
-use render::header;
-use render::section;
-use state::TuiLoggerState;
-use state::track_times;
-use state::update_throughput;
+use tree::ComponentKind;
+use tree::SizeRequest;
+use tree::WidthRequest;
+use tree::Direction;
+use tree::Container;
+use tree::Component;
+use tree::LayoutNode;
+use tree::Padding;
+use tree::Padded;
+use tree::Border;
 
-/* SUBMODULES (declared above) */
+use components::histogram;
+use support::state;
 
 /* ENUMERATIONS */
 
@@ -77,35 +78,19 @@ pub enum TaskFilter {
 
 /* STRUCTURES */
 
-/// Configuration for a single TUI section.
-#[derive(Builder, Clone)]
-#[builder(pattern = "owned", setter(into))]
-pub struct SectionConfig {
-    #[builder(setter(each(name = "filter")))]
-    pub filters: Vec<TaskFilter>,
-    pub name: &'static str,
-
-    #[builder(default = "1")]
-    pub weight: usize,
-}
-
 /// TUI logger that displays beautiful real-time scheduler state.
 #[derive(Builder)]
 #[builder(pattern = "owned", setter(into))]
 pub struct DashboardLogger {
     #[builder(default)]
     #[builder(setter(skip))]
-    state: Option<TuiLoggerState>,
-
-    #[builder(default = "default_sections()")]
-    #[builder(setter(each(name = "section", into)))]
-    sections: Vec<SectionConfig>,
-
-    #[builder(default = "SortOrder::Progress")]
-    task_sorting: SortOrder,
+    state: Option<state::TuiLoggerState>,
 
     #[builder(default = "5")]
     task_dependencies: usize,
+
+    #[builder(default = "SortOrder::Progress")]
+    task_sorting: SortOrder,
 
     #[builder(default = "true")]
     policy_weights: bool,
@@ -115,21 +100,17 @@ pub struct DashboardLogger {
 
     #[builder(default = "50")]
     sample_period: usize,
-
-    #[builder(default = "20")]
-    label_period: usize,
 }
 
 /* HELPER STRUCTURES */
 
 struct RenderContext {
     throughput: HashMap<TaskID, f64>,
+    weights: HashMap<TaskID, String>,
     times: HashMap<TaskID, Instant>,
     centroids: Vec<u64>,
     counts: Vec<u64>,
     elapsed: usize,
-    sections: Vec<SectionConfig>,
-    weights: HashMap<TaskID, String>,
 }
 
 /* IMPLEMENTATIONS */
@@ -205,19 +186,16 @@ impl DashboardLogger {
         }
 
         let terminal = Self::terminal().context("Preparing TUI terminal")?;
-        let width = terminal
-            .size()?
-            .width
-            .saturating_sub(HEADER_PADDING) as usize;
+        let width = terminal.size()?.width as usize;
 
-        self.state = Some(TuiLoggerState {
+        self.state = Some(state::TuiLoggerState {
+            terminal,
+            task_progress: Default::default(),
             task_start_times: Default::default(),
             task_throughput: Default::default(),
-            task_progress: Default::default(),
-            tick_sketch: TickSketch::new(width),
+            tick_sketch: histogram::TickSketch::new(width),
             start_time: Instant::now(),
             observe_count: 0,
-            terminal,
         });
 
         Ok(())
@@ -232,8 +210,8 @@ impl DashboardLogger {
             }
         }
 
-        update_throughput(state, snapshot);
-        track_times(state, snapshot);
+        state::update_throughput(state, snapshot);
+        state::track_times(state, snapshot);
     }
 
     fn draw(&mut self, snapshot: &SchedulerSnapshot) -> Result<()> {
@@ -247,28 +225,23 @@ impl DashboardLogger {
         snapshot: &SchedulerSnapshot,
     ) -> Result<RenderContext> {
         let state = self.state.as_mut().unwrap();
-        let width = state
-            .terminal
-            .size()?
-            .width
-            .saturating_sub(HEADER_PADDING) as usize;
+        let width = state.terminal.size()?.width as usize;
         state.tick_sketch.resize(width);
 
         Ok(RenderContext {
-            throughput: state.task_throughput.clone(),
             times: state.task_start_times.clone(),
+            weights: if self.policy_weights {
+                collect::extract_weights(snapshot.policy.as_ref())
+            } else {
+                HashMap::new()
+            },
+            throughput: state.task_throughput.clone(),
             centroids: state.tick_sketch.centroid_values(),
             counts: state.tick_sketch.centroid_counts(),
             elapsed: state
                 .start_time
                 .elapsed()
                 .as_millis() as usize,
-            sections: self.sections.clone(),
-            weights: if self.policy_weights {
-                extract_weights(snapshot.policy.as_ref())
-            } else {
-                HashMap::new()
-            },
         })
     }
 
@@ -278,23 +251,33 @@ impl DashboardLogger {
         ctx: &RenderContext,
     ) -> Result<()> {
         let state = self.state.as_mut().unwrap();
-        let label_period = self.label_period;
         let task_sorting = self.task_sorting;
         let task_dependencies = self.task_dependencies;
-
         state.terminal.draw(|frame| {
             let area = frame.area();
-            let chunks = layout(area, &ctx.sections);
+            let layout_tree = build_dashboard_layout();
+            let request_ctx = tree::RequestContext { snapshot };
+            let total_weight = compute_total_weight(&layout_tree, &request_ctx);
+            let layout_ctx = tree::LayoutContext {
+                request_ctx,
+                total_weight,
+            };
 
-            render_header(frame, chunks[0], snapshot, ctx, label_period);
-            render_sections(
-                frame,
-                &chunks[1..],
+            let layout_result = layout_tree.layout(area, &layout_ctx);
+            let render_ctx = tree::RenderContext {
+                times: &ctx.times,
+                weights: &ctx.weights,
+                runner: snapshot.runner.as_ref(),
+                throughput: &ctx.throughput,
                 snapshot,
-                ctx,
                 task_sorting,
                 task_dependencies,
-            );
+                centroids: &ctx.centroids,
+                counts: &ctx.counts,
+                elapsed: ctx.elapsed,
+            };
+
+            render_tree(frame, &layout_result, &render_ctx);
         })?;
 
         Ok(())
@@ -303,78 +286,175 @@ impl DashboardLogger {
 
 /* HELPER FUNCTIONS */
 
-fn render_header(
-    frame: &mut ratatui::Frame,
-    area: Rect,
-    snapshot: &SchedulerSnapshot,
-    ctx: &RenderContext,
-    label_period: usize,
-) {
-    header(
-        frame,
-        area,
-        snapshot,
-        snapshot.runner.as_ref(),
-        &ctx.centroids,
-        &ctx.counts,
-        label_period,
-    );
-}
-
-fn render_sections(
-    frame: &mut ratatui::Frame,
-    chunks: &[Rect],
-    snapshot: &SchedulerSnapshot,
-    ctx: &RenderContext,
-    task_sorting: SortOrder,
-    task_dependencies: usize,
-) {
-    for (i, sec) in ctx.sections.iter().enumerate() {
-        let mut tasks = collect(snapshot, &sec.filters);
-        sort(&mut tasks, task_sorting, &ctx.times);
-        let show_time = shows_time(&sec.filters);
-
-        section(
-            frame,
-            chunks[i],
-            sec.name,
-            &tasks,
-            &ctx.weights,
-            snapshot,
-            ctx.elapsed / 100,
-            task_dependencies,
-            &ctx.throughput,
-            show_time,
-            style::spinner,
-            style::icon,
-            style::badge,
-        );
+fn compute_total_weight(
+    node: &tree::LayoutNode,
+    ctx: &tree::RequestContext,
+) -> usize {
+    match node {
+        tree::LayoutNode::Component(comp) => {
+            let req = comp.kind.request_size(ctx);
+            match req {
+                tree::SizeRequest::Flexible { height, .. }
+                | tree::SizeRequest::FixedWidth { height, .. } => {
+                    if let tree::HeightRequest::Weight(w) = height {
+                        w
+                    } else {
+                        0
+                    }
+                },
+                _ => 0,
+            }
+        },
+        tree::LayoutNode::Container(container) => container
+            .children
+            .iter()
+            .map(|child| compute_total_weight(child, ctx))
+            .sum(),
+        tree::LayoutNode::Padded(padded) => {
+            compute_total_weight(&padded.child, ctx)
+        },
     }
 }
 
-/* HELPERS */
+fn render_tree(
+    frame: &mut ratatui::Frame,
+    result: &tree::LayoutResult,
+    ctx: &tree::RenderContext,
+) {
+    match result {
+        tree::LayoutResult::Leaf {
+            area,
+            content_area,
+            component,
+            border,
+        } => {
+            if let Some(border_info) = border {
+                let block = Block::default()
+                    .border_style(
+                        Style::default().fg(ratatui::style::Color::White),
+                    )
+                    .border_type(BorderType::Rounded)
+                    .borders(Borders::ALL)
+                    .title(format!(" {} ", border_info.title.unwrap_or("")));
+                frame.render_widget(block, *area);
+            }
 
-fn default_sections() -> Vec<SectionConfig> {
-    vec![
-        SectionConfig {
-            filters: vec![TaskFilter::Running, TaskFilter::Preempting],
-            name: "Workers",
-            weight: 2,
+            component.render(frame, *content_area, ctx);
         },
-        SectionConfig {
-            filters: vec![TaskFilter::Waiting, TaskFilter::Ready],
-            name: "Buffered",
-            weight: 2,
+        tree::LayoutResult::Branch { children, .. } => {
+            for child in children {
+                render_tree(frame, child, ctx);
+            }
         },
-        SectionConfig {
-            filters: vec![TaskFilter::Suspended],
-            name: "Suspended",
-            weight: 2,
-        },
-        SectionConfig {
-            filters: vec![TaskFilter::Error],
-            name: "Errors",
-            weight: 1,
-        },
-    ]
+    }
+}
+
+fn build_dashboard_layout() -> LayoutNode {
+    Container::builder()
+        .direction(Direction::Vertical)
+        .child(
+            Component::builder()
+                .kind(ComponentKind::Title)
+                .size(SizeRequest::FixedHeight {
+                    width: WidthRequest::Fill,
+                    height: 1,
+                })
+                .build()
+                .unwrap(),
+        )
+        .child(LayoutNode::Padded(Padded {
+            padding: Padding {
+                top: 1,
+                bottom: 0,
+                left: 0,
+                right: 0,
+            },
+            child: Box::new(LayoutNode::Component(
+                Component::builder()
+                    .kind(ComponentKind::Stats)
+                    .size(SizeRequest::FixedHeight {
+                        width: WidthRequest::Fill,
+                        height: 2,
+                    })
+                    .build()
+                    .unwrap(),
+            )),
+        }))
+        .child(LayoutNode::Padded(Padded {
+            padding: Padding {
+                top: 1,
+                bottom: 0,
+                left: 0,
+                right: 0,
+            },
+            child: Box::new(LayoutNode::Component(
+                Component::builder()
+                    .kind(ComponentKind::BreakdownBar)
+                    .size(SizeRequest::FixedHeight {
+                        width: WidthRequest::Fill,
+                        height: 1,
+                    })
+                    .build()
+                    .unwrap(),
+            )),
+        }))
+        .child(LayoutNode::Padded(Padded {
+            padding: Padding {
+                top: 1,
+                bottom: 0,
+                left: 0,
+                right: 0,
+            },
+            child: Box::new(LayoutNode::Component(
+                Component::builder()
+                    .kind(ComponentKind::Histogram { label_every_n: 20 })
+                    .size(SizeRequest::FixedHeight {
+                        width: WidthRequest::Fill,
+                        height: 2,
+                    })
+                    .build()
+                    .unwrap(),
+            )),
+        }))
+        .child(
+            Component::builder()
+                .kind(ComponentKind::TaskList {
+                    filters: vec![TaskFilter::Preempting, TaskFilter::Running],
+                    max_tasks: Some(10),
+                })
+                .border(Some(Border {
+                    title: Some("Owned by Workers"),
+                    style: BorderType::Rounded,
+                }))
+                .build()
+                .unwrap(),
+        )
+        .child(
+            Component::builder()
+                .kind(ComponentKind::TaskList {
+                    filters: vec![TaskFilter::Waiting, TaskFilter::Ready],
+                    max_tasks: Some(15),
+                })
+                .border(Some(Border {
+                    title: Some("Waiting in Scheduler"),
+                    style: BorderType::Rounded,
+                }))
+                .build()
+                .unwrap(),
+        )
+        .child(
+            Component::builder()
+                .kind(ComponentKind::TaskList {
+                    filters: vec![TaskFilter::Suspended, TaskFilter::Error],
+                    max_tasks: Some(10),
+                })
+                .border(Some(Border {
+                    title: Some("Making no Progress"),
+                    style: BorderType::Rounded,
+                }))
+                .build()
+                .unwrap(),
+        )
+        .build()
+        .unwrap()
 }

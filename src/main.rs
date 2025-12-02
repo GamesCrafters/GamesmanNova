@@ -121,7 +121,7 @@ where
         .build()?;
 
     let about = format!("Forward pass of variant {}", ruleset.name());
-    let task = scheduler::Task::builder()
+    let task = TaskBuilder::default()
         .executable(executable)
         .dependencies(std::collections::HashSet::new())
         .retriable(true)
@@ -137,7 +137,6 @@ where
 
     let policy = CriticalPathPolicyBuilder::default().build()?;
     let runner = ThreadPoolRunnerBuilder::default().build()?;
-
     let mut orchestrator = Orchestrator::builder()
         .runner(runner)
         .policy(policy)

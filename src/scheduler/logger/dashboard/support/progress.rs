@@ -1,15 +1,11 @@
 //! Progress bar rendering and ETA calculation.
 
-use std::cmp::Ordering;
-use std::collections::HashMap;
-
 use ratatui::style::Color;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
 
 use crate::scheduler::TaskContextSnapshot;
-use crate::scheduler::TaskID;
 
 use super::format::format_duration;
 
@@ -29,29 +25,6 @@ pub fn render(
         None => unbounded(progress, rate),
     };
     Some(Line::from(spans))
-}
-
-pub fn max_eta(
-    tasks: &[(TaskID, &TaskContextSnapshot)],
-    throughput: &HashMap<TaskID, f64>,
-) -> Option<f64> {
-    let eta = |(tid, ctx): &(TaskID, &TaskContextSnapshot)| {
-        let progress = ctx.progress?;
-        let size = ctx.size?;
-        let rate = throughput
-            .get(tid)
-            .copied()
-            .filter(|&r| r > 0.0)?;
-        Some(size.saturating_sub(progress) as f64 / rate)
-    };
-
-    tasks
-        .iter()
-        .filter_map(eta)
-        .max_by(|a, b| {
-            a.partial_cmp(b)
-                .unwrap_or(Ordering::Equal)
-        })
 }
 
 fn sized(progress: u64, size: u64, rate: Option<f64>) -> Vec<Span<'static>> {

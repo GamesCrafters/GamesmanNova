@@ -23,22 +23,20 @@ use std::sync::Arc;
 use crate::developer::visualize_graph;
 use crate::game::Component;
 use crate::scheduler::Dependencies;
-use crate::scheduler::Task as SchedulerTask;
 use crate::scheduler::TaskCategory;
 use crate::scheduler::TaskID;
 use crate::scheduler::TaskIDBuilder;
 use crate::scheduler::TaskOutcome;
 use crate::scheduler::TaskOutcomes;
+use crate::scheduler::orchestration::Task as SchedulerTask;
 use crate::scheduler::traits::Executable;
 use crate::scheduler::traits::YieldIntention;
 use crate::scheduler::traits::YieldUpdate;
 
 /* RE-EXPORTS */
 
-pub use builder::TaskBuilder;
-
-// Backwards compatibility alias
 pub use TaskConfigBuilder as TaskNodeBuilder;
+pub use builder::TaskBuilder;
 
 /* SUBMODULES */
 

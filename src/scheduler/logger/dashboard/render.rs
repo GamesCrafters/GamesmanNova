@@ -1,203 +1,68 @@
 //! Rendering functions for dashboard TUI.
 
+use std::collections::HashMap;
+use std::collections::HashSet;
+
+use ratatui::widgets::Paragraph;
+use ratatui::style::Modifier;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
-use ratatui::style::Modifier;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
-use ratatui::widgets::Block;
-use ratatui::widgets::BorderType;
-use ratatui::widgets::Borders;
-use ratatui::widgets::Paragraph;
+use derive_builder::Builder;
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::iter::once;
-
-use crate::scheduler::RunnerSnapshot;
-use crate::scheduler::SchedulerSnapshot;
 use crate::scheduler::TaskContextSnapshot;
-use crate::scheduler::TaskID;
+use crate::scheduler::SchedulerSnapshot;
+use crate::scheduler::RunnerSnapshot;
 use crate::scheduler::TaskState;
+use crate::scheduler::TaskID;
 
-use super::format::format_deps;
-use super::format::format_duration;
-use super::format::format_task_id;
-use super::format::format_tick;
-use super::histogram;
-use super::layout::HEADER_PADDING;
-use super::layout::LINES_PER_TASK;
-use super::layout::OVERFLOW_LINES;
-use super::progress;
-use super::state::BarSegments;
-use super::state::StateCounts;
-use super::state::count_states;
+use super::support::format::format_task_id;
+use super::support::format::format_deps;
+use super::support::format::format_tick;
+use super::components::histogram;
+use super::support::progress;
+
+/* STRUCTURES */
+
+#[derive(Builder)]
+#[builder(pattern = "owned")]
+pub struct TaskRenderParams<'a> {
+    pub throughput: &'a HashMap<TaskID, f64>,
+    pub weights: &'a HashMap<TaskID, String>,
+    pub snapshot: &'a SchedulerSnapshot,
+    pub max_deps: usize,
+
+    #[builder(default)]
+    pub max_tasks: Option<usize>,
+
+    pub spinner: usize,
+}
 
 /* IMPLEMENTATIONS */
-
-/* HEADER RENDERING */
-
-pub fn header(
-    frame: &mut ratatui::Frame,
-    area: Rect,
-    snapshot: &SchedulerSnapshot,
-    runner: Option<&RunnerSnapshot>,
-    centroid_values: &[u64],
-    centroid_counts: &[u64],
-    label_every_n: usize,
-) {
-    let counts = count_states(snapshot);
-    let width = area
-        .width
-        .saturating_sub(HEADER_PADDING) as usize;
-
-    let workers = runner
-        .map(|r| {
-            let cap = r
-                .capacity
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "∞".to_string());
-            format!("{}/{}", counts.running, cap)
-        })
-        .unwrap_or_else(|| format!("{}", counts.running));
-
-    let title = format!(
-        " Tick: {} │ Workers: {} │ Tasks: {} │ Press 'q' or ESC to exit ",
-        snapshot.tick,
-        workers,
-        snapshot.tasks.len()
-    );
-
-    let mut lines = vec![
-        Line::from(""),
-        status_line(&counts),
-        render_state_bar(&counts, width),
-        Line::from(""),
-    ];
-
-    if runner.is_some() {
-        lines.extend(runner_lines(
-            centroid_values,
-            centroid_counts,
-            label_every_n,
-        ));
-    }
-
-    let block = Block::default()
-        .border_style(Style::default().fg(Color::White))
-        .border_type(BorderType::Rounded)
-        .borders(Borders::ALL)
-        .title(title);
-
-    frame.render_widget(Paragraph::new(lines).block(block), area);
-}
-
-fn status_line(counts: &StateCounts) -> Line<'static> {
-    let styled = |label, color| Span::styled(label, Style::default().fg(color));
-    let dot = styled("• ", Color::White);
-
-    Line::from(vec![
-        styled(" Running: ", Color::Green),
-        Span::raw(format!("{} ", counts.running)),
-        dot.clone(),
-        styled("Ready: ", Color::Blue),
-        Span::raw(format!("{} ", counts.ready)),
-        dot.clone(),
-        styled("Waiting: ", Color::Cyan),
-        Span::raw(format!("{} ", counts.waiting)),
-        dot.clone(),
-        styled("Suspended: ", Color::Gray),
-        Span::raw(format!("{} ", counts.suspended)),
-        dot,
-        styled("Errors: ", Color::Red),
-        Span::raw(format!("{}", counts.errors)),
-    ])
-}
-
-/* STATE BAR */
-
-pub fn render_state_bar(counts: &StateCounts, width: usize) -> Line<'static> {
-    if width == 0 {
-        return Line::from(" ");
-    }
-    Line::from(bar_spans(&bar_segments(counts, width)))
-}
-
-fn bar_segments(counts: &StateCounts, width: usize) -> BarSegments {
-    let total = counts.suspended
-        + counts.running
-        + counts.waiting
-        + counts.errors
-        + counts.ready;
-
-    if total == 0 {
-        return BarSegments::default();
-    }
-
-    let ratio = |n: usize| ((n as f64 / total as f64) * width as f64).round();
-
-    let suspended = ratio(counts.suspended) as usize;
-    let running = ratio(counts.running) as usize;
-    let waiting = ratio(counts.waiting) as usize;
-    let errors = ratio(counts.errors) as usize;
-    let ready = ratio(counts.ready) as usize;
-
-    let used = suspended + running + waiting + errors + ready;
-    let adjust = width.saturating_sub(used);
-
-    BarSegments {
-        errors: errors + adjust,
-        suspended,
-        running,
-        waiting,
-        ready,
-    }
-}
-
-fn bar_spans(seg: &BarSegments) -> Vec<Span<'static>> {
-    let bar = |n, c| Span::styled("━".repeat(n), Style::default().fg(c));
-
-    [
-        Some(Span::raw(" ")),
-        (seg.running > 0).then(|| bar(seg.running, Color::Green)),
-        (seg.ready > 0).then(|| bar(seg.ready, Color::Blue)),
-        (seg.waiting > 0).then(|| bar(seg.waiting, Color::Cyan)),
-        (seg.suspended > 0).then(|| bar(seg.suspended, Color::Gray)),
-        (seg.errors > 0).then(|| bar(seg.errors, Color::Red)),
-        Some(Span::raw(" ")),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
-}
 
 fn runner_lines(
     centroid_values: &[u64],
     centroid_counts: &[u64],
     label_every_n: usize,
+    width: usize,
 ) -> Vec<Line<'static>> {
-    let hist = histogram::render(centroid_counts);
-    let labels = centroid_labels(centroid_values, label_every_n);
+    let display_count = width.min(centroid_counts.len());
+    let display_values = &centroid_values[..display_count];
+    let hist = histogram::render(&centroid_counts[..display_count]);
+    let labels = centroid_labels(display_values, label_every_n);
 
     vec![
-        Line::from(
-            once(Span::raw(" "))
-                .chain(histogram_with_markers(
-                    hist,
-                    &labels,
-                    centroid_values,
-                ))
-                .collect::<Vec<_>>(),
-        ),
-        Line::from(vec![
-            Span::raw(" "),
-            Span::styled(
-                axis_with_labels(&labels),
-                Style::default().fg(Color::DarkGray),
-            ),
-        ]),
-        Line::from(""),
+        Line::from(histogram_with_markers(
+            hist,
+            &labels,
+            display_values,
+        )),
+        Line::from(vec![Span::styled(
+            axis_with_labels(&labels),
+            Style::default().fg(Color::DarkGray),
+        )]),
     ]
 }
 
@@ -214,6 +79,16 @@ struct CentroidStats {
     stddev: f64,
 }
 
+fn compute_variance(vals: &[u64], mean: f64) -> f64 {
+    vals.iter()
+        .map(|&v| {
+            let diff = v as f64 - mean;
+            diff * diff
+        })
+        .sum::<f64>()
+        / (vals.len() - 1) as f64
+}
+
 fn centroid_stats(vals: &[u64]) -> CentroidStats {
     if vals.is_empty() {
         return CentroidStats {
@@ -224,17 +99,8 @@ fn centroid_stats(vals: &[u64]) -> CentroidStats {
 
     let mean = vals.iter().sum::<u64>() as f64 / vals.len() as f64;
 
-    let variance = if vals.len() <= 1 {
-        1.0
-    } else {
-        vals.iter()
-            .map(|&v| {
-                let diff = v as f64 - mean;
-                diff * diff
-            })
-            .sum::<f64>()
-            / (vals.len() - 1) as f64
-    };
+    let variance =
+        if vals.len() <= 1 { 1.0 } else { compute_variance(vals, mean) };
 
     CentroidStats {
         mean,
@@ -323,80 +189,114 @@ fn axis_with_labels(labels: &[(usize, String)]) -> String {
 pub fn section(
     frame: &mut ratatui::Frame,
     area: Rect,
-    title: &str,
     tasks: &[(TaskID, &TaskContextSnapshot)],
-    weights: &HashMap<TaskID, String>,
-    snapshot: &SchedulerSnapshot,
-    spinner: usize,
-    max_deps: usize,
-    throughput: &HashMap<TaskID, f64>,
-    show_time: bool,
+    params: &TaskRenderParams,
     spin_char: impl Fn(usize) -> &'static str,
     icon: impl Fn(&TaskState) -> &'static str,
     badge: impl Fn(&TaskState) -> (&'static str, Color),
 ) {
-    let avail = area.height.saturating_sub(3) as usize;
-    let capacity = avail / LINES_PER_TASK;
+    let mut lines = vec![];
 
-    let (visible, overflow) = if tasks.len() <= capacity {
-        (tasks, &[][..])
-    } else {
-        let cap = (avail - OVERFLOW_LINES) / LINES_PER_TASK;
-        (&tasks[..cap], &tasks[cap..])
+    let display_count = match params.max_tasks {
+        Some(max) => tasks.len().min(max),
+        None => tasks.len(),
     };
 
-    let mut lines = vec![Line::from("")];
-
-    for (tid, ctx) in visible {
-        let w = weights
+    for (tid, ctx) in tasks.iter().take(display_count) {
+        let w = params
+            .weights
             .get(tid)
             .map(|s| s.as_str());
         lines.extend(task(
-            *tid, ctx, w, snapshot, spinner, max_deps, throughput, &spin_char,
-            &icon, &badge,
+            *tid, ctx, w, params, &spin_char, &icon, &badge,
         ));
     }
 
-    if !overflow.is_empty() {
-        lines.push(overflow_line(overflow, throughput, show_time));
+    if display_count < tasks.len() {
+        let remaining = tasks.len() - display_count;
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::raw("    "),
+            Span::styled(
+                format!("... +{} more", remaining),
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]));
     }
 
-    let block = Block::default()
-        .border_style(Style::default().fg(Color::White))
-        .border_type(BorderType::Rounded)
-        .title(format!(" {}: {} ", title, tasks.len()))
-        .borders(Borders::ALL);
+    if !tasks.is_empty() {
+        lines.push(Line::from(""));
+    }
 
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+    let render_area = Rect {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: (lines.len() as u16).min(area.height),
+    };
+
+    frame.render_widget(Paragraph::new(lines), render_area);
 }
 
 /* TASK RENDERING */
+
+pub fn count_task_lines(ctx: &TaskContextSnapshot) -> usize {
+    let mut count = 0;
+
+    count += 1;
+    count += 1;
+
+    if ctx.progress.is_some() {
+        count += 1;
+    }
+
+    match &ctx.state {
+        TaskState::Waiting(_) => count += 1,
+        TaskState::Preempting
+        | TaskState::Suspended(_)
+        | TaskState::Running
+        | TaskState::Error
+        | TaskState::Ready => {},
+    }
+
+    count
+}
 
 fn task<'a>(
     tid: TaskID,
     ctx: &'a TaskContextSnapshot,
     weight: Option<&'a str>,
-    snapshot: &'a SchedulerSnapshot,
-    spinner: usize,
-    max_deps: usize,
-    throughput: &'a HashMap<TaskID, f64>,
+    params: &'a TaskRenderParams,
     spin_char: impl Fn(usize) -> &'static str,
     icon: impl Fn(&TaskState) -> &'static str,
     badge: impl Fn(&TaskState) -> (&'static str, Color),
 ) -> Vec<Line<'a>> {
-    let mut lines = vec![task_line(
-        ctx, weight, spinner, spin_char, icon, badge,
-    )];
+    let mut lines = vec![
+        Line::from(""),
+        task_line(
+            ctx,
+            weight,
+            params.spinner,
+            spin_char,
+            icon,
+            badge,
+        ),
+    ];
 
-    if let Some(line) = progress_line(ctx, throughput.get(&tid).copied()) {
+    if let Some(line) = progress_line(
+        ctx,
+        params
+            .throughput
+            .get(&tid)
+            .copied(),
+    ) {
         lines.push(line);
     }
 
-    if let Some(line) = deps_line(ctx, snapshot, max_deps) {
+    if let Some(line) = deps_line(ctx, params.snapshot, params.max_deps) {
         lines.push(line);
     }
 
-    lines.push(Line::from(""));
     lines
 }
 
@@ -469,28 +369,22 @@ fn deps_line<'a>(
     ]))
 }
 
-fn overflow_line(
-    tasks: &[(TaskID, &TaskContextSnapshot)],
-    throughput: &HashMap<TaskID, f64>,
-    show_time: bool,
-) -> Line<'static> {
-    let count = tasks.len();
+/* HISTOGRAM RENDERING */
 
-    let msg = if show_time {
-        match progress::max_eta(tasks, throughput) {
-            Some(eta) => format!(
-                "    ...and {} more (max remaining: {}).",
-                count,
-                format_duration(eta)
-            ),
-            None => format!("    ...and {} more tasks.", count),
-        }
-    } else {
-        format!("    ...and {} more tasks.", count)
-    };
+pub fn render_histogram(
+    frame: &mut ratatui::Frame,
+    area: Rect,
+    centroid_values: &[u64],
+    centroid_counts: &[u64],
+    label_every_n: usize,
+) {
+    let width = area.width as usize;
+    let lines = runner_lines(
+        centroid_values,
+        centroid_counts,
+        label_every_n,
+        width,
+    );
 
-    Line::from(Span::styled(
-        msg,
-        Style::default().fg(Color::DarkGray),
-    ))
+    frame.render_widget(Paragraph::new(lines), area);
 }

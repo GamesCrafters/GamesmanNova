@@ -26,12 +26,10 @@ use crate::game::Component;
 /* API RE-EXPORTS */
 
 pub use orchestration::Orchestrator;
-pub use orchestration::Task;
 pub use orchestration::TaskBuilder;
 
 pub use logger::compose::ComposeLoggerBuilder;
 pub use logger::dashboard::DashboardLoggerBuilder;
-pub use logger::dashboard::SectionConfigBuilder;
 pub use logger::dashboard::SortOrder;
 pub use logger::dashboard::TaskFilter;
 pub use logger::tracing::TracingLoggerBuilder;

@@ -29,10 +29,11 @@
 - **Exception**: Long methods are acceptable for highly procedural code (e.g., complex object construction with many components)
 - **Use braces `{}` to create scopes** for semantic grouping and lifetime management in procedural methods
 
-### Visual Appeal and Regularity 
+### Visual Appeal and Regularity
 - **Code should form uniform, regular blocks**
 - Organize items by DECREASING length when order doesn't matter (longest first)
-- Apply length ordering to: imports, match arms, fields, constants, enum variants
+- Apply length ordering to: match arms, fields, constants, enum variants
+- **Exception**: Import ordering follows a specific grouping rule and is handled by rustfmt
 - Sort by semantic meaning first, then by length within semantic groups
 - Semantic line breaks for readability
 - Aim for "visual harmony" in the code layout
@@ -108,11 +109,11 @@ The following separators MUST appear in this exact order at zero-indentation lev
 ### Complete Template Example
 
 ```rust
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use external_crate::OtherType;
 use external_crate::Type;
+
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::module::LocalType;
 use crate::other::Thing;
@@ -190,7 +191,7 @@ impl Scheduler {
 - Section separators are `/* SECTION_NAME */` at zero-indentation
 - Separators appear in the order listed above (skip sections with no content)
 - Within `/* IMPLEMENTATIONS */`, utility impls can have subsection comments
-- Imports grouped: std → external → local (by module distance), then by DECREASING length within each group
+- Imports grouped: external → std → crate → local (rustfmt handles alphabetical ordering within groups)
 - Fields, enum variants, constants sorted by DECREASING length when semantics allow
 - Braces on same line (stable rustfmt behavior)
 
@@ -462,7 +463,7 @@ fn queue_or_fail(&self, update: Update) -> Status {
 
 Code should form uniform, visually pleasing blocks. When order doesn't affect semantics, organize by DECREASING length (longest first). Always prioritize semantic grouping first.
 
-### Bad: Jagged Imports (No Organization)
+### Bad: Ungrouped Imports
 
 ```rust
 use std::collections::HashMap;
@@ -473,22 +474,22 @@ use crate::scheduler::Scheduler;
 use crate::task::Task;
 ```
 
-**Problem**: Visually chaotic, no pattern, no grouping
+**Problem**: No grouping by import type
 
-### Good: Grouped and Length-Ordered Imports
+### Good: Properly Grouped Imports
 
 ```rust
-use std::collections::HashMap;
-use std::sync::Arc;
-
 use derive_builder::Builder;
 use bitvec::BitArray;
+
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::scheduler::Scheduler;
 use crate::task::Task;
 ```
 
-**Benefits**: Grouped (std → external → local), then by DECREASING length within each group, visual harmony
+**Benefits**: Grouped (external → std → crate → local), rustfmt handles alphabetical ordering within groups
 
 ### Bad: Random Match Arm Order
 
@@ -1448,7 +1449,7 @@ Before submitting code, verify:
 - [ ] `while let` instead of `loop {}` where possible
 - [ ] No inline path specifications (use `use` statements, except one-level in integrating modules)
 - [ ] File organization follows template with /* SEPARATORS */ in correct order
-- [ ] Imports grouped: std → external → local (by distance), length-ordered DECREASING
+- [ ] Imports grouped: external → std → crate → local (rustfmt handles alphabetical ordering)
 - [ ] Fields, constants, enum variants length-ordered DECREASING (when semantics allow)
 - [ ] Struct initialization: shorthand fields always last (after explicit assignments)
 - [ ] Semantic grouping prioritized over length-ordering

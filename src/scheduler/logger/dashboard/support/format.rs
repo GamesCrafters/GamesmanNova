@@ -7,14 +7,11 @@ use crate::scheduler::TaskID;
 
 /* IMPLEMENTATIONS */
 
-pub(super) fn format_task_id(
-    category: &TaskCategory,
-    component: Component,
-) -> String {
+pub fn format_task_id(category: &TaskCategory, component: Component) -> String {
     format!("{:?}({})", category, component)
 }
 
-pub(super) fn format_deps(
+pub fn format_deps(
     deps: &[TaskID],
     snapshot: &SchedulerSnapshot,
     max: usize,
@@ -46,7 +43,7 @@ pub(super) fn format_deps(
     }
 }
 
-pub(super) fn format_weight(weight: u64, all: &[u64]) -> Option<String> {
+pub fn format_weight(weight: u64, all: &[u64]) -> Option<String> {
     if all.len() < 2 {
         return None;
     }
@@ -71,7 +68,7 @@ pub(super) fn format_weight(weight: u64, all: &[u64]) -> Option<String> {
     Some(format!("{}{:.1}σ", sign, sigma))
 }
 
-pub(super) fn format_tick(ns: u64) -> String {
+pub fn format_tick(ns: u64) -> String {
     if ns < 1_000 {
         format!("{}ns", ns)
     } else if ns < 1_000_000 {
@@ -83,7 +80,7 @@ pub(super) fn format_tick(ns: u64) -> String {
     }
 }
 
-pub(super) fn format_duration(secs: f64) -> String {
+pub fn format_duration(secs: f64) -> String {
     if secs < 60.0 {
         return format!("{:.0}s", secs);
     }

@@ -31,8 +31,8 @@ pub struct Ready;
 
 /// Helper for handling tasks that can be in either Running or Preempting state.
 pub enum Either<L, R> {
-    Running(L),
     Preempting(R),
+    Running(L),
 }
 
 /// Type-erased context for HashMap storage.
@@ -60,8 +60,6 @@ pub struct TaskContext<S> {
 }
 
 /* IMPLEMENTATIONS */
-
-/* CONSTRUCTORS */
 
 impl TaskContext<Ready> {
     pub(in crate::scheduler) fn ready(

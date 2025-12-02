@@ -1,5 +1,13 @@
 //! # Thread Pool Runner Implementation
 
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::bail;
+use crossbeam_channel::Receiver;
+use crossbeam_channel::Sender;
+use crossbeam_channel::unbounded;
+use derive_builder::Builder as DeriveBuilder;
+
 use std::any::Any;
 use std::collections::HashMap;
 use std::mem::replace;
@@ -15,14 +23,6 @@ use std::thread::Builder;
 use std::thread::JoinHandle;
 use std::time::Duration;
 use std::time::Instant;
-
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::bail;
-use crossbeam_channel::Receiver;
-use crossbeam_channel::Sender;
-use crossbeam_channel::unbounded;
-use derive_builder::Builder as DeriveBuilder;
 
 use crate::scheduler::RunnerSnapshot;
 use crate::scheduler::TaskID;
@@ -278,7 +278,7 @@ impl Runner for ThreadPoolRunner {
         self.process_completed();
         let state = self
             .running
-            .get_mut(&tid)
+            .get(&tid)
             .context(format!("Task {} not found", tid))?;
 
         match state {
@@ -286,12 +286,18 @@ impl Runner for ThreadPoolRunner {
                 Ok(PollStatus::Pending)
             },
             RunningTaskState::Completed(_) => {
-                let result = state
-                    .take()
-                    .context(format!("Task {} state inconsistency", tid))?;
+                let state = self
+                    .running
+                    .remove(&tid)
+                    .expect("Task just checked to exist");
 
-                let status = result.status();
-                Ok(status)
+                match state {
+                    RunningTaskState::Completed(result) => {
+                        let status = result.status();
+                        Ok(status)
+                    },
+                    _ => unreachable!("Match arm guarantees Completed state"),
+                }
             },
         }
     }
@@ -319,28 +325,25 @@ impl Runner for ThreadPoolRunner {
 
     fn collect(&mut self, tid: TaskID) -> Result<Box<dyn Executable>> {
         self.process_completed();
-        let state = self
-            .running
-            .get(&tid)
-            .context(format!("Task {} not found", tid))?;
 
-        match state {
-            RunningTaskState::Completed(_) => {
-                self.running.remove(&tid);
-                let executable = self
-                    .completed
-                    .remove(&tid)
-                    .context(format!("Task {} executable missing", tid))?;
-
-                Ok(executable)
-            },
-            RunningTaskState::Executing | RunningTaskState::Preempting => {
-                bail!(
-                    "Task {} is not collectable (executing or preempting)",
-                    tid
-                )
-            },
+        // Task should already be removed from self.running by poll()
+        if self.running.contains_key(&tid) {
+            bail!(
+                "Task {} still in running state (not yet polled or still executing)",
+                tid
+            );
         }
+
+        // Executable should be in completed map after successful poll
+        let executable = self
+            .completed
+            .remove(&tid)
+            .context(format!(
+                "Task {} executable missing (not polled or already collected)",
+                tid
+            ))?;
+
+        Ok(executable)
     }
 
     fn progress(&self, tid: TaskID) -> Option<u64> {

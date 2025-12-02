@@ -23,8 +23,10 @@ debug = true
 lto = "fat"
 
 [dependencies]
+rocksdb = { version = "0.24", default-features = false, features = ["lz4"] }
 rusqlite = { version = "0.34.0", features = ["bundled"] }
 clap = { version = "^4", features = ["derive"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 crossbeam-channel = "0.5.15"
 modular-bitfield = "^0.13"
 derive_builder = "^0.20"
@@ -40,14 +42,12 @@ num_cpus = "^1"
 anyhow = "^1"
 bitvec = "^1"
 regex = "^1"
-rocksdb = { version = "0.24", default-features = false, features = ["lz4"] }
 ratatui = "0.28"
 crossterm = "0.28"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ordered-float = "4.5"
 
 [dev-dependencies]
 strum_macros = "0.26"
-strum = "0.26"
 tempfile = "3"
+strum = "0.26"

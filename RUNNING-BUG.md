@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-Tasks remain in RUNNING state for astronomical periods (10+ seconds) after finishing work. The task's `tick()` method at forward.rs:260 gets called repeatedly even though it yields `Suspended` each time.
+Tasks remain in RUNNING state for (relatively) astronomical periods (10+ seconds) after finishing work (progress stops being made). The task's `tick()` method at forward.rs:260 gets called repeatedly even though it yields with intention `Suspended` each time.
 
 ## Experimentally Verified Observations
 
@@ -57,7 +57,7 @@ Tasks remain in RUNNING state for astronomical periods (10+ seconds) after finis
 
 ### Isolation Constraints
 
-**Happens with single ForwardTask**
+**Happens EVEN with single ForwardTask**
 - Only one task is ever registered with the scheduler
 - No children are spawned by the task
 - Zero-by assigns all states to component 0 for small games
@@ -87,6 +87,7 @@ Tasks remain in RUNNING state for astronomical periods (10+ seconds) after finis
 **Bug is practically deterministic**
 - Consistently reproduces under the same conditions
 - Not a random race condition
+- Even the timing (of how long it remains running after progress is no longer being made) is consistent
 
 ### Game-Specific Trigger
 
@@ -94,6 +95,7 @@ Tasks remain in RUNNING state for astronomical periods (10+ seconds) after finis
 - `2-100000-1` (choices=[1]) exhibits the bug
 - `2-100000-2` (choices=[2]) does NOT exhibit the bug
 - The ability to remove exactly 1 element is necessary for the bug to occur
+- It may be useful to understanad the game zero-by to debug 
 
 **Why this matters for zero-by:**
 - When '1' is in choices, states like (1, player0) and (1, player1) are reachable non-terminal states
@@ -101,9 +103,10 @@ Tasks remain in RUNNING state for astronomical periods (10+ seconds) after finis
 - This affects the depth and structure of the game graph
 
 **Component assignment:**
-- Zero-by uses `elements / 1000000` for component assignment
+- Zero-by uses `elements / big_number` for component assignment
 - For small games (e.g., 2-100000-1), all states map to component 0
 - This guarantees only one ForwardTask exists with no children spawned
+- Even in this case the bug occurs
 
 ## Why These Observations Matter
 
@@ -114,3 +117,7 @@ Tasks remain in RUNNING state for astronomical periods (10+ seconds) after finis
 5. The proportionality to states explored suggests the loop iterates once per previously explored state
 6. The game-specific trigger ('1' in choices) suggests something about the game graph structure matters
 7. The eventually-completes behavior means there's a counter or accumulator that eventually drains
+
+## Performance Impact
+
+A big percentage of scheduler time is wasted as a result of this bug.

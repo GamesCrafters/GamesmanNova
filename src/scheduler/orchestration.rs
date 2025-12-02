@@ -31,10 +31,6 @@ pub struct Task {
 }
 
 impl Task {
-    pub fn builder() -> TaskBuilder {
-        TaskBuilder::default()
-    }
-
     pub(crate) fn id(&self) -> TaskID {
         self.executable.id()
     }
@@ -117,7 +113,6 @@ impl Orchestrator {
 
     pub fn register(&mut self, task: Task) -> Result<&mut Self> {
         let id = task.id();
-
         if self.state.contains(&id) {
             return Ok(self);
         }

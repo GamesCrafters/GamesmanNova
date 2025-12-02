@@ -12,9 +12,16 @@ use crate::scheduler::TaskState;
 
 use super::SortOrder;
 use super::TaskFilter;
-use super::format::format_weight;
+use super::support::format::format_weight;
 
 /* IMPLEMENTATIONS */
+
+fn compute_progress_percent(ctx: &TaskContextSnapshot) -> Option<f64> {
+    ctx.progress.and_then(|p| {
+        ctx.size
+            .map(|s| p as f64 / s as f64)
+    })
+}
 
 pub fn collect<'a>(
     snapshot: &'a SchedulerSnapshot,
@@ -43,15 +50,9 @@ pub fn sort(
             });
         },
         SortOrder::Progress => {
-            let pct = |ctx: &TaskContextSnapshot| {
-                ctx.progress.and_then(|p| {
-                    ctx.size
-                        .map(|s| p as f64 / s as f64)
-                })
-            };
             tasks.sort_by(|a, b| {
-                pct(b.1)
-                    .partial_cmp(&pct(a.1))
+                compute_progress_percent(b.1)
+                    .partial_cmp(&compute_progress_percent(a.1))
                     .unwrap_or(Ordering::Equal)
                     .then_with(|| a.0.cmp(&b.0))
             });
