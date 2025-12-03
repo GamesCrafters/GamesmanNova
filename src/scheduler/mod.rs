@@ -130,7 +130,7 @@ impl Debug for DispatchOutcome {
     }
 }
 
-/* SNAPSHOT TYPES (Placeholder for logger compatibility) */
+/* SNAPSHOT TYPES */
 
 #[derive(Clone, Debug)]
 pub struct SchedulerSnapshot {
